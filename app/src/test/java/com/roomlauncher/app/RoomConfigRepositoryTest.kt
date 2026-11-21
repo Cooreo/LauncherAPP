@@ -2,12 +2,14 @@ package com.roomlauncher.app
 
 import android.content.pm.ApplicationInfo
 import com.roomlauncher.app.data.AppInfo
+import com.roomlauncher.app.data.ChangelogData
 import com.roomlauncher.app.data.HotspotActionType
 import com.roomlauncher.app.data.MusicDisplayMode
 import com.roomlauncher.app.data.RoomConfig
 import com.roomlauncher.app.data.RoomConfigRepository
 import com.roomlauncher.app.data.RoomHotspot
 import com.roomlauncher.app.data.RoomObjectVisual
+import com.roomlauncher.app.data.RoomType
 import com.roomlauncher.app.data.VisualizerStyle
 import com.roomlauncher.app.data.WebShortcut
 import com.roomlauncher.app.ui.theme.ChargingAnimationStyle
@@ -147,13 +149,90 @@ class RoomConfigRepositoryTest {
         val migrated = RoomConfigRepository.migrateIfNeeded(v1Config)
         val byId = migrated.hotspots.associateBy { it.id }
 
-        assertEquals(2, migrated.version)
+        assertEquals(3, migrated.version)
+        assertEquals(4, migrated.effectiveRooms.size)
+        assertEquals(RoomType.BEDROOM, migrated.effectiveRooms[0].roomType)
+        assertEquals(RoomType.LIVING_ROOM, migrated.effectiveRooms[1].roomType)
+        assertEquals(RoomType.KITCHEN, migrated.effectiveRooms[2].roomType)
+        assertEquals(RoomType.GAMING_ROOM, migrated.effectiveRooms[3].roomType)
         assertEquals(listOf("com.google.android.youtube"), byId[RoomConfigRepository.ID_TV]?.packages)
         assertEquals(RoomObjectVisual.TV, byId[RoomConfigRepository.ID_TV]?.visualType)
         assertTrue(RoomConfigRepository.ID_WINDOW in byId)
         assertTrue(RoomConfigRepository.ID_CONSOLE in byId)
         assertTrue(RoomConfigRepository.ID_STICKY_NOTE in byId)
         assertFalse(byId[RoomConfigRepository.ID_TV]!!.height > 0.19f)
+    }
+
+    @Test
+    fun defaultHouseContainsFourRoomsWithDistinctFurniture() {
+        val config = RoomConfigRepository.createDefaultRoomConfig()
+        assertEquals(3, config.version)
+        assertEquals(4, config.effectiveRooms.size)
+
+        val livingVisuals = config.effectiveRooms[1].hotspots.map { it.visualType }.toSet()
+        val kitchenVisuals = config.effectiveRooms[2].hotspots.map { it.visualType }.toSet()
+        val gamingVisuals = config.effectiveRooms[3].hotspots.map { it.visualType }.toSet()
+
+        assertTrue(RoomObjectVisual.SOFA in livingVisuals)
+        assertTrue(RoomObjectVisual.FIREPLACE in livingVisuals)
+        assertTrue(RoomObjectVisual.VINYL_PLAYER in livingVisuals)
+        assertTrue(RoomObjectVisual.COFFEE_TABLE in livingVisuals)
+
+        assertTrue(RoomObjectVisual.FRIDGE in kitchenVisuals)
+        assertTrue(RoomObjectVisual.COFFEE_MAKER in kitchenVisuals)
+        assertTrue(RoomObjectVisual.STOVE in kitchenVisuals)
+        assertTrue(RoomObjectVisual.KITCHEN_COUNTER in kitchenVisuals)
+
+        assertTrue(RoomObjectVisual.GAMING_PC in gamingVisuals)
+        assertTrue(RoomObjectVisual.ARCADE_CABINET in gamingVisuals)
+        assertTrue(RoomObjectVisual.STREAMING_DESK in gamingVisuals)
+        assertTrue(RoomObjectVisual.TROPHY_SHELF in gamingVisuals)
+    }
+
+    @Test
+    fun multiRoomAutoPopulateDistributesAppsAcrossAllRooms() {
+        val apps = listOf(
+            AppInfo(packageName = "com.whatsapp", label = "WhatsApp"),
+            AppInfo(packageName = "com.spotify.music", label = "Spotify"),
+            AppInfo(packageName = "com.ubercab.eats", label = "Uber Eats"),
+            AppInfo(packageName = "com.paypal.android.p2pmobile", label = "PayPal"),
+            AppInfo(packageName = "com.discord", label = "Discord"),
+            AppInfo(packageName = "com.valvesoftware.android.steam.community", label = "Steam"),
+            AppInfo(packageName = "com.example.mystery", label = "Mystery Tool")
+        )
+
+        val populated = RoomConfigRepository.autoPopulateIfNeeded(
+            RoomConfigRepository.createDefaultRoomConfig(),
+            apps
+        )
+
+        val byId = populated.allHotspots.associateBy { it.id }
+        assertTrue("com.whatsapp" in byId.getValue(RoomConfigRepository.ID_SOFA).packages)
+        assertTrue("com.spotify.music" in byId.getValue(RoomConfigRepository.ID_VINYL_PLAYER).packages)
+        assertTrue("com.ubercab.eats" in byId.getValue(RoomConfigRepository.ID_FRIDGE).packages)
+        assertTrue("com.paypal.android.p2pmobile" in byId.getValue(RoomConfigRepository.ID_KITCHEN_COUNTER).packages)
+        assertTrue("com.discord" in byId.getValue(RoomConfigRepository.ID_STREAMING_DESK).packages)
+        assertTrue("com.valvesoftware.android.steam.community" in byId.getValue(RoomConfigRepository.ID_GAMING_PC).packages)
+
+        val trashApps = RoomConfigRepository.appsForHotspot(
+            byId.getValue(RoomConfigRepository.ID_TRASH_CAN),
+            populated,
+            apps
+        ).map { it.packageName }
+        assertEquals(listOf("com.example.mystery"), trashApps)
+
+        val owners = RoomConfigRepository.buildPackageOwnerLabelMap(populated)
+        assertEquals("Living Room • Sofa", owners["com.whatsapp"])
+        assertEquals("Kitchen • Fridge", owners["com.ubercab.eats"])
+        assertEquals("Gaming Room • Gaming PC", owners["com.valvesoftware.android.steam.community"])
+    }
+
+    @Test
+    fun changelogStartsWithVersion3() {
+        assertEquals("3.0", ChangelogData.CURRENT_VERSION)
+        assertTrue(ChangelogData.entries.isNotEmpty())
+        assertEquals("3.0", ChangelogData.entries.first().version)
+        assertTrue(ChangelogData.entries.first().highlights.size >= 4)
     }
 
     @Test

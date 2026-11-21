@@ -12,6 +12,7 @@ class AppUpdateVersionTest {
 
     @Test
     fun extractsVersionFromReleaseApkFilenames() {
+        assertEquals("3.0", AppVersionComparator.extractVersionFromApkName("RoomLauncher-v3.0.apk"))
         assertEquals("2.6", AppVersionComparator.extractVersionFromApkName("RoomLauncher-v2.6.apk"))
         assertEquals("2.5.1", AppVersionComparator.extractVersionFromApkName("RoomLauncher-v2.5.1.apk"))
         assertEquals("10.0.2", AppVersionComparator.extractVersionFromApkName("roomlauncher-v10.0.2.apk"))

@@ -30,7 +30,9 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.rounded.Add
 import androidx.compose.material.icons.rounded.Animation
+import androidx.compose.material.icons.rounded.AutoAwesome
 import androidx.compose.material.icons.rounded.Bolt
 import androidx.compose.material.icons.rounded.Check
 import androidx.compose.material.icons.rounded.Close
@@ -41,6 +43,7 @@ import androidx.compose.material.icons.rounded.GraphicEq
 import androidx.compose.material.icons.rounded.Home
 import androidx.compose.material.icons.rounded.Image
 import androidx.compose.material.icons.rounded.LocationOn
+import androidx.compose.material.icons.rounded.MeetingRoom
 import androidx.compose.material.icons.rounded.MusicNote
 import androidx.compose.material.icons.rounded.NotificationsActive
 import androidx.compose.material.icons.rounded.Palette
@@ -54,11 +57,13 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
@@ -66,6 +71,7 @@ import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -80,6 +86,8 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import kotlin.coroutines.cancellation.CancellationException
 import com.roomlauncher.app.data.MusicDisplayMode
+import com.roomlauncher.app.data.RoomPage
+import com.roomlauncher.app.data.RoomType
 import com.roomlauncher.app.data.VisualizerStyle
 import com.roomlauncher.app.ui.RoomUiState
 import com.roomlauncher.app.ui.theme.ChargingAnimationStyle
@@ -98,6 +106,11 @@ fun SettingsSheet(
     onSelectGeometryDashSubTheme: (GeometryDashSubTheme) -> Unit,
     onSelectTheme: (RoomThemeId) -> Unit,
     onToggleDynamicTheme: (Boolean) -> Unit,
+    onSelectRoomIndex: (Int) -> Unit,
+    onAddRoom: (RoomType, String) -> Unit,
+    onRenameRoom: (roomId: String, newName: String) -> Unit,
+    onDeleteRoom: (roomId: String) -> Unit,
+    onOpenChangelog: () -> Unit,
     onPickTeenPoster: (isLeft: Boolean, uri: Uri) -> Unit,
     onClearTeenPoster: (isLeft: Boolean) -> Unit,
     onToggleQuickAnimations: (Boolean) -> Unit,
@@ -188,6 +201,8 @@ fun SettingsSheet(
     // Silky live Predictive Back gesture + hardware Back button handler for Settings
     val backProgress = remember { Animatable(0f) }
     var backSwipeEdge by remember { mutableIntStateOf(BackEventCompat.EDGE_LEFT) }
+    var showAddRoomDialog by remember { mutableStateOf(false) }
+    var renamingRoom by remember { mutableStateOf<RoomPage?>(null) }
 
     PredictiveBackHandler(enabled = uiState.showSettingsSheet) { progressFlow ->
         try {
@@ -254,8 +269,19 @@ fun SettingsSheet(
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 }
-                IconButton(onClick = onDismiss) {
-                    Icon(Icons.Rounded.Close, contentDescription = "Close settings")
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    TextButton(onClick = onOpenChangelog) {
+                        Icon(
+                            imageVector = Icons.Rounded.AutoAwesome,
+                            contentDescription = "What's New",
+                            modifier = Modifier.size(16.dp)
+                        )
+                        Spacer(modifier = Modifier.width(4.dp))
+                        Text("What's New")
+                    }
+                    IconButton(onClick = onDismiss) {
+                        Icon(Icons.Rounded.Close, contentDescription = "Close settings")
+                    }
                 }
             }
 
@@ -266,6 +292,114 @@ fun SettingsSheet(
                     .padding(horizontal = 16.dp, vertical = 8.dp),
                 verticalArrangement = Arrangement.spacedBy(16.dp)
             ) {
+                // 0. My House & Multiple Rooms (v3.0!)
+                SettingsSectionCard(
+                    icon = Icons.Rounded.MeetingRoom,
+                    title = "House & Rooms",
+                    subtitle = "Swipe left & right on your home screen to move between rooms"
+                ) {
+                    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        uiState.rooms.forEachIndexed { idx, room ->
+                            val isCurrent = idx == uiState.safeCurrentRoomIndex
+                            Surface(
+                                shape = RoundedCornerShape(14.dp),
+                                color = if (isCurrent) {
+                                    MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.50f)
+                                } else {
+                                    MaterialTheme.colorScheme.surface
+                                },
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .border(
+                                        width = if (isCurrent) 2.dp else 1.dp,
+                                        color = if (isCurrent) {
+                                            MaterialTheme.colorScheme.primary
+                                        } else {
+                                            MaterialTheme.colorScheme.outlineVariant
+                                        },
+                                        shape = RoundedCornerShape(14.dp)
+                                    )
+                                    .clip(RoundedCornerShape(14.dp))
+                                    .clickable {
+                                        onSelectRoomIndex(idx)
+                                        onDismiss()
+                                    }
+                            ) {
+                                Row(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(horizontal = 12.dp, vertical = 9.dp),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.SpaceBetween
+                                ) {
+                                    Column(modifier = Modifier.weight(1f)) {
+                                        Row(
+                                            verticalAlignment = Alignment.CenterVertically,
+                                            horizontalArrangement = Arrangement.spacedBy(6.dp)
+                                        ) {
+                                            Text(
+                                                text = room.name,
+                                                style = MaterialTheme.typography.titleSmall,
+                                                fontWeight = FontWeight.SemiBold,
+                                                color = MaterialTheme.colorScheme.onSurface
+                                            )
+                                            if (isCurrent) {
+                                                Text(
+                                                    text = "Current",
+                                                    style = MaterialTheme.typography.labelSmall,
+                                                    color = MaterialTheme.colorScheme.primary,
+                                                    fontWeight = FontWeight.Bold
+                                                )
+                                            }
+                                        }
+                                        Text(
+                                            text = "${room.roomType.defaultTitle} • ${room.hotspots.size} objects",
+                                            style = MaterialTheme.typography.bodySmall,
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                                        )
+                                    }
+                                    Row(verticalAlignment = Alignment.CenterVertically) {
+                                        IconButton(
+                                            onClick = { renamingRoom = room },
+                                            modifier = Modifier.size(34.dp)
+                                        ) {
+                                            Icon(
+                                                imageVector = Icons.Rounded.Edit,
+                                                contentDescription = "Rename ${room.name}",
+                                                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                                modifier = Modifier.size(18.dp)
+                                            )
+                                        }
+                                        if (uiState.rooms.size > 1) {
+                                            IconButton(
+                                                onClick = { onDeleteRoom(room.id) },
+                                                modifier = Modifier.size(34.dp)
+                                            ) {
+                                                Icon(
+                                                    imageVector = Icons.Rounded.DeleteOutline,
+                                                    contentDescription = "Remove ${room.name}",
+                                                    tint = MaterialTheme.colorScheme.error,
+                                                    modifier = Modifier.size(18.dp)
+                                                )
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+
+                        OutlinedButton(
+                            onClick = { showAddRoomDialog = true },
+                            shape = RoundedCornerShape(12.dp),
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Icon(Icons.Rounded.Add, contentDescription = null, modifier = Modifier.size(18.dp))
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Text("Add Room (Living Room, Kitchen, Gaming…)")
+                        }
+                    }
+                }
+
                 // 1. Distinct Architectural Room Styles
                 SettingsSectionCard(
                     icon = Icons.Rounded.Home,
@@ -1181,6 +1315,15 @@ fun SettingsSheet(
                             }
                         }
                         OutlinedButton(
+                            onClick = onOpenChangelog,
+                            shape = RoundedCornerShape(12.dp),
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Icon(Icons.Rounded.AutoAwesome, contentDescription = null, modifier = Modifier.size(18.dp))
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text("View Changelog (What's New in v${uiState.updateState.currentVersion})")
+                        }
+                        OutlinedButton(
                             onClick = onResetRoom,
                             shape = RoundedCornerShape(12.dp),
                             modifier = Modifier.fillMaxWidth()
@@ -1195,6 +1338,113 @@ fun SettingsSheet(
                 Spacer(modifier = Modifier.height(16.dp))
             }
         }
+    }
+
+    // Add Room Dialog
+    if (showAddRoomDialog) {
+        var selectedType by remember { mutableStateOf(RoomType.LIVING_ROOM) }
+        var customName by remember { mutableStateOf("") }
+        AlertDialog(
+            onDismissRequest = { showAddRoomDialog = false },
+            title = { Text("Add a New Room") },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    Text(
+                        text = "Pick a room preset with tailored furniture & app categories:",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    RoomType.entries.chunked(2).forEach { pair ->
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            pair.forEach { type ->
+                                FilterChip(
+                                    selected = selectedType == type,
+                                    onClick = { selectedType = type },
+                                    label = {
+                                        Text(
+                                            text = type.defaultTitle,
+                                            fontWeight = if (selectedType == type) FontWeight.SemiBold else FontWeight.Normal
+                                        )
+                                    },
+                                    modifier = Modifier.weight(1f)
+                                )
+                            }
+                        }
+                    }
+                    Text(
+                        text = selectedType.description,
+                        style = MaterialTheme.typography.labelMedium,
+                        color = MaterialTheme.colorScheme.primary
+                    )
+                    OutlinedTextField(
+                        value = customName,
+                        onValueChange = { customName = it },
+                        label = { Text("Custom Room Name (optional)") },
+                        placeholder = { Text(selectedType.defaultTitle) },
+                        singleLine = true,
+                        shape = RoundedCornerShape(12.dp),
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                }
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        onAddRoom(selectedType, customName)
+                        showAddRoomDialog = false
+                        onDismiss()
+                    }
+                ) {
+                    Text("Add Room")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showAddRoomDialog = false }) {
+                    Text("Cancel")
+                }
+            }
+        )
+    }
+
+    // Rename Room Dialog
+    val roomToRename = renamingRoom
+    if (roomToRename != null) {
+        var draftName by remember(roomToRename.id) { mutableStateOf(roomToRename.name) }
+        AlertDialog(
+            onDismissRequest = { renamingRoom = null },
+            title = { Text("Rename Room") },
+            text = {
+                OutlinedTextField(
+                    value = draftName,
+                    onValueChange = { draftName = it },
+                    label = { Text("Room Name") },
+                    singleLine = true,
+                    shape = RoundedCornerShape(12.dp),
+                    modifier = Modifier.fillMaxWidth()
+                )
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        if (draftName.isNotBlank()) {
+                            onRenameRoom(roomToRename.id, draftName)
+                            renamingRoom = null
+                        }
+                    },
+                    enabled = draftName.isNotBlank()
+                ) {
+                    Text("Save")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { renamingRoom = null }) {
+                    Text("Cancel")
+                }
+            }
+        )
     }
 
     // Update Available Popup inside Settings

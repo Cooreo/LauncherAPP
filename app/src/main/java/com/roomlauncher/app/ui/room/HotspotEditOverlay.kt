@@ -7,16 +7,22 @@ import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Apps
 import androidx.compose.material.icons.rounded.Delete
@@ -52,8 +58,10 @@ import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import com.roomlauncher.app.data.HotspotActionType
 import com.roomlauncher.app.data.RoomHotspot
+import com.roomlauncher.app.data.RoomObjectVisual
 import com.roomlauncher.app.data.WeatherState
 import com.roomlauncher.app.ui.RoomLauncherViewModel
+import com.roomlauncher.app.ui.theme.GeometryDashSubTheme
 import com.roomlauncher.app.ui.theme.LocalRoomPalette
 import com.roomlauncher.app.ui.theme.RoomEditAccent
 import com.roomlauncher.app.ui.theme.RoomInk
@@ -72,6 +80,7 @@ fun EditableHotspotBox(
     roomHeightPx: Float,
     appCount: Int,
     roomStyle: RoomStyleId,
+    gdSubTheme: GeometryDashSubTheme = GeometryDashSubTheme.SONIC_WAVE,
     weatherState: WeatherState,
     weatherEnabled: Boolean,
     frameImageBitmap: ImageBitmap?,
@@ -137,6 +146,7 @@ fun EditableHotspotBox(
             visualType = hotspot.visualType,
             palette = palette,
             roomStyle = roomStyle,
+            gdSubTheme = gdSubTheme,
             weatherState = weatherState,
             weatherEnabled = weatherEnabled,
             frameImageBitmap = frameImageBitmap,
@@ -239,7 +249,7 @@ fun EditableHotspotBox(
 fun EditHotspotDialog(
     hotspot: RoomHotspot,
     canDelete: Boolean,
-    onSave: (label: String, subtitle: String, actionType: HotspotActionType) -> Unit,
+    onSave: (label: String, subtitle: String, actionType: HotspotActionType, visualType: RoomObjectVisual) -> Unit,
     onOpenAppsPanel: () -> Unit,
     onDelete: () -> Unit,
     onDismiss: () -> Unit
@@ -247,13 +257,16 @@ fun EditHotspotDialog(
     var label by remember(hotspot.id) { mutableStateOf(hotspot.label) }
     var subtitle by remember(hotspot.id) { mutableStateOf(hotspot.subtitle) }
     var actionType by remember(hotspot.id) { mutableStateOf(hotspot.actionType) }
+    var visualType by remember(hotspot.id) { mutableStateOf(hotspot.visualType) }
 
     AlertDialog(
         onDismissRequest = onDismiss,
         title = { Text("Edit Object") },
         text = {
             Column(
-                modifier = Modifier.fillMaxWidth(),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .verticalScroll(rememberScrollState()),
                 verticalArrangement = Arrangement.spacedBy(12.dp)
             ) {
                 OutlinedTextField(
@@ -271,6 +284,16 @@ fun EditHotspotDialog(
                     singleLine = true,
                     shape = RoundedCornerShape(12.dp),
                     modifier = Modifier.fillMaxWidth()
+                )
+
+                Text(
+                    text = "Furniture Appearance",
+                    style = MaterialTheme.typography.labelLarge,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                FurnitureVisualPicker(
+                    selected = visualType,
+                    onSelect = { visualType = it }
                 )
 
                 Text(
@@ -315,7 +338,7 @@ fun EditHotspotDialog(
             Button(
                 onClick = {
                     if (label.isNotBlank()) {
-                        onSave(label, subtitle, actionType)
+                        onSave(label, subtitle, actionType, visualType)
                         onDismiss()
                     }
                 },
@@ -334,25 +357,29 @@ fun EditHotspotDialog(
 
 @Composable
 fun AddHotspotDialog(
-    onAdd: (label: String, subtitle: String, actionType: HotspotActionType) -> Unit,
+    roomName: String = "Room",
+    onAdd: (label: String, subtitle: String, actionType: HotspotActionType, visualType: RoomObjectVisual) -> Unit,
     onDismiss: () -> Unit
 ) {
     var label by remember { mutableStateOf("") }
     var subtitle by remember { mutableStateOf("") }
     var actionType by remember { mutableStateOf(HotspotActionType.PANEL) }
+    var visualType by remember { mutableStateOf(RoomObjectVisual.SOFA) }
 
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("Add Room Object") },
+        title = { Text("Add Furniture to $roomName") },
         text = {
             Column(
-                modifier = Modifier.fillMaxWidth(),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .verticalScroll(rememberScrollState()),
                 verticalArrangement = Arrangement.spacedBy(12.dp)
             ) {
                 OutlinedTextField(
                     value = label,
                     onValueChange = { label = it },
-                    label = { Text("Object Name (e.g. Desk, Lamp)") },
+                    label = { Text("Object Name (e.g. Sofa, Fridge, PC)") },
                     singleLine = true,
                     shape = RoundedCornerShape(12.dp),
                     modifier = Modifier.fillMaxWidth()
@@ -360,10 +387,24 @@ fun AddHotspotDialog(
                 OutlinedTextField(
                     value = subtitle,
                     onValueChange = { subtitle = it },
-                    label = { Text("Subtitle (optional)") },
+                    label = { Text("Category Subtitle (optional)") },
                     singleLine = true,
                     shape = RoundedCornerShape(12.dp),
                     modifier = Modifier.fillMaxWidth()
+                )
+                Text(
+                    text = "Furniture Style",
+                    style = MaterialTheme.typography.labelLarge,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                FurnitureVisualPicker(
+                    selected = visualType,
+                    onSelect = { chosen ->
+                        visualType = chosen
+                        if (label.isBlank()) {
+                            label = chosen.displayLabel()
+                        }
+                    }
                 )
                 Text(
                     text = "Action on Tap",
@@ -381,7 +422,7 @@ fun AddHotspotDialog(
             Button(
                 onClick = {
                     if (label.isNotBlank()) {
-                        onAdd(label, subtitle, actionType)
+                        onAdd(label, subtitle, actionType, visualType)
                     }
                 },
                 enabled = label.isNotBlank()
@@ -395,6 +436,57 @@ fun AddHotspotDialog(
             }
         }
     )
+}
+
+@Composable
+private fun FurnitureVisualPicker(
+    selected: RoomObjectVisual,
+    onSelect: (RoomObjectVisual) -> Unit
+) {
+    val visuals = remember { RoomObjectVisual.entries.toList() }
+    LazyRow(
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+        contentPadding = PaddingValues(vertical = 2.dp),
+        modifier = Modifier.fillMaxWidth()
+    ) {
+        items(visuals, key = { it.name }) { visual ->
+            FilterChip(
+                selected = selected == visual,
+                onClick = { onSelect(visual) },
+                label = {
+                    Text(
+                        text = visual.displayLabel(),
+                        fontWeight = if (selected == visual) FontWeight.SemiBold else FontWeight.Normal
+                    )
+                }
+            )
+        }
+    }
+}
+
+private fun RoomObjectVisual.displayLabel(): String = when (this) {
+    RoomObjectVisual.WINDOW -> "Window"
+    RoomObjectVisual.PAINTING -> "Picture Frame"
+    RoomObjectVisual.CLOCK -> "Clock"
+    RoomObjectVisual.STICKY_NOTE -> "Sticky Note"
+    RoomObjectVisual.TV -> "TV"
+    RoomObjectVisual.CONSOLE -> "Console"
+    RoomObjectVisual.SHELF -> "Shelf"
+    RoomObjectVisual.BED -> "Bed"
+    RoomObjectVisual.TRASH_CAN -> "Trash Can"
+    RoomObjectVisual.SOFA -> "Sofa"
+    RoomObjectVisual.FIREPLACE -> "Fireplace"
+    RoomObjectVisual.COFFEE_TABLE -> "Coffee Table"
+    RoomObjectVisual.VINYL_PLAYER -> "Vinyl Player"
+    RoomObjectVisual.FRIDGE -> "Fridge"
+    RoomObjectVisual.COFFEE_MAKER -> "Coffee Maker"
+    RoomObjectVisual.STOVE -> "Stove"
+    RoomObjectVisual.KITCHEN_COUNTER -> "Kitchen Counter"
+    RoomObjectVisual.GAMING_PC -> "Gaming PC"
+    RoomObjectVisual.ARCADE_CABINET -> "Arcade Cabinet"
+    RoomObjectVisual.STREAMING_DESK -> "Streaming Desk"
+    RoomObjectVisual.TROPHY_SHELF -> "Trophy Shelf"
+    RoomObjectVisual.CUSTOM -> "Custom Box"
 }
 
 @Composable

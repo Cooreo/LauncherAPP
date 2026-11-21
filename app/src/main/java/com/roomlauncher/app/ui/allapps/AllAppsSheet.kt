@@ -44,8 +44,10 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.ChevronRight
 import androidx.compose.material.icons.rounded.Close
@@ -124,7 +126,7 @@ fun AllAppsSheet(
     installedApps: List<AppInfo>,
     packageOwnerLabels: Map<String, String>,
     defaultUnsortedLabel: String,
-    panelHotspots: List<RoomHotspot>,
+    panelHotspotChoices: List<Pair<String, RoomHotspot>>,
     onLaunchApp: (AppInfo) -> Unit,
     onMoveApp: (packageName: String, targetHotspotId: String) -> Unit,
     onOpenSettings: () -> Unit,
@@ -563,14 +565,20 @@ fun AllAppsSheet(
                 }
             },
             text = {
-                Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(340.dp)
+                        .verticalScroll(rememberScrollState()),
+                    verticalArrangement = Arrangement.spacedBy(4.dp)
+                ) {
                     Text(
                         text = "Move to Room Object",
                         style = MaterialTheme.typography.labelLarge,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         modifier = Modifier.padding(bottom = 4.dp)
                     )
-                    panelHotspots.forEach { target ->
+                    panelHotspotChoices.forEach { (roomName, target) ->
                         Row(
                             modifier = Modifier
                                 .fillMaxWidth()
@@ -579,7 +587,7 @@ fun AllAppsSheet(
                                     onMoveApp(menuApp.packageName, target.id)
                                     selectedAppForMenu = null
                                 }
-                                .padding(horizontal = 10.dp, vertical = 10.dp),
+                                .padding(horizontal = 10.dp, vertical = 9.dp),
                             verticalAlignment = Alignment.CenterVertically,
                             horizontalArrangement = Arrangement.spacedBy(12.dp)
                         ) {
@@ -589,10 +597,21 @@ fun AllAppsSheet(
                                 tint = MaterialTheme.colorScheme.primary,
                                 modifier = Modifier.size(20.dp)
                             )
-                            Text(
-                                text = target.label,
-                                style = MaterialTheme.typography.bodyLarge
-                            )
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text(
+                                    text = target.label,
+                                    style = MaterialTheme.typography.bodyLarge
+                                )
+                                Text(
+                                    text = if (target.subtitle.isNotBlank()) {
+                                        "$roomName • ${target.subtitle}"
+                                    } else {
+                                        roomName
+                                    },
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
                         }
                     }
                     HorizontalDivider(modifier = Modifier.padding(vertical = 6.dp))

@@ -158,13 +158,21 @@ private fun RoomLauncherRoot(
                 onEditHotspotClose = viewModel::closeEditHotspot,
                 onAddHotspotOpen = viewModel::openAddHotspotDialog,
                 onAddHotspotClose = viewModel::closeAddHotspotDialog,
-                onAddHotspot = { label, subtitle, action ->
-                    viewModel.addHotspot(label, subtitle, action)
+                onAddHotspot = { label, subtitle, action, visual ->
+                    viewModel.addHotspot(label, subtitle, action, visual)
                 },
                 onMoveHotspot = viewModel::moveHotspot,
                 onResizeHotspot = viewModel::resizeHotspot,
-                onUpdateHotspotDetails = viewModel::updateHotspotDetails,
+                onUpdateHotspotDetails = { id, label, subtitle, action, visual ->
+                    viewModel.updateHotspotDetails(id, label, subtitle, action, visual)
+                },
                 onDeleteHotspot = { id -> viewModel.deleteHotspot(id) },
+                onSelectRoom = viewModel::selectRoom,
+                onAddRoom = viewModel::addRoom,
+                onRenameRoom = viewModel::renameRoom,
+                onDeleteRoom = { id -> viewModel.deleteRoom(id) },
+                onOpenChangelog = viewModel::openChangelog,
+                onDismissChangelog = viewModel::dismissChangelog,
                 onMoveAppToHotspot = viewModel::moveAppToHotspot,
                 onRemoveAppFromHotspot = viewModel::removeAppFromHotspot,
                 onAddWebShortcut = viewModel::addWebShortcut,

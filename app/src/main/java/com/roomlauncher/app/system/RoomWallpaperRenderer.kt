@@ -525,6 +525,18 @@ object RoomWallpaperRenderer {
                 }
             }
 
+            RoomObjectVisual.SOFA,
+            RoomObjectVisual.FIREPLACE,
+            RoomObjectVisual.COFFEE_TABLE,
+            RoomObjectVisual.VINYL_PLAYER,
+            RoomObjectVisual.FRIDGE,
+            RoomObjectVisual.COFFEE_MAKER,
+            RoomObjectVisual.STOVE,
+            RoomObjectVisual.KITCHEN_COUNTER,
+            RoomObjectVisual.GAMING_PC,
+            RoomObjectVisual.ARCADE_CABINET,
+            RoomObjectVisual.STREAMING_DESK,
+            RoomObjectVisual.TROPHY_SHELF,
             RoomObjectVisual.CUSTOM -> {
                 paint.color = p.woodMid.toArgb()
                 canvas.drawRoundRect(r, 14f, 14f, paint)

@@ -2,8 +2,19 @@
 
 **Room Launcher** is a minimalist Android home screen launcher built with **Kotlin** and **Jetpack Compose**. Instead of a traditional grid of icons, your home screen is a customizable, illustrated room where every piece of furniture is an interactive, movable object.
 
-## Features (v2.6.1)
+## Features (v3.0 — The Multi-Room House Update)
 
+- **Swipeable Multi-Room House (v3.0)**:
+  - Swipe left and right on your home screen just like a classic multi-page Android launcher (`HorizontalPager`) to walk seamlessly between your rooms: **Bedroom**, **Living Room**, **Kitchen**, and **Gaming Room** (plus add, rename, or remove custom rooms in **Settings → House & Rooms**).
+  - Sleek floating **Room Switcher indicator pill** with quick-jump dots, non-blocking 2-finger pinch-zoom, and native Back/Home return to your main room.
+- **12 Brand-New Custom-Drawn Furniture Objects & App Categories (v3.0)**:
+  - **Living Room**: **Sofa** (Social & Chat), **Fireplace** (News & Reading), **Vinyl Player** (Music & Podcasts), **Coffee Table** (Shopping & Deals), plus Living Room wall wainscoting & spotlights.
+  - **Kitchen**: **Fridge** (Food & Delivery), **Coffee Maker** (Daily Routines & Habits), **Stove** (Maps, Transit & Travel), **Kitchen Counter** (Finance, Banking & Utilities), plus ceramic subway tile backsplash & checkered tiles.
+  - **Gaming Room**: **Gaming PC** (Launchers, Cloud Gaming & Mods), **Arcade Cabinet** (Arcade & Indie Games), **Streaming Desk** (Discord, Twitch & Voice Chat), **Trophy Shelf** (Esports, Stats & Guides), plus RGB hexagonal wall panels & neon wash.
+  - Every new furniture piece works across all Room Styles (including Blocky / Voxel mode!) and can be added or swapped onto any room in **Edit Mode**.
+  - Automatic lossless migration from v1/v2 preserves your Bedroom layout & apps while smartly populating your new rooms.
+- **Built-In In-App Changelog (v3.0)**:
+  - Automatically greets you once after updating to v3.0 with a sleek **What's New** showcase, and stays accessible anytime via **Settings → What's New** or **View Changelog** with full release history.
 - **Silky Predictive Back Gesture & Hardware Back Button Fix (v2.6.1)**:
   - Enabled native Android 14/15 Predictive Back (`android:enableOnBackInvokedCallback="true"`) with live finger-tracking `PredictiveBackHandler` inside **Settings** and **All Apps** (smooth scale, rounded-corner peek, swipe-edge glide, clean cancel spring-back, and automatic keyboard dismissal).
   - Removed the background room unmount flash so the Room is immediately visible underneath with zero stutter on Back, and wired `HOME` intent (`onNewIntent`) to cleanly return to the Home Room from any open sheet or panel.
