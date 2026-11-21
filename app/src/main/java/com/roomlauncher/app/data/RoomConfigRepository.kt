@@ -26,11 +26,7 @@ class RoomConfigRepository(
         runCatching {
             val raw = configFile.readText(Charsets.UTF_8)
             val parsed = json.decodeFromString<RoomConfig>(raw)
-            if (parsed.hotspots.isEmpty()) {
-                parsed.copy(hotspots = createDefaultHotspots())
-            } else {
-                parsed
-            }
+            migrateIfNeeded(parsed)
         }.getOrElse {
             createDefaultRoomConfig()
         }
@@ -52,87 +48,185 @@ class RoomConfigRepository(
 
     fun encodeConfig(config: RoomConfig): String = json.encodeToString(config)
 
-    fun decodeConfig(raw: String): RoomConfig = json.decodeFromString(raw)
+    fun decodeConfig(raw: String): RoomConfig = migrateIfNeeded(json.decodeFromString(raw))
 
     companion object {
         const val CONFIG_FILE_NAME = "room_config.json"
 
-        const val ID_TV = "tv"
-        const val ID_SHELF = "shelf"
+        const val ID_WINDOW = "window"
         const val ID_PAINTING = "painting"
-        const val ID_TRASH_CAN = "trash_can"
-        const val ID_BED = "bed"
         const val ID_CLOCK = "clock"
+        const val ID_STICKY_NOTE = "sticky_note"
+        const val ID_TV = "tv"
+        const val ID_CONSOLE = "console"
+        const val ID_SHELF = "shelf"
+        const val ID_BED = "bed"
+        const val ID_TRASH_CAN = "trash_can"
 
         fun createDefaultRoomConfig(): RoomConfig = RoomConfig(
-            version = 1,
+            version = 2,
             onboardingCompleted = false,
+            onboardingStep = 0,
             autoPopulated = false,
             hotspots = createDefaultHotspots()
         )
 
         fun createDefaultHotspots(): List<RoomHotspot> = listOf(
             RoomHotspot(
+                id = ID_WINDOW,
+                label = "Window",
+                subtitle = "Live Weather",
+                x = 0.04f,
+                y = 0.11f,
+                width = 0.28f,
+                height = 0.16f,
+                actionType = HotspotActionType.DIRECT_WEATHER,
+                visualType = RoomObjectVisual.WINDOW
+            ),
+            RoomHotspot(
+                id = ID_PAINTING,
+                label = "Painting",
+                subtitle = "Photos & Gallery",
+                x = 0.36f,
+                y = 0.115f,
+                width = 0.28f,
+                height = 0.155f,
+                actionType = HotspotActionType.DIRECT_GALLERY,
+                visualType = RoomObjectVisual.PAINTING
+            ),
+            RoomHotspot(
+                id = ID_CLOCK,
+                label = "Clock",
+                subtitle = "System Alarms",
+                x = 0.69f,
+                y = 0.105f,
+                width = 0.24f,
+                height = 0.125f,
+                actionType = HotspotActionType.DIRECT_ALARM,
+                visualType = RoomObjectVisual.CLOCK
+            ),
+            RoomHotspot(
+                id = ID_STICKY_NOTE,
+                label = "Sticky Note",
+                subtitle = "Web Shortcuts & Browsers",
+                x = 0.72f,
+                y = 0.245f,
+                width = 0.21f,
+                height = 0.095f,
+                actionType = HotspotActionType.PANEL,
+                visualType = RoomObjectVisual.STICKY_NOTE
+            ),
+            RoomHotspot(
                 id = ID_TV,
                 label = "TV",
                 subtitle = "Media, Video & Podcasts",
                 x = 0.045f,
-                y = 0.32f,
-                width = 0.50f,
-                height = 0.23f,
-                actionType = HotspotActionType.PANEL
+                y = 0.305f,
+                width = 0.49f,
+                height = 0.145f,
+                actionType = HotspotActionType.PANEL,
+                visualType = RoomObjectVisual.TV
+            ),
+            RoomHotspot(
+                id = ID_CONSOLE,
+                label = "Game Console",
+                subtitle = "Games",
+                x = 0.045f,
+                y = 0.455f,
+                width = 0.49f,
+                height = 0.115f,
+                actionType = HotspotActionType.PANEL,
+                visualType = RoomObjectVisual.CONSOLE
             ),
             RoomHotspot(
                 id = ID_SHELF,
                 label = "Shelf",
                 subtitle = "Work, Notes & Email",
                 x = 0.58f,
-                y = 0.295f,
+                y = 0.355f,
                 width = 0.38f,
                 height = 0.195f,
-                actionType = HotspotActionType.PANEL
+                actionType = HotspotActionType.PANEL,
+                visualType = RoomObjectVisual.SHELF
             ),
             RoomHotspot(
-                id = ID_PAINTING,
-                label = "Painting",
-                subtitle = "System Gallery",
-                x = 0.35f,
-                y = 0.125f,
-                width = 0.30f,
-                height = 0.155f,
-                actionType = HotspotActionType.DIRECT_GALLERY
+                id = ID_BED,
+                label = "Bed",
+                subtitle = "Sleep, Health & Clock",
+                x = 0.035f,
+                y = 0.625f,
+                width = 0.60f,
+                height = 0.245f,
+                actionType = HotspotActionType.PANEL,
+                visualType = RoomObjectVisual.BED
             ),
             RoomHotspot(
                 id = ID_TRASH_CAN,
                 label = "Trash Can",
                 subtitle = "Unsorted Apps",
-                x = 0.69f,
-                y = 0.685f,
-                width = 0.24f,
-                height = 0.155f,
-                actionType = HotspotActionType.UNSORTED_PANEL
-            ),
-            RoomHotspot(
-                id = ID_BED,
-                label = "Bed",
-                subtitle = "Bedtime, Meditation & Sleep",
-                x = 0.035f,
-                y = 0.615f,
-                width = 0.60f,
-                height = 0.26f,
-                actionType = HotspotActionType.PANEL
-            ),
-            RoomHotspot(
-                id = ID_CLOCK,
-                label = "Clock",
-                subtitle = "System Alarms",
-                x = 0.65f,
-                y = 0.105f,
-                width = 0.24f,
-                height = 0.11f,
-                actionType = HotspotActionType.DIRECT_ALARM
+                x = 0.70f,
+                y = 0.695f,
+                width = 0.23f,
+                height = 0.15f,
+                actionType = HotspotActionType.UNSORTED_PANEL,
+                visualType = RoomObjectVisual.TRASH_CAN
             )
         )
+
+        /**
+         * Migrates v1 saved JSON cleanly into v2 without discarding the user's app assignments:
+         * assigns visualType to legacy IDs and appends Window, Game Console, and Sticky Note if missing.
+         */
+        fun migrateIfNeeded(parsed: RoomConfig): RoomConfig {
+            if (parsed.hotspots.isEmpty()) {
+                return parsed.copy(version = 2, hotspots = createDefaultHotspots())
+            }
+            val defaultsById = createDefaultHotspots().associateBy { it.id }
+
+            val updatedExisting = parsed.hotspots.map { h ->
+                val inferredVisual = if (h.visualType == RoomObjectVisual.CUSTOM) {
+                    when (h.id) {
+                        ID_TV -> RoomObjectVisual.TV
+                        ID_CONSOLE -> RoomObjectVisual.CONSOLE
+                        ID_SHELF -> RoomObjectVisual.SHELF
+                        ID_PAINTING -> RoomObjectVisual.PAINTING
+                        ID_TRASH_CAN -> RoomObjectVisual.TRASH_CAN
+                        ID_BED -> RoomObjectVisual.BED
+                        ID_CLOCK -> RoomObjectVisual.CLOCK
+                        ID_WINDOW -> RoomObjectVisual.WINDOW
+                        ID_STICKY_NOTE -> RoomObjectVisual.STICKY_NOTE
+                        else -> RoomObjectVisual.CUSTOM
+                    }
+                } else {
+                    h.visualType
+                }
+
+                // If upgrading from v1 where TV occupied both TV + console height, trim TV slightly so Console fits neatly below
+                if (parsed.version < 2 && h.id == ID_TV && h.height > 0.19f) {
+                    h.copy(
+                        visualType = inferredVisual,
+                        y = 0.305f,
+                        height = 0.145f
+                    )
+                } else {
+                    h.copy(visualType = inferredVisual)
+                }
+            }.toMutableList()
+
+            val existingIds = updatedExisting.map { it.id }.toSet()
+            if (parsed.version < 2) {
+                listOf(ID_WINDOW, ID_CONSOLE, ID_STICKY_NOTE).forEach { newId ->
+                    if (newId !in existingIds) {
+                        defaultsById[newId]?.let { updatedExisting.add(it) }
+                    }
+                }
+            }
+
+            return parsed.copy(
+                version = 2,
+                hotspots = updatedExisting
+            )
+        }
 
         private val TV_KNOWN_PACKAGES = setOf(
             "com.google.android.youtube",
@@ -160,6 +254,34 @@ class RoomConfigRepository(
 
         private val TV_KEYWORDS = listOf(
             "youtube", "spotify", "podcast", "music", "netflix", "twitch", "video", "player", "radio"
+        )
+
+        private val CONSOLE_KNOWN_PREFIXES = listOf(
+            "com.supercell.",
+            "com.mojang.",
+            "com.roblox.",
+            "com.miHoYo.",
+            "com.HoYoverse.",
+            "com.riotgames.",
+            "com.innersloth.",
+            "com.nianticlabs.",
+            "com.activision.",
+            "com.epicgames.",
+            "com.king.",
+            "com.ea.gp.",
+            "com.ubisoft.",
+            "com.valvesoftware.android.steam",
+            "com.playstation.",
+            "com.microsoft.xbox",
+            "com.nintendo.",
+            "com.retroarch",
+            "org.ppsspp.",
+            "org.dolphinemu.",
+            "xyz.aethersx2."
+        )
+
+        private val CONSOLE_KEYWORDS = listOf(
+            "game", "chess", "sudoku", "minecraft", "roblox", "steam", "xbox", "playstation", "emulator"
         )
 
         private val SHELF_KNOWN_PACKAGES = setOf(
@@ -194,6 +316,7 @@ class RoomConfigRepository(
         )
 
         private val BED_KNOWN_PACKAGES = setOf(
+            // Sleep, meditation & reading
             "com.calm.android",
             "com.getsomeheadspace.android",
             "com.spotlightsix.zentimerlite2",
@@ -205,19 +328,61 @@ class RoomConfigRepository(
             "ipnossoft.rma.free",
             "com.finch.finch",
             "meditofoundation.medito",
+            "com.google.android.apps.wellbeing",
+            // Health & fitness apps
             "com.fitbit.FitbitMobile",
             "com.sec.android.app.shealth",
             "com.google.android.apps.fitness",
-            "com.google.android.apps.wellbeing",
-            "com.ouraring.oura"
+            "com.google.android.apps.healthdata",
+            "com.ouraring.oura",
+            "com.garmin.android.apps.connectmobile",
+            "com.strava",
+            "com.xiaomi.wearable",
+            "com.huami.watch.hmwatchmanager",
+            "com.huawei.health",
+            "com.whoop.android",
+            "org.iggymedia.periodtracker",
+            "com.clue.android",
+            // Clock & alarm apps (included in Bed panel too in case user looks for Clock app!)
+            "com.google.android.deskclock",
+            "com.sec.android.app.clockpackage",
+            "com.android.deskclock",
+            "com.oneplus.deskclock",
+            "com.miui.clock",
+            "com.coloros.alarmclock",
+            "com.asus.deskclock",
+            "com.motorola.timeweatherwidget",
+            "org.fossify.clock",
+            "com.simplemobiletools.clock"
         )
 
         private val BED_KEYWORDS = listOf(
-            "sleep", "calm", "meditat", "headspace", "kindle", "wellbeing", "relax", "whitenoise", "bedtime"
+            "sleep", "calm", "meditat", "headspace", "kindle", "wellbeing",
+            "relax", "whitenoise", "bedtime", "health", "fitness", "clock", "alarm", "timer"
+        )
+
+        private val STICKY_NOTE_KNOWN_PACKAGES = setOf(
+            "com.android.chrome",
+            "org.mozilla.firefox",
+            "org.mozilla.fenix",
+            "com.brave.browser",
+            "com.microsoft.emmx",
+            "com.opera.browser",
+            "com.vivaldi.browser",
+            "com.duckduckgo.mobile.android",
+            "com.sec.android.app.sbrowser",
+            "com.kiwibrowser.browser",
+            "com.chimbori.hermitcrab",
+            "com.tobykurien.webapps",
+            "org.chromium.webapk"
+        )
+
+        private val STICKY_NOTE_KEYWORDS = listOf(
+            "browser", "chrome", "firefox", "brave", "webapk", "shortcut", "hermit", "bookmark"
         )
 
         /**
-         * Auto-populates the default panels (TV, Shelf, Bed) once using installed apps.
+         * Auto-populates the default panels once using installed apps.
          * Any app not matched remains unassigned so it appears in the Trash Can.
          */
         fun autoPopulateIfNeeded(config: RoomConfig, installedApps: List<AppInfo>): RoomConfig {
@@ -229,8 +394,10 @@ class RoomConfigRepository(
                 .toMutableSet()
 
             val tvApps = mutableListOf<String>()
+            val consoleApps = mutableListOf<String>()
             val shelfApps = mutableListOf<String>()
             val bedApps = mutableListOf<String>()
+            val stickyNoteApps = mutableListOf<String>()
 
             for (app in installedApps) {
                 if (app.packageName in assigned) continue
@@ -238,8 +405,16 @@ class RoomConfigRepository(
                 val labelLower = app.label.lowercase()
 
                 when {
+                    isGameApp(app.packageName, pkgLower, labelLower, app.category, app.isGameFlag) -> {
+                        consoleApps.add(app.packageName)
+                        assigned.add(app.packageName)
+                    }
                     isBedApp(app.packageName, pkgLower, labelLower) -> {
                         bedApps.add(app.packageName)
+                        assigned.add(app.packageName)
+                    }
+                    isStickyNoteApp(app.packageName, pkgLower, labelLower) -> {
+                        stickyNoteApps.add(app.packageName)
                         assigned.add(app.packageName)
                     }
                     isTvApp(app.packageName, pkgLower, labelLower, app.category) -> {
@@ -256,8 +431,10 @@ class RoomConfigRepository(
             val updatedHotspots = config.hotspots.map { hotspot ->
                 when (hotspot.id) {
                     ID_TV -> hotspot.copy(packages = (hotspot.packages + tvApps).distinct())
+                    ID_CONSOLE -> hotspot.copy(packages = (hotspot.packages + consoleApps).distinct())
                     ID_SHELF -> hotspot.copy(packages = (hotspot.packages + shelfApps).distinct())
                     ID_BED -> hotspot.copy(packages = (hotspot.packages + bedApps).distinct())
+                    ID_STICKY_NOTE -> hotspot.copy(packages = (hotspot.packages + stickyNoteApps).distinct())
                     else -> hotspot
                 }
             }
@@ -266,6 +443,18 @@ class RoomConfigRepository(
                 autoPopulated = true,
                 hotspots = updatedHotspots
             )
+        }
+
+        private fun isGameApp(
+            pkg: String,
+            pkgLower: String,
+            labelLower: String,
+            category: Int,
+            isGameFlag: Boolean
+        ): Boolean {
+            if (category == ApplicationInfo.CATEGORY_GAME || isGameFlag) return true
+            if (CONSOLE_KNOWN_PREFIXES.any { pkg.startsWith(it, ignoreCase = true) }) return true
+            return CONSOLE_KEYWORDS.any { it in pkgLower || it in labelLower }
         }
 
         private fun isTvApp(pkg: String, pkgLower: String, labelLower: String, category: Int): Boolean {
@@ -289,11 +478,11 @@ class RoomConfigRepository(
             return BED_KEYWORDS.any { it in pkgLower || it in labelLower }
         }
 
-        /**
-         * Computes apps belonging to any hotspot.
-         * For UNSORTED_PANEL (Trash Can), dynamically returns every installed app
-         * not currently assigned to any other PANEL hotspot ("Nothing gets lost").
-         */
+        private fun isStickyNoteApp(pkg: String, pkgLower: String, labelLower: String): Boolean {
+            if (pkg in STICKY_NOTE_KNOWN_PACKAGES || pkgLower.startsWith("org.chromium.webapk")) return true
+            return STICKY_NOTE_KEYWORDS.any { it in pkgLower || it in labelLower }
+        }
+
         fun appsForHotspot(
             hotspot: RoomHotspot,
             config: RoomConfig,
@@ -312,22 +501,27 @@ class RoomConfigRepository(
                     hotspot.packages.mapNotNull { byPackage[it] }
                 }
                 HotspotActionType.DIRECT_GALLERY,
-                HotspotActionType.DIRECT_ALARM -> emptyList()
+                HotspotActionType.DIRECT_ALARM,
+                HotspotActionType.DIRECT_WEATHER -> emptyList()
             }
         }
 
-        /**
-         * Returns the label of the room object that currently owns [packageName].
-         */
-        fun ownerHotspotForPackage(
-            packageName: String,
-            config: RoomConfig
-        ): RoomHotspot? {
-            return config.hotspots.firstOrNull {
-                it.actionType == HotspotActionType.PANEL && packageName in it.packages
-            } ?: config.hotspots.firstOrNull {
-                it.actionType == HotspotActionType.UNSORTED_PANEL
+        fun buildPackageOwnerLabelMap(config: RoomConfig): Map<String, String> {
+            val map = HashMap<String, String>()
+            config.hotspots.forEach { hotspot ->
+                if (hotspot.actionType == HotspotActionType.PANEL) {
+                    hotspot.packages.forEach { pkg ->
+                        map[pkg] = hotspot.label
+                    }
+                }
             }
+            return map
+        }
+
+        fun defaultUnsortedLabel(config: RoomConfig): String {
+            return config.hotspots
+                .firstOrNull { it.actionType == HotspotActionType.UNSORTED_PANEL }
+                ?.label ?: "Trash Can"
         }
     }
 }

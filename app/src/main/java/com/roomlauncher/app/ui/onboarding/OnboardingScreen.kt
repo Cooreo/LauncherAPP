@@ -41,10 +41,6 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableIntStateOf
-import androidx.compose.runtime.saveable.rememberSaveable
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -54,26 +50,27 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.roomlauncher.app.system.SystemIntentHelper
-import com.roomlauncher.app.ui.theme.RoomSage
-import com.roomlauncher.app.ui.theme.RoomSageContainer
-import com.roomlauncher.app.ui.theme.RoomTerracotta
 
 @Composable
 fun OnboardingScreen(
+    currentStep: Int,
     installedAppCount: Int,
     isBatteryOptimizationIgnored: Boolean,
     isDefaultLauncher: Boolean,
+    onStepChange: (Int) -> Unit,
     onRefreshStatus: () -> Unit,
     onComplete: () -> Unit
 ) {
     val context = LocalContext.current
-    var currentStep by rememberSaveable { mutableIntStateOf(0) }
     val totalSteps = 4
 
     val roleLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.StartActivityForResult()
     ) {
         onRefreshStatus()
+        if (SystemIntentHelper.isDefaultHomeLauncher(context)) {
+            onComplete()
+        }
     }
 
     Surface(
@@ -122,7 +119,6 @@ fun OnboardingScreen(
 
             Spacer(modifier = Modifier.height(16.dp))
 
-            // Animated step body
             Box(
                 modifier = Modifier
                     .weight(1f)
@@ -153,6 +149,7 @@ fun OnboardingScreen(
                             else -> DefaultLauncherStep(
                                 isDefaultLauncher = isDefaultLauncher,
                                 onSetDefaultLauncher = {
+                                    onStepChange(3)
                                     val roleIntent = SystemIntentHelper.createDefaultHomeRoleIntent(context)
                                     if (roleIntent != null) {
                                         roleLauncher.launch(roleIntent)
@@ -168,7 +165,6 @@ fun OnboardingScreen(
 
             Spacer(modifier = Modifier.height(16.dp))
 
-            // Bottom navigation buttons
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
@@ -176,7 +172,7 @@ fun OnboardingScreen(
             ) {
                 if (currentStep > 0) {
                     OutlinedButton(
-                        onClick = { currentStep-- },
+                        onClick = { onStepChange(currentStep - 1) },
                         shape = RoundedCornerShape(14.dp)
                     ) {
                         Text("Back")
@@ -188,7 +184,7 @@ fun OnboardingScreen(
                 Button(
                     onClick = {
                         if (currentStep < totalSteps - 1) {
-                            currentStep++
+                            onStepChange(currentStep + 1)
                         } else {
                             onComplete()
                         }
@@ -210,7 +206,7 @@ fun OnboardingScreen(
 private fun WelcomeStep() {
     StepHeroBadge(
         icon = Icons.Rounded.Home,
-        tint = RoomSage,
+        tint = MaterialTheme.colorScheme.primary,
         stepLabel = "Step 1 of 4"
     )
     Text(
@@ -219,7 +215,7 @@ private fun WelcomeStep() {
         color = MaterialTheme.colorScheme.onBackground
     )
     Text(
-        text = "Your phone home screen is now a calm, illustrated room instead of an endless grid of icons.",
+        text = "Your phone home screen is now a calm, customizable room instead of an endless grid of icons.",
         style = MaterialTheme.typography.bodyLarge,
         color = MaterialTheme.colorScheme.onSurfaceVariant
     )
@@ -227,17 +223,17 @@ private fun WelcomeStep() {
     FeatureCard(
         icon = Icons.Rounded.TouchApp,
         title = "Tap Objects in Your Room",
-        description = "Tap the TV for media, Shelf for work, Bed for wind-down apps, Clock for alarms, Painting for your gallery, and Trash Can for unsorted apps."
+        description = "TV for media, Game Console for games, Shelf for work, Bed for sleep/health/clock, Window for weather, Painting for photos, Sticky Note for web shortcuts, Clock for alarms, and Trash Can for unsorted apps."
     )
     FeatureCard(
         icon = Icons.Rounded.Tune,
-        title = "Long-Press Anywhere to Edit",
-        description = "Move and resize hotspots, rename objects, or drag apps cleanly between room panels."
+        title = "Long-Press Anywhere to Rearrange",
+        description = "Drag and resize actual room objects anywhere you want, rename them, or drag apps between panels."
     )
     FeatureCard(
         icon = Icons.Rounded.SwipeUp,
-        title = "Swipe Up for All Apps (A–Z)",
-        description = "Need an app immediately? Swipe up from the bottom or tap the subtle All Apps button for a fast searchable list."
+        title = "Swipe Up for All Apps & Settings",
+        description = "Fast A–Z app list with touch-drag letter rail, plus themes, animations, and wallpaper sync in Settings."
     )
 }
 
@@ -245,7 +241,7 @@ private fun WelcomeStep() {
 private fun AppVisibilityStep(installedAppCount: Int) {
     StepHeroBadge(
         icon = Icons.Rounded.Apps,
-        tint = RoomSage,
+        tint = MaterialTheme.colorScheme.primary,
         stepLabel = "Step 2 of 4"
     )
     Text(
@@ -254,7 +250,7 @@ private fun AppVisibilityStep(installedAppCount: Int) {
         color = MaterialTheme.colorScheme.onBackground
     )
     Text(
-        text = "Room Launcher declares QUERY_ALL_PACKAGES permission so it can discover every installed app, auto-organize your defaults, and guarantee nothing ever gets lost.",
+        text = "Room Launcher declares QUERY_ALL_PACKAGES so it can discover every installed app, auto-organize your room, and guarantee nothing ever gets lost.",
         style = MaterialTheme.typography.bodyLarge,
         color = MaterialTheme.colorScheme.onSurfaceVariant
     )
@@ -263,7 +259,7 @@ private fun AppVisibilityStep(installedAppCount: Int) {
         isReady = installedAppCount > 0,
         readyTitle = "$installedAppCount Installed Apps Discovered",
         pendingTitle = "Scanning Installed Apps…",
-        detail = "Any newly installed app—or any app you remove from another object—will automatically appear in the Trash Can until you place it elsewhere."
+        detail = "Any newly installed app—or any app removed from another object—automatically appears in the Trash Can until you move it elsewhere."
     )
 }
 
@@ -275,7 +271,7 @@ private fun BatteryOptimizationStep(
 ) {
     StepHeroBadge(
         icon = Icons.Rounded.BatteryChargingFull,
-        tint = RoomTerracotta,
+        tint = MaterialTheme.colorScheme.secondary,
         stepLabel = "Step 3 of 4"
     )
     Text(
@@ -284,7 +280,7 @@ private fun BatteryOptimizationStep(
         color = MaterialTheme.colorScheme.onBackground
     )
     Text(
-        text = "Android aggressively kills background apps to save battery. Disabling battery optimizations prevents your room from constantly reloading whenever you press Home.",
+        text = "Disabling battery optimizations prevents Android from killing the launcher and reloading your room whenever you press Home.",
         style = MaterialTheme.typography.bodyLarge,
         color = MaterialTheme.colorScheme.onSurfaceVariant
     )
@@ -337,7 +333,7 @@ private fun DefaultLauncherStep(
 ) {
     StepHeroBadge(
         icon = Icons.Rounded.Home,
-        tint = RoomSage,
+        tint = MaterialTheme.colorScheme.primary,
         stepLabel = "Step 4 of 4"
     )
     Text(
@@ -346,7 +342,7 @@ private fun DefaultLauncherStep(
         color = MaterialTheme.colorScheme.onBackground
     )
     Text(
-        text = "Make Room Launcher your default Home app so pressing the Home button always returns you to your room.",
+        text = "Make Room Launcher your default Home app so pressing Home always returns you straight to your room.",
         style = MaterialTheme.typography.bodyLarge,
         color = MaterialTheme.colorScheme.onSurfaceVariant
     )
@@ -358,7 +354,7 @@ private fun DefaultLauncherStep(
         detail = if (isDefaultLauncher) {
             "Everything is ready! Tap \"Enter My Room\" below to start using Room Launcher."
         } else {
-            "Tap the button below and choose Room Launcher from the system prompt. You can always change this later in Android Settings."
+            "Tap below and select Room Launcher from the system prompt. Once confirmed, you'll go straight into your room."
         }
     )
 
@@ -391,7 +387,7 @@ private fun StepHeroBadge(
             modifier = Modifier
                 .size(48.dp)
                 .clip(RoundedCornerShape(16.dp))
-                .background(tint.copy(alpha = 0.14f))
+                .background(tint.copy(alpha = 0.16f))
         ) {
             Icon(
                 imageVector = icon,
@@ -429,12 +425,12 @@ private fun FeatureCard(
                 modifier = Modifier
                     .size(40.dp)
                     .clip(RoundedCornerShape(12.dp))
-                    .background(RoomSageContainer)
+                    .background(MaterialTheme.colorScheme.primaryContainer)
             ) {
                 Icon(
                     imageVector = icon,
                     contentDescription = null,
-                    tint = RoomSage,
+                    tint = MaterialTheme.colorScheme.primary,
                     modifier = Modifier.size(22.dp)
                 )
             }
@@ -462,8 +458,16 @@ private fun StatusCard(
     pendingTitle: String,
     detail: String
 ) {
-    val containerColor = if (isReady) RoomSageContainer else MaterialTheme.colorScheme.surfaceVariant
-    val accentColor = if (isReady) RoomSage else RoomTerracotta
+    val containerColor = if (isReady) {
+        MaterialTheme.colorScheme.primaryContainer
+    } else {
+        MaterialTheme.colorScheme.surfaceVariant
+    }
+    val accentColor = if (isReady) {
+        MaterialTheme.colorScheme.primary
+    } else {
+        MaterialTheme.colorScheme.secondary
+    }
 
     Card(
         shape = RoundedCornerShape(18.dp),

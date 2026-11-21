@@ -11,7 +11,6 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -44,6 +43,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.font.FontWeight
@@ -52,23 +52,34 @@ import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import com.roomlauncher.app.data.HotspotActionType
 import com.roomlauncher.app.data.RoomHotspot
+import com.roomlauncher.app.data.WeatherState
 import com.roomlauncher.app.ui.RoomLauncherViewModel
+import com.roomlauncher.app.ui.theme.LocalRoomPalette
 import com.roomlauncher.app.ui.theme.RoomEditAccent
 import com.roomlauncher.app.ui.theme.RoomInk
 import com.roomlauncher.app.ui.theme.RoomSage
 import kotlin.math.roundToInt
 
+/**
+ * Renders both the actual illustrated room object AND its semi-transparent drag/resize handle
+ * frame so moving or resizing in Edit Mode moves the real furniture object live!
+ */
 @Composable
 fun EditableHotspotBox(
     hotspot: RoomHotspot,
     roomWidthPx: Float,
     roomHeightPx: Float,
     appCount: Int,
+    weatherState: WeatherState,
+    weatherEnabled: Boolean,
+    frameImageBitmap: ImageBitmap?,
+    currentMinutesOfDay: Int,
     onMoveFinished: (newX: Float, newY: Float) -> Unit,
     onResizeFinished: (newWidth: Float, newHeight: Float) -> Unit,
     onTapEdit: () -> Unit
 ) {
     val density = LocalDensity.current
+    val palette = LocalRoomPalette.current
 
     var localX by remember(hotspot.id) { mutableFloatStateOf(hotspot.x) }
     var localY by remember(hotspot.id) { mutableFloatStateOf(hotspot.y) }
@@ -87,7 +98,8 @@ fun EditableHotspotBox(
     val accent = when (hotspot.actionType) {
         HotspotActionType.UNSORTED_PANEL -> RoomEditAccent
         HotspotActionType.DIRECT_GALLERY,
-        HotspotActionType.DIRECT_ALARM -> Color(0xFF4F6D7A)
+        HotspotActionType.DIRECT_ALARM,
+        HotspotActionType.DIRECT_WEATHER -> Color(0xFF4F6D7A)
         HotspotActionType.PANEL -> RoomSage
     }
 
@@ -100,9 +112,6 @@ fun EditableHotspotBox(
                 )
             }
             .size(width = widthDp, height = heightDp)
-            .clip(RoundedCornerShape(16.dp))
-            .background(accent.copy(alpha = 0.28f))
-            .border(2.dp, accent, RoundedCornerShape(16.dp))
             .pointerInput(hotspot.id, roomWidthPx, roomHeightPx) {
                 detectDragGestures(
                     onDrag = { change, dragAmount ->
@@ -121,22 +130,43 @@ fun EditableHotspotBox(
             }
             .clickable(onClick = onTapEdit)
     ) {
+        // The actual illustrated object moves & resizes live with the bounding box!
+        RoomObjectGraphic(
+            visualType = hotspot.visualType,
+            palette = palette,
+            weatherState = weatherState,
+            weatherEnabled = weatherEnabled,
+            frameImageBitmap = frameImageBitmap,
+            currentMinutesOfDay = currentMinutesOfDay,
+            modifier = Modifier.fillMaxSize()
+        )
+
+        // Semi-transparent edit bounding overlay
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .clip(RoundedCornerShape(14.dp))
+                .background(accent.copy(alpha = 0.22f))
+                .border(2.dp, accent, RoundedCornerShape(14.dp))
+        )
+
         // Object label chip & count
         Column(
             modifier = Modifier
                 .align(Alignment.TopStart)
-                .padding(6.dp)
-                .clip(RoundedCornerShape(10.dp))
-                .background(RoomInk.copy(alpha = 0.78f))
-                .padding(horizontal = 8.dp, vertical = 4.dp)
+                .padding(4.dp)
+                .clip(RoundedCornerShape(8.dp))
+                .background(RoomInk.copy(alpha = 0.80f))
+                .padding(horizontal = 7.dp, vertical = 3.dp)
         ) {
             Row(
                 verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(4.dp)
+                horizontalArrangement = Arrangement.spacedBy(3.dp)
             ) {
                 Text(
                     text = hotspot.label,
-                    style = MaterialTheme.typography.labelLarge,
+                    style = MaterialTheme.typography.labelSmall,
+                    fontWeight = FontWeight.Bold,
                     color = Color.White,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis
@@ -145,14 +175,15 @@ fun EditableHotspotBox(
                     imageVector = Icons.Rounded.Edit,
                     contentDescription = "Edit ${hotspot.label}",
                     tint = Color.White.copy(alpha = 0.85f),
-                    modifier = Modifier.size(12.dp)
+                    modifier = Modifier.size(11.dp)
                 )
             }
             val badgeText = when (hotspot.actionType) {
                 HotspotActionType.PANEL -> "$appCount apps"
                 HotspotActionType.UNSORTED_PANEL -> "$appCount unsorted"
-                HotspotActionType.DIRECT_GALLERY -> "Gallery"
+                HotspotActionType.DIRECT_GALLERY -> "Photos"
                 HotspotActionType.DIRECT_ALARM -> "Alarms"
+                HotspotActionType.DIRECT_WEATHER -> "Weather"
             }
             Text(
                 text = badgeText,
@@ -167,8 +198,8 @@ fun EditableHotspotBox(
             contentAlignment = Alignment.Center,
             modifier = Modifier
                 .align(Alignment.BottomEnd)
-                .padding(4.dp)
-                .size(28.dp)
+                .padding(3.dp)
+                .size(26.dp)
                 .clip(CircleShape)
                 .background(accent)
                 .border(1.5.dp, Color.White, CircleShape)
@@ -195,7 +226,7 @@ fun EditableHotspotBox(
                 imageVector = Icons.Rounded.OpenInFull,
                 contentDescription = "Resize ${hotspot.label}",
                 tint = Color.White,
-                modifier = Modifier.size(15.dp)
+                modifier = Modifier.size(14.dp)
             )
         }
     }
@@ -373,7 +404,8 @@ private fun ActionTypePicker(
         HotspotActionType.PANEL to "App Panel",
         HotspotActionType.UNSORTED_PANEL to "Unsorted",
         HotspotActionType.DIRECT_GALLERY to "Gallery",
-        HotspotActionType.DIRECT_ALARM to "Alarms"
+        HotspotActionType.DIRECT_ALARM to "Alarms",
+        HotspotActionType.DIRECT_WEATHER to "Weather"
     )
     Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
         options.chunked(2).forEach { pair ->
@@ -395,6 +427,9 @@ private fun ActionTypePicker(
                         },
                         modifier = Modifier.weight(1f)
                     )
+                }
+                if (pair.size == 1) {
+                    Spacer(modifier = Modifier.weight(1f))
                 }
             }
         }

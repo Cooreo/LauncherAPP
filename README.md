@@ -1,55 +1,29 @@
 # Room Launcher
 
-**Room Launcher** is a minimalist Android home screen launcher built with **Kotlin** and **Jetpack Compose**. Instead of a traditional grid of icons, your home screen is an illustrated room where every object acts as an interactive hotspot.
+**Room Launcher** is a minimalist Android home screen launcher built with **Kotlin** and **Jetpack Compose**. Instead of a traditional grid of icons, your home screen is a customizable, illustrated room where every piece of furniture is an interactive, movable object.
 
-## Features
+## Features (v2.0)
 
-- **Illustrated Room Home Screen**: Comes with a custom minimalist vector room (`bg_room_default.xml`) containing six interactive objects aligned via responsive percentage coordinates:
-  - **TV** — Media panel (auto-populates YouTube, music, video & podcast apps)
-  - **Shelf** — Work panel (auto-populates Obsidian, notes, email & productivity apps)
-  - **Painting** — Direct System Gallery intent (`Intent.ACTION_VIEW` with `image/*`)
-  - **Trash Can** — Unsorted panel containing every installed app not placed in another object
-  - **Bed** — Bedtime panel (wind-down, meditation, reading & sleep tracking apps)
-  - **Clock** — Direct System Alarm intent (`AlarmClock.ACTION_SHOW_ALARMS`)
-- **Nothing Gets Lost**: Newly installed apps (tracked live via `BroadcastReceiver` on `ACTION_PACKAGE_ADDED` / `REMOVED` / `REPLACED`) and apps removed from any panel automatically appear in the **Trash Can**.
-- **Multi-Step Onboarding & System Permissions**:
-  1. Welcome & gesture walkthrough
-  2. App visibility (`QUERY_ALL_PACKAGES`) with live discovered app count
-  3. Battery optimization exemption (`ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS`) + quick link to App Info (`ACTION_APPLICATION_DETAILS_SETTINGS`) for unrestricted background usage
-  4. Default Home role prompt (`RoleManager.ROLE_HOME` on Android 10+ with legacy fallback)
-- **Full Edit Mode**: Long-press anywhere in the room to reveal semi-transparent hotspot bounding boxes, drag to move, drag the corner handle to resize, rename objects, add/delete objects, or long-press and drag apps directly between object panels.
-- **Fast A–Z Fallback Drawer**: Swipe up from the bottom or tap the persistent **All Apps** pill (or the footer inside any panel) for an alphabetical A–Z searchable app list.
-- **JSON Persistence**: Room layout, hotspot coordinates, labels, actions, and app assignments are stored in `context.filesDir/room_config.json` via `kotlinx.serialization`.
-
-## Project Structure
-
-```
-app/src/main/java/com/roomlauncher/app/
-├── MainActivity.kt
-├── data/
-│   ├── AppInfo.kt
-│   ├── AppRepository.kt
-│   ├── PackageChangeReceiver.kt
-│   ├── RoomConfigRepository.kt
-│   └── RoomModels.kt
-├── system/
-│   └── SystemIntentHelper.kt
-└── ui/
-    ├── RoomLauncherViewModel.kt
-    ├── allapps/AllAppsSheet.kt
-    ├── components/AppIconView.kt
-    ├── onboarding/OnboardingScreen.kt
-    ├── room/
-    │   ├── HotspotEditOverlay.kt
-    │   ├── HotspotPanelOverlay.kt
-    │   └── RoomScreen.kt
-    └── theme/
-```
+- **Movable Illustrated Room Objects**: Drag and resize the actual furniture anywhere in the room (not just invisible hitboxes!):
+  - **Window** — Displays live local weather sky & temperature (via Open-Meteo) and taps to open your Weather app
+  - **Painting** — Displays minimalist sunset art or your chosen custom photo and opens your Gallery/Photos app directly
+  - **Clock** — Live ticking analog hands; taps directly to System Alarms (`AlarmClock.ACTION_SHOW_ALARMS`)
+  - **Sticky Note** — Pin custom **Web Shortcuts** (URLs) alongside browser & PWA shortcut apps
+  - **TV** — Media panel (YouTube, music, video & podcasts) with camera zoom + CRT/OLED power-on animation
+  - **Game Console** — Cabinet under the TV storing installed games (`CATEGORY_GAME` auto-population)
+  - **Shelf** — Work, notes & email panel opening like a **two-page book spread**
+  - **Bed** — Wind-down panel for sleep, meditation, **health/fitness**, and **clock** apps
+  - **Trash Can** — Unsorted panel rising out of the bin containing every installed app not assigned elsewhere
+- **6 Light & Dark Themes**: Warm Linen, Botanical Sage, Midnight Cozy, Forest Night, Warm Ember, and OLED Pitch Black—dynamically styling both the room artwork and UI.
+- **Rich vs Quick Animations**: Toggle between custom per-object animations and instant spring popups in Settings.
+- **Mirror Room to Home Wallpaper**: Renders your live room layout & theme to Android's Home screen wallpaper (`WallpaperManager.FLAG_SYSTEM`), leaving your Lock screen untouched.
+- **Fast A–Z App Deck + Settings**: Smooth 60/120fps scrolling, touch-and-drag A–Z side letter fast scroller with floating indicator bubble, and a dedicated **Settings** panel right at the bottom of the App Deck.
+- **Nothing Gets Lost**: Live `BroadcastReceiver` (`ACTION_PACKAGE_ADDED` / `REMOVED` / `REPLACED`) guarantees newly installed or removed apps always appear in the Trash Can.
 
 ## Building from Source
 
 ```bash
-./gradlew assembleDebug
+./gradlew testDebugUnitTest assembleDebug
 ```
 
-The debug APK is generated at `app/build/outputs/apk/debug/app-debug.apk`. Pre-built APKs are also stored in `/releases/RoomLauncher-v1.0.apk`.
+Pre-built APKs are stored in `/releases/` (`RoomLauncher-v2.0.apk`).
