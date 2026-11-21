@@ -32,7 +32,16 @@ jobs:
         run: chmod +x gradlew
 
       - name: Run Unit Tests
-        run: ./gradlew testDebugUnitTest --stacktrace
+        run: |
+          set -o pipefail
+          if ! ./gradlew testDebugUnitTest --stacktrace > build_test.log 2>&1; then
+            cat build_test.log
+            grep -E "(^e: |FAILURE:|What went wrong:|> .*|error:)" build_test.log | head -n 30 | while IFS= read -r line; do
+              echo "::error::$line"
+            done
+            exit 1
+          fi
+          cat build_test.log
 
       - name: Build Release-Optimized APK (signed with debug keystore for seamless upgrades)
         run: ./gradlew assembleRelease --stacktrace
