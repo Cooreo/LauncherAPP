@@ -69,6 +69,7 @@ data class RoomConfig(
     val roomStyleId: RoomStyleId = RoomStyleId.COZY_MINIMALIST,
     val themeId: RoomThemeId = RoomThemeId.WARM_LINEN,
     val useQuickAnimations: Boolean = false,
+    val chargingAnimationEnabled: Boolean = true,
     val weatherEnabled: Boolean = true,
     val mirrorHomeWallpaper: Boolean = false,
     val framePhotoPath: String? = null,

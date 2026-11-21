@@ -1,9 +1,16 @@
 package com.roomlauncher.app.ui.room
 
 import android.net.Uri
+import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInVertically
+import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
@@ -11,6 +18,7 @@ import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.gestures.detectTransformGestures
 import androidx.compose.foundation.gestures.detectVerticalDragGestures
 import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
@@ -113,6 +121,9 @@ fun RoomScreen(
     onPickTeenPoster: (isLeft: Boolean, uri: Uri) -> Unit,
     onClearTeenPoster: (isLeft: Boolean) -> Unit,
     onToggleQuickAnimations: (Boolean) -> Unit,
+    onToggleChargingAnimation: (Boolean) -> Unit,
+    onPreviewChargingAnimation: () -> Unit,
+    onDismissChargingAnimation: () -> Unit,
     onToggleWeather: (Boolean) -> Unit,
     onRefreshWeather: () -> Unit,
     onToggleMirrorWallpaper: (Boolean) -> Unit,
@@ -171,6 +182,17 @@ fun RoomScreen(
     )
 
     val isFullScreenSheetOpen = uiState.showAllAppsSheet || uiState.showSettingsSheet
+    // Keep the Room mounted during the 240ms slide-up/down transition so opening feels silky smooth,
+    // then unmount it once covered so All Apps scrolling has 0% background GPU overdraw!
+    var isFullScreenSheetSettled by remember { mutableStateOf(false) }
+    LaunchedEffect(isFullScreenSheetOpen) {
+        if (isFullScreenSheetOpen) {
+            delay(250L)
+            isFullScreenSheetSettled = true
+        } else {
+            isFullScreenSheetSettled = false
+        }
+    }
 
     val handleHotspotTap: (RoomHotspot) -> Unit = { hotspot ->
         when (hotspot.actionType) {
@@ -186,8 +208,8 @@ fun RoomScreen(
     }
 
     Box(modifier = Modifier.fillMaxSize()) {
-        // Unmount the Room Canvas while full-screen All Apps or Settings is open to eliminate background overdraw!
-        if (!isFullScreenSheetOpen) {
+        // Keep Room visible during sheet transition, unmount once sheet fully covers screen!
+        if (!isFullScreenSheetSettled) {
             // Main interactive room canvas with movable themed objects
             BoxWithConstraints(
                 modifier = Modifier
@@ -278,6 +300,16 @@ fun RoomScreen(
                         } else {
                             val boxWidthDp = with(density) { (hotspot.width * roomWidthPx).toDp() }
                             val boxHeightDp = with(density) { (hotspot.height * roomHeightPx).toDp() }
+                            val interactionSource = remember(hotspot.id) { MutableInteractionSource() }
+                            val isPressed by interactionSource.collectIsPressedAsState()
+                            val pressScale by animateFloatAsState(
+                                targetValue = if (isPressed) 0.95f else 1f,
+                                animationSpec = spring(
+                                    dampingRatio = Spring.DampingRatioMediumBouncy,
+                                    stiffness = Spring.StiffnessMedium
+                                ),
+                                label = "obj_press_${hotspot.id}"
+                            )
                             Box(
                                 modifier = Modifier
                                     .offset {
@@ -287,8 +319,12 @@ fun RoomScreen(
                                         )
                                     }
                                     .size(width = boxWidthDp, height = boxHeightDp)
+                                    .graphicsLayer {
+                                        scaleX = pressScale
+                                        scaleY = pressScale
+                                    }
                                     .combinedClickable(
-                                        interactionSource = remember { MutableInteractionSource() },
+                                        interactionSource = interactionSource,
                                         indication = null,
                                         onClick = { handleHotspotTap(hotspot) },
                                         onLongClick = {
@@ -413,6 +449,18 @@ fun RoomScreen(
                 }
             }
 
+            // Subtle ambient charging glow & clickable battery badge while plugged in on the room screen
+            if (!uiState.isEditMode &&
+                uiState.config.chargingAnimationEnabled &&
+                uiState.batteryStatus.isCharging
+            ) {
+                AmbientChargingIndicator(
+                    batteryStatus = uiState.batteryStatus,
+                    roomStyle = uiState.config.roomStyleId,
+                    onReplayAnimation = onPreviewChargingAnimation
+                )
+            }
+
             // Animated Panel Overlay (with per-object Rich Animations or Quick Animations)
             if (activeHotspot != null) {
                 HotspotPanelOverlay(
@@ -450,8 +498,18 @@ fun RoomScreen(
             }
         }
 
-        // Fast A–Z Searchable All Apps Drawer + Settings Card at the bottom (zero room overdraw!)
-        if (uiState.showAllAppsSheet && !uiState.showSettingsSheet) {
+        // Smooth slide-up A–Z Searchable All Apps Drawer + Settings Card (0% overdraw once settled!)
+        AnimatedVisibility(
+            visible = uiState.showAllAppsSheet && !uiState.showSettingsSheet,
+            enter = slideInVertically(
+                animationSpec = tween(durationMillis = 230, easing = FastOutSlowInEasing),
+                initialOffsetY = { it / 5 }
+            ) + fadeIn(tween(190)),
+            exit = slideOutVertically(
+                animationSpec = tween(durationMillis = 190, easing = FastOutSlowInEasing),
+                targetOffsetY = { it / 5 }
+            ) + fadeOut(tween(150))
+        ) {
             AllAppsSheet(
                 installedApps = uiState.installedApps,
                 packageOwnerLabels = uiState.packageOwnerLabels,
@@ -467,8 +525,18 @@ fun RoomScreen(
             )
         }
 
-        // Room Launcher Settings Screen (zero room overdraw!)
-        if (uiState.showSettingsSheet) {
+        // Smooth slide-up Room Launcher Settings Screen
+        AnimatedVisibility(
+            visible = uiState.showSettingsSheet,
+            enter = slideInVertically(
+                animationSpec = tween(durationMillis = 230, easing = FastOutSlowInEasing),
+                initialOffsetY = { it / 5 }
+            ) + fadeIn(tween(190)),
+            exit = slideOutVertically(
+                animationSpec = tween(durationMillis = 190, easing = FastOutSlowInEasing),
+                targetOffsetY = { it / 5 }
+            ) + fadeOut(tween(150))
+        ) {
             SettingsSheet(
                 uiState = uiState,
                 onSelectRoomStyle = onSelectRoomStyle,
@@ -476,6 +544,8 @@ fun RoomScreen(
                 onPickTeenPoster = onPickTeenPoster,
                 onClearTeenPoster = onClearTeenPoster,
                 onToggleQuickAnimations = onToggleQuickAnimations,
+                onToggleChargingAnimation = onToggleChargingAnimation,
+                onPreviewChargingAnimation = onPreviewChargingAnimation,
                 onToggleWeather = onToggleWeather,
                 onRefreshWeather = onRefreshWeather,
                 onToggleMirrorWallpaper = onToggleMirrorWallpaper,
@@ -489,6 +559,16 @@ fun RoomScreen(
                     showResetConfirm = true
                 },
                 onDismiss = onCloseSettings
+            )
+        }
+
+        // Custom Room-Styled Charging Animation Overlay (triggers on plug-in while screen is on, or preview!)
+        if (uiState.activeChargingSplashKey != 0L) {
+            ChargingSplashOverlay(
+                batteryStatus = uiState.batteryStatus,
+                roomStyle = uiState.config.roomStyleId,
+                triggerKey = uiState.activeChargingSplashKey,
+                onFinished = onDismissChargingAnimation
             )
         }
     }

@@ -180,21 +180,41 @@ object RoomWallpaperRenderer {
             return
         }
 
-        // Standard / Teen / Kids wall & floor
-        paint.color = palette.wallMain.toArgb()
+        // Standard / Teen / Kids seamless wall gradient all the way from y = 0f behind the status bar!
+        paint.shader = LinearGradient(
+            0f, 0f, 0f, floorY,
+            intArrayOf(palette.wallUpper.toArgb(), palette.wallMain.toArgb(), palette.wallMain.toArgb()),
+            floatArrayOf(0f, 0.22f, 1f),
+            Shader.TileMode.CLAMP
+        )
         canvas.drawRect(0f, 0f, fullW, floorY, paint)
-        paint.color = palette.wallUpper.toArgb()
-        canvas.drawRect(0f, 0f, fullW, viewTop + viewH * 0.115f, paint)
+        paint.shader = null
 
         if (style == RoomStyleId.TEEN_ROOM) {
-            // LED strip glow
+            val ledY = viewTop + viewH * 0.068f
+            // Seamless RGB LED ambient wash extending ALL THE WAY from y = 0f past the LED strip
             paint.shader = LinearGradient(
-                0f, viewTop + viewH * 0.072f, fullW, viewTop + viewH * 0.072f,
+                0f, 0f, 0f, viewTop + viewH * 0.28f,
+                intArrayOf(
+                    if (palette.isDark) 0x6B9B5DE5 else 0x389B5DE5,
+                    if (palette.isDark) 0x75F15BB5 else 0x3DF15BB5,
+                    if (palette.isDark) 0x3300BBF9 else 0x1A00BBF9,
+                    0x0000BBF9
+                ),
+                floatArrayOf(0f, 0.28f, 0.65f, 1f),
+                Shader.TileMode.CLAMP
+            )
+            canvas.drawRect(0f, 0f, fullW, viewTop + viewH * 0.28f, paint)
+            paint.shader = null
+
+            // Crisp LED strip tube
+            paint.shader = LinearGradient(
+                0f, ledY, fullW, ledY,
                 intArrayOf(0xFF00F5D4.toInt(), 0xFF9B5DE5.toInt(), 0xFFF15BB5.toInt(), 0xFF00BBF9.toInt()),
                 null,
                 Shader.TileMode.CLAMP
             )
-            canvas.drawRect(0f, viewTop + viewH * 0.072f, fullW, viewTop + viewH * 0.079f, paint)
+            canvas.drawRect(0f, ledY, fullW, ledY + viewH * 0.0065f, paint)
             paint.shader = null
 
             // Teen posters
