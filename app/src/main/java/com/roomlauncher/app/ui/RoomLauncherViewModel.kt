@@ -374,7 +374,7 @@ class RoomLauncherViewModel(application: Application) : AndroidViewModel(applica
             if (!apkPath.isNullOrBlank()) {
                 val apkFile = File(apkPath)
                 if (apkFile.exists()) {
-                    AppUpdateInstaller.launchApkInstaller(appContext, apkFile)
+                    triggerInstallOrRequestPermission(apkFile)
                 }
             }
         }
