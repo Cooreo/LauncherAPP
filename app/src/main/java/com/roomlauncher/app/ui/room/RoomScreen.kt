@@ -85,6 +85,7 @@ import com.roomlauncher.app.ui.RoomUiState
 import com.roomlauncher.app.ui.allapps.AllAppsSheet
 import com.roomlauncher.app.ui.settings.SettingsSheet
 import com.roomlauncher.app.ui.theme.ChargingAnimationStyle
+import com.roomlauncher.app.ui.theme.GeometryDashSubTheme
 import com.roomlauncher.app.ui.theme.LocalRoomPalette
 import com.roomlauncher.app.ui.theme.RoomInk
 import com.roomlauncher.app.ui.theme.RoomSage
@@ -124,6 +125,7 @@ fun RoomScreen(
     onOpenSettings: () -> Unit,
     onCloseSettings: () -> Unit,
     onSelectRoomStyle: (RoomStyleId) -> Unit,
+    onSelectGeometryDashSubTheme: (GeometryDashSubTheme) -> Unit,
     onSelectTheme: (RoomThemeId) -> Unit,
     onToggleDynamicTheme: (Boolean) -> Unit,
     onPickTeenPoster: (isLeft: Boolean, uri: Uri) -> Unit,
@@ -307,6 +309,7 @@ fun RoomScreen(
                     RoomShellCanvas(
                         palette = palette,
                         roomStyle = uiState.config.roomStyleId,
+                        gdSubTheme = uiState.config.geometryDashSubTheme,
                         posterLeftBitmap = uiState.posterLeftBitmap,
                         posterRightBitmap = uiState.posterRightBitmap,
                         modifier = Modifier.fillMaxSize()
@@ -373,6 +376,7 @@ fun RoomScreen(
                                     visualType = hotspot.visualType,
                                     palette = palette,
                                     roomStyle = uiState.config.roomStyleId,
+                                    gdSubTheme = uiState.config.geometryDashSubTheme,
                                     weatherState = uiState.weatherState,
                                     weatherEnabled = uiState.config.weatherEnabled,
                                     frameImageBitmap = uiState.frameImageBitmap,
@@ -623,6 +627,7 @@ fun RoomScreen(
             SettingsSheet(
                 uiState = uiState,
                 onSelectRoomStyle = onSelectRoomStyle,
+                onSelectGeometryDashSubTheme = onSelectGeometryDashSubTheme,
                 onSelectTheme = onSelectTheme,
                 onToggleDynamicTheme = onToggleDynamicTheme,
                 onPickTeenPoster = onPickTeenPoster,
@@ -668,6 +673,7 @@ fun RoomScreen(
             ChargingSplashOverlay(
                 batteryStatus = uiState.batteryStatus,
                 roomStyle = uiState.config.roomStyleId,
+                gdSubTheme = uiState.config.geometryDashSubTheme,
                 animationStyle = uiState.config.chargingAnimationStyle,
                 triggerKey = uiState.activeChargingSplashKey,
                 onFinished = onDismissChargingAnimation

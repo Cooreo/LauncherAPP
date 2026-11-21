@@ -4,6 +4,12 @@
 
 ## Features (v2.6)
 
+- **Geometry Dash Room Theme & 3 Extreme Demon Sub-Themes (v2.6)**:
+  - New **Geometry Dash** Room Style featuring real bundled level artwork, neon perspective GD grid floor, laser ground line, decorative spikes & sawblades, glowing wall posters, matching Picture Frame art, Home Wallpaper Mirror support, and neon GD charging ring.
+  - 3 full sub-themes selectable with live artwork cards in Settings:
+    - **Sonic Wave** (*Cyclic*) — Electric cyan Nine Circles wave stripes, cobalt saws, cyan wave gameplay & SONIC WAVE poster art.
+    - **Astral Divinity** (*Knobbelboy*) — Cosmic violet nebula, rainbow prism beams, golden stars, Clubstep monster & crystal corridor art.
+    - **Death Corridor** (*KaotikJumper*) — Pitch-black & crimson hell glow, iconic diamond wave corridor, red hell saws & blazing spike corridor art.
 - **Bulletproof In-App Updater & Package Conflict Protection (v2.6)**:
   - Upgrades installer to Android's native `PackageInstaller.Session` API with structured status callbacks (`UpdateInstallReceiver`), pre-install APK signature & version verification, and verified signing-key display in Settings.
   - Detects signing-key conflicts before Android fails and walks through a 1-tap guided migration (**Export Room Backup** → **Save APK to Downloads** → **Uninstall Old Build**), plus an automated CI signing-certificate verification guard so every release shares the exact same persistent key (`app/roomlauncher-debug.keystore`) for seamless in-place updates.

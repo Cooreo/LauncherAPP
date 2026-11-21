@@ -4,6 +4,7 @@ import android.Manifest
 import android.net.Uri
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -64,20 +65,27 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.roomlauncher.app.data.MusicDisplayMode
 import com.roomlauncher.app.data.VisualizerStyle
 import com.roomlauncher.app.ui.RoomUiState
 import com.roomlauncher.app.ui.theme.ChargingAnimationStyle
+import com.roomlauncher.app.ui.theme.GeometryDashSubTheme
 import com.roomlauncher.app.ui.theme.RoomStyleId
 import com.roomlauncher.app.ui.theme.RoomThemeId
 import com.roomlauncher.app.ui.theme.RoomThemes
+import com.roomlauncher.app.ui.theme.accentNeonColors
+import com.roomlauncher.app.ui.theme.mainDrawableRes
+import com.roomlauncher.app.ui.theme.posterDrawableRes
 
 @Composable
 fun SettingsSheet(
     uiState: RoomUiState,
     onSelectRoomStyle: (RoomStyleId) -> Unit,
+    onSelectGeometryDashSubTheme: (GeometryDashSubTheme) -> Unit,
     onSelectTheme: (RoomThemeId) -> Unit,
     onToggleDynamicTheme: (Boolean) -> Unit,
     onPickTeenPoster: (isLeft: Boolean, uri: Uri) -> Unit,
@@ -322,6 +330,32 @@ fun SettingsSheet(
                                 }
                             }
                         }
+
+                        // Geometry Dash Extreme Demon Sub-Themes (Sonic Wave, Astral Divinity, Death Corridor)
+                        if (uiState.config.roomStyleId == RoomStyleId.GEOMETRY_DASH) {
+                            Spacer(modifier = Modifier.height(8.dp))
+                            Text(
+                                text = "Geometry Dash Sub-Themes",
+                                style = MaterialTheme.typography.titleSmall,
+                                fontWeight = FontWeight.Bold,
+                                color = MaterialTheme.colorScheme.primary
+                            )
+                            Text(
+                                text = "Pick an iconic Extreme Demon level to transform your room's neon colors, wall art, floor grid, and charging glow.",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                            Spacer(modifier = Modifier.height(4.dp))
+                            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                                GeometryDashSubTheme.entries.forEach { subTheme ->
+                                    GeometryDashSubThemeCard(
+                                        subTheme = subTheme,
+                                        selected = uiState.config.geometryDashSubTheme == subTheme,
+                                        onClick = { onSelectGeometryDashSubTheme(subTheme) }
+                                    )
+                                }
+                            }
+                        }
                     }
                 }
 
@@ -329,7 +363,11 @@ fun SettingsSheet(
                 SettingsSectionCard(
                     icon = Icons.Rounded.Palette,
                     title = "Color Palettes",
-                    subtitle = "Light & dark lighting palettes that combine with any Room Style"
+                    subtitle = if (uiState.config.roomStyleId == RoomStyleId.GEOMETRY_DASH) {
+                        "Geometry Dash (${uiState.config.geometryDashSubTheme.displayName}) neon palette is active"
+                    } else {
+                        "Light & dark lighting palettes that combine with any Room Style"
+                    }
                 ) {
                     val themes = RoomThemeId.entries
                     Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
@@ -1398,6 +1436,104 @@ private fun ThemeSwatchTile(
                 style = MaterialTheme.typography.labelSmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
+        }
+    }
+}
+
+@Composable
+private fun GeometryDashSubThemeCard(
+    subTheme: GeometryDashSubTheme,
+    selected: Boolean,
+    onClick: () -> Unit
+) {
+    val (neonPrimary, neonSecondary, neonTertiary) = subTheme.accentNeonColors()
+    val borderColor = if (selected) neonPrimary else MaterialTheme.colorScheme.outlineVariant
+
+    Surface(
+        shape = RoundedCornerShape(16.dp),
+        color = if (selected) {
+            neonSecondary.copy(alpha = 0.24f)
+        } else {
+            MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.45f)
+        },
+        modifier = Modifier
+            .fillMaxWidth()
+            .border(
+                width = if (selected) 2.dp else 1.dp,
+                color = borderColor,
+                shape = RoundedCornerShape(16.dp)
+            )
+            .clip(RoundedCornerShape(16.dp))
+            .clickable(onClick = onClick)
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(10.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            // Level artwork thumbnail preview
+            Box(
+                modifier = Modifier
+                    .size(width = 92.dp, height = 58.dp)
+                    .clip(RoundedCornerShape(10.dp))
+                    .border(1.5.dp, neonPrimary.copy(alpha = 0.85f), RoundedCornerShape(10.dp))
+            ) {
+                Image(
+                    painter = painterResource(id = subTheme.mainDrawableRes()),
+                    contentDescription = "${subTheme.displayName} level art",
+                    contentScale = ContentScale.Crop,
+                    modifier = Modifier.fillMaxSize()
+                )
+            }
+
+            Column(
+                modifier = Modifier.weight(1f),
+                verticalArrangement = Arrangement.spacedBy(2.dp)
+            ) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                ) {
+                    Text(
+                        text = subTheme.displayName,
+                        style = MaterialTheme.typography.titleSmall,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.onSurface
+                    )
+                    SwatchDot(neonPrimary)
+                    SwatchDot(neonTertiary)
+                }
+                Text(
+                    text = subTheme.creatorTag,
+                    style = MaterialTheme.typography.labelSmall,
+                    fontWeight = FontWeight.SemiBold,
+                    color = neonPrimary
+                )
+                Text(
+                    text = subTheme.description,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+
+            if (selected) {
+                Box(
+                    contentAlignment = Alignment.Center,
+                    modifier = Modifier
+                        .size(24.dp)
+                        .clip(CircleShape)
+                        .background(neonPrimary)
+                ) {
+                    Icon(
+                        imageVector = Icons.Rounded.Check,
+                        contentDescription = "Selected sub-theme",
+                        tint = Color.Black,
+                        modifier = Modifier.size(15.dp)
+                    )
+                }
+            }
         }
     }
 }

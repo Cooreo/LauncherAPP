@@ -30,6 +30,7 @@ import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
@@ -37,8 +38,13 @@ import androidx.compose.ui.unit.sp
 import com.roomlauncher.app.data.RoomObjectVisual
 import com.roomlauncher.app.data.WeatherCondition
 import com.roomlauncher.app.data.WeatherState
+import com.roomlauncher.app.ui.theme.GeometryDashSubTheme
 import com.roomlauncher.app.ui.theme.RoomStyleId
 import com.roomlauncher.app.ui.theme.RoomVisualPalette
+import com.roomlauncher.app.ui.theme.accentNeonColors
+import com.roomlauncher.app.ui.theme.mainDrawableRes
+import com.roomlauncher.app.ui.theme.posterDrawableRes
+import kotlin.math.PI
 import kotlin.math.cos
 import kotlin.math.min
 import kotlin.math.roundToInt
@@ -53,6 +59,7 @@ import kotlin.math.sin
 fun RoomShellCanvas(
     palette: RoomVisualPalette,
     roomStyle: RoomStyleId,
+    gdSubTheme: GeometryDashSubTheme = GeometryDashSubTheme.SONIC_WAVE,
     posterLeftBitmap: ImageBitmap? = null,
     posterRightBitmap: ImageBitmap? = null,
     modifier: Modifier = Modifier
@@ -62,12 +69,28 @@ fun RoomShellCanvas(
         val wPx = with(density) { maxWidth.toPx() }
         val hPx = with(density) { maxHeight.toPx() }
 
+        // Atmospheric upper-wall level art layer behind the Geometry Dash neon architectural shell
+        if (roomStyle == RoomStyleId.GEOMETRY_DASH && wPx > 0f && hPx > 0f) {
+            Image(
+                painter = painterResource(id = gdSubTheme.mainDrawableRes()),
+                contentDescription = null,
+                contentScale = ContentScale.Crop,
+                alpha = 0.24f,
+                modifier = Modifier
+                    .size(
+                        width = maxWidth,
+                        height = with(density) { (hPx * 0.62f).toDp() }
+                    )
+            )
+        }
+
         Canvas(modifier = Modifier.fillMaxSize()) {
             when (roomStyle) {
                 RoomStyleId.COZY_MINIMALIST -> drawCozyShell(palette)
                 RoomStyleId.TEEN_ROOM -> drawTeenShell(palette)
                 RoomStyleId.KIDS_ROOM -> drawKidsShell(palette)
                 RoomStyleId.MINECRAFT -> drawMinecraftShell(palette)
+                RoomStyleId.GEOMETRY_DASH -> drawGeometryDashShell(palette, gdSubTheme)
             }
         }
 
@@ -94,6 +117,76 @@ fun RoomShellCanvas(
                         height = with(density) { (hPx * 0.115f).toDp() }
                     )
                     .rotate(3.5f)
+            )
+        }
+
+        // Geometry Dash room features 2 glowing neon-framed Extreme Demon level artworks on the wall!
+        if (roomStyle == RoomStyleId.GEOMETRY_DASH && wPx > 0f && hPx > 0f) {
+            val (neonPrimary, _, neonTertiary) = gdSubTheme.accentNeonColors()
+            GeometryDashWallPoster(
+                drawableRes = gdSubTheme.posterDrawableRes(),
+                label = gdSubTheme.displayName.uppercase(),
+                borderColor = neonPrimary,
+                modifier = Modifier
+                    .offset { IntOffset((wPx * 0.335f).roundToInt(), (hPx * 0.265f).roundToInt()) }
+                    .size(
+                        width = with(density) { (wPx * 0.22f).toDp() },
+                        height = with(density) { (hPx * 0.135f).toDp() }
+                    )
+                    .rotate(-2.2f)
+            )
+            GeometryDashWallPoster(
+                drawableRes = gdSubTheme.mainDrawableRes(),
+                label = "EXTREME DEMON",
+                borderColor = neonTertiary,
+                modifier = Modifier
+                    .offset { IntOffset((wPx * 0.555f).roundToInt(), (hPx * 0.185f).roundToInt()) }
+                    .size(
+                        width = with(density) { (wPx * 0.18f).toDp() },
+                        height = with(density) { (hPx * 0.112f).toDp() }
+                    )
+                    .rotate(2.4f)
+            )
+        }
+    }
+}
+
+@Composable
+private fun GeometryDashWallPoster(
+    drawableRes: Int,
+    label: String,
+    borderColor: Color,
+    modifier: Modifier = Modifier
+) {
+    Box(
+        modifier = modifier
+            .clip(RoundedCornerShape(6.dp))
+            .background(Color(0xE0060812))
+            .border(1.8.dp, borderColor.copy(alpha = 0.92f), RoundedCornerShape(6.dp))
+            .padding(2.5.dp)
+    ) {
+        Image(
+            painter = painterResource(id = drawableRes),
+            contentDescription = label,
+            contentScale = ContentScale.Crop,
+            modifier = Modifier
+                .fillMaxSize()
+                .clip(RoundedCornerShape(4.dp))
+        )
+        Box(
+            modifier = Modifier
+                .align(Alignment.BottomStart)
+                .padding(3.dp)
+                .clip(RoundedCornerShape(3.dp))
+                .background(Color(0xC805070E))
+                .padding(horizontal = 4.dp, vertical = 1.dp)
+        ) {
+            Text(
+                text = label,
+                color = borderColor,
+                fontSize = 6.5.sp,
+                fontWeight = FontWeight.ExtraBold,
+                letterSpacing = 0.6.sp
             )
         }
     }
@@ -454,6 +547,251 @@ private fun DrawScope.drawMinecraftShell(palette: RoomVisualPalette) {
     }
 }
 
+private fun DrawScope.drawGeometryDashShell(
+    palette: RoomVisualPalette,
+    subTheme: GeometryDashSubTheme
+) {
+    val w = size.width
+    val h = size.height
+    val floorY = h * 0.61f
+    val (neonPrimary, neonSecondary, neonTertiary) = subTheme.accentNeonColors()
+
+    // 1. Dark atmospheric wall vignette over the level backdrop so furniture pops cleanly
+    drawRect(
+        brush = Brush.verticalGradient(
+            colors = listOf(
+                palette.wallUpper.copy(alpha = 0.84f),
+                palette.wallMain.copy(alpha = 0.66f),
+                palette.wallMain.copy(alpha = 0.88f)
+            ),
+            startY = 0f,
+            endY = floorY
+        ),
+        topLeft = Offset.Zero,
+        size = Size(w, floorY)
+    )
+
+    // 2. Sub-theme signature Geometry Dash wall motifs
+    when (subTheme) {
+        GeometryDashSubTheme.SONIC_WAVE -> {
+            // Iconic Nine Circles diagonal neon stripes & cyan wave laser
+            val stripeW = w * 0.085f
+            for (i in -3..12) {
+                val x0 = i * stripeW * 1.45f
+                val stripePath = Path().apply {
+                    moveTo(x0, 0f)
+                    lineTo(x0 + stripeW * 0.42f, 0f)
+                    lineTo(x0 - h * 0.28f + stripeW * 0.42f, floorY)
+                    lineTo(x0 - h * 0.28f, floorY)
+                    close()
+                }
+                drawPath(
+                    stripePath,
+                    color = if (i % 2 == 0) neonSecondary.copy(alpha = 0.14f) else neonPrimary.copy(alpha = 0.08f)
+                )
+            }
+            // Electric cyan GD wave trail zipping across upper wall
+            val wavePath = Path().apply {
+                moveTo(0f, h * 0.115f)
+                lineTo(w * 0.18f, h * 0.075f)
+                lineTo(w * 0.34f, h * 0.125f)
+                lineTo(w * 0.52f, h * 0.072f)
+                lineTo(w * 0.72f, h * 0.122f)
+                lineTo(w * 0.88f, h * 0.080f)
+                lineTo(w, h * 0.108f)
+            }
+            drawPath(wavePath, neonPrimary.copy(alpha = 0.24f), style = Stroke(width = 14f, cap = StrokeCap.Round))
+            drawPath(wavePath, neonPrimary.copy(alpha = 0.82f), style = Stroke(width = 3.5f, cap = StrokeCap.Round))
+            drawPath(wavePath, Color.White.copy(alpha = 0.75f), style = Stroke(width = 1.4f, cap = StrokeCap.Round))
+
+            // Spinning cobalt sawblade accents near upper corners
+            drawGdSawblade(Offset(w * 0.08f, h * 0.14f), w * 0.075f, neonPrimary, neonSecondary)
+            drawGdSawblade(Offset(w * 0.92f, h * 0.13f), w * 0.068f, neonPrimary, neonSecondary)
+        }
+
+        GeometryDashSubTheme.ASTRAL_DIVINITY -> {
+            // Cosmic nebula aura + rainbow prism beams + twinkling celestial stars
+            drawCircle(
+                brush = Brush.radialGradient(
+                    colors = listOf(neonPrimary.copy(alpha = 0.24f), Color.Transparent),
+                    center = Offset(w * 0.5f, h * 0.22f),
+                    radius = w * 0.65f
+                ),
+                radius = w * 0.65f,
+                center = Offset(w * 0.5f, h * 0.22f)
+            )
+            // Subtle vertical rainbow prism columns inspired by Astral Divinity
+            val prismColors = listOf(
+                Color(0xFFEF4444), Color(0xFFF59E0B), Color(0xFF10B981),
+                Color(0xFF38BDF8), Color(0xFFA855F7), Color(0xFFEC4899)
+            )
+            prismColors.forEachIndexed { idx, col ->
+                val x = w * (0.08f + idx * 0.165f)
+                drawRect(
+                    brush = Brush.verticalGradient(
+                        listOf(col.copy(alpha = 0.14f), col.copy(alpha = 0.03f), Color.Transparent)
+                    ),
+                    topLeft = Offset(x, 0f),
+                    size = Size(w * 0.045f, floorY * 0.75f)
+                )
+            }
+            // Golden celestial stars & diamond sparkles
+            val stars = listOf(
+                0.10f to 0.09f, 0.24f to 0.14f, 0.42f to 0.08f, 0.58f to 0.12f,
+                0.76f to 0.09f, 0.89f to 0.16f, 0.18f to 0.36f, 0.84f to 0.34f
+            )
+            stars.forEachIndexed { idx, (sx, sy) ->
+                val cx = w * sx
+                val cy = h * sy
+                val r = if (idx % 2 == 0) w * 0.012f else w * 0.008f
+                val starCol = if (idx % 3 == 0) neonTertiary else Color.White
+                drawLine(starCol.copy(alpha = 0.8f), Offset(cx - r, cy), Offset(cx + r, cy), strokeWidth = 1.6f)
+                drawLine(starCol.copy(alpha = 0.8f), Offset(cx, cy - r), Offset(cx, cy + r), strokeWidth = 1.6f)
+                drawCircle(neonPrimary.copy(alpha = 0.3f), r * 1.4f, Offset(cx, cy))
+            }
+            drawGdSawblade(Offset(w * 0.91f, h * 0.14f), w * 0.07f, neonPrimary, neonSecondary)
+        }
+
+        GeometryDashSubTheme.DEATH_CORRIDOR -> {
+            // Iconic black-and-white / crimson diamond wave corridor pattern along upper wall
+            val dSize = w * 0.09f
+            val cols = (w / dSize).toInt() + 2
+            for (c in 0 until cols) {
+                val cx = c * dSize
+                val cy = h * 0.095f
+                val diamond = Path().apply {
+                    moveTo(cx, cy - dSize * 0.48f)
+                    lineTo(cx + dSize * 0.48f, cy)
+                    lineTo(cx, cy + dSize * 0.48f)
+                    lineTo(cx - dSize * 0.48f, cy)
+                    close()
+                }
+                drawPath(diamond, Color.White.copy(alpha = if (c % 2 == 0) 0.10f else 0.04f))
+                drawPath(diamond, neonPrimary.copy(alpha = 0.35f), style = Stroke(width = 1.5f))
+            }
+            // Blazing crimson wave spam zigzag
+            val dcWave = Path().apply {
+                moveTo(0f, h * 0.105f)
+                for (i in 1..12) {
+                    val x = w * (i / 12f)
+                    val y = if (i % 2 == 0) h * 0.122f else h * 0.082f
+                    lineTo(x, y)
+                }
+            }
+            drawPath(dcWave, neonPrimary.copy(alpha = 0.28f), style = Stroke(width = 12f, cap = StrokeCap.Round))
+            drawPath(dcWave, neonTertiary.copy(alpha = 0.85f), style = Stroke(width = 3.2f, cap = StrokeCap.Round))
+
+            // Crimson hell saws in top corners
+            drawGdSawblade(Offset(w * 0.09f, h * 0.15f), w * 0.072f, neonPrimary, Color(0xFF450A0A))
+            drawGdSawblade(Offset(w * 0.91f, h * 0.15f), w * 0.072f, neonPrimary, Color(0xFF450A0A))
+        }
+    }
+
+    // 3. Top neon portal laser rail (seamless full-bleed glow)
+    drawRect(
+        brush = Brush.verticalGradient(
+            colors = listOf(neonPrimary.copy(alpha = 0.30f), Color.Transparent),
+            startY = 0f,
+            endY = h * 0.18f
+        ),
+        topLeft = Offset.Zero,
+        size = Size(w, h * 0.18f)
+    )
+
+    // 4. GD Baseboard + signature Neon Ground Line + decorative GD Spikes along baseboard
+    drawRect(palette.baseboard, Offset(0f, floorY - h * 0.020f), Size(w, h * 0.020f))
+    // Decorative mini GD spikes resting on baseboard trim
+    val spikeW = w * 0.036f
+    val spikeH = h * 0.017f
+    listOf(0.04f, 0.076f, 0.112f, 0.84f, 0.876f, 0.912f).forEach { sx ->
+        val left = w * sx
+        val spike = Path().apply {
+            moveTo(left, floorY - h * 0.020f)
+            lineTo(left + spikeW / 2f, floorY - h * 0.020f - spikeH)
+            lineTo(left + spikeW, floorY - h * 0.020f)
+            close()
+        }
+        drawPath(spike, Color(0xFF06070B))
+        drawPath(spike, neonPrimary.copy(alpha = 0.88f), style = Stroke(width = 1.6f))
+    }
+
+    // Glowing horizontal GD Ground Laser Line
+    drawLine(neonPrimary.copy(alpha = 0.35f), Offset(0f, floorY), Offset(w, floorY), strokeWidth = 10f)
+    drawLine(Color.White.copy(alpha = 0.92f), Offset(0f, floorY), Offset(w, floorY), strokeWidth = 2.4f)
+
+    // 5. Geometry Dash Neon Perspective Grid Floor!
+    drawRect(
+        brush = Brush.verticalGradient(
+            colors = listOf(palette.floorMain, palette.wallUpper),
+            startY = floorY,
+            endY = h
+        ),
+        topLeft = Offset(0f, floorY + 2f),
+        size = Size(w, h - floorY)
+    )
+    // Horizontal neon grid rows
+    listOf(0.665f, 0.725f, 0.795f, 0.875f, 0.955f).forEach { fy ->
+        drawLine(
+            color = neonPrimary.copy(alpha = 0.32f),
+            start = Offset(0f, h * fy),
+            end = Offset(w, h * fy),
+            strokeWidth = 1.6f
+        )
+    }
+    // Perspective vertical GD tile lines radiating subtly from center horizon
+    for (i in -4..4) {
+        val topX = w * 0.5f + i * (w * 0.115f)
+        val botX = w * 0.5f + i * (w * 0.175f)
+        drawLine(
+            color = neonPrimary.copy(alpha = 0.24f),
+            start = Offset(topX, floorY + 2f),
+            end = Offset(botX, h),
+            strokeWidth = 1.5f
+        )
+    }
+
+    // 6. Neon-bordered Geometry Dash Portal Rug
+    val rugTopLeft = Offset(w * 0.12f, h * 0.665f)
+    val rugSize = Size(w * 0.76f, h * 0.245f)
+    drawRoundRect(palette.rugFill.copy(alpha = 0.90f), rugTopLeft, rugSize, CornerRadius(w * 0.025f, w * 0.025f))
+    drawRoundRect(
+        color = neonPrimary.copy(alpha = 0.72f),
+        topLeft = rugTopLeft,
+        size = rugSize,
+        cornerRadius = CornerRadius(w * 0.025f, w * 0.025f),
+        style = Stroke(width = 2.6f)
+    )
+    drawRoundRect(
+        color = neonTertiary.copy(alpha = 0.40f),
+        topLeft = Offset(rugTopLeft.x + w * 0.025f, rugTopLeft.y + h * 0.014f),
+        size = Size(rugSize.width - w * 0.05f, rugSize.height - h * 0.028f),
+        cornerRadius = CornerRadius(w * 0.018f, w * 0.018f),
+        style = Stroke(width = 1.5f)
+    )
+}
+
+private fun DrawScope.drawGdSawblade(
+    center: Offset,
+    radius: Float,
+    rimColor: Color,
+    coreColor: Color
+) {
+    val teeth = 12
+    val sawPath = Path()
+    for (i in 0 until teeth * 2) {
+        val angle = (i * PI / teeth).toFloat()
+        val r = if (i % 2 == 0) radius else radius * 0.74f
+        val px = center.x + cos(angle) * r
+        val py = center.y + sin(angle) * r
+        if (i == 0) sawPath.moveTo(px, py) else sawPath.lineTo(px, py)
+    }
+    sawPath.close()
+    drawPath(sawPath, coreColor.copy(alpha = 0.65f))
+    drawPath(sawPath, rimColor.copy(alpha = 0.55f), style = Stroke(width = 1.8f))
+    drawCircle(Color(0xFF05060A), radius * 0.42f, center)
+    drawCircle(rimColor.copy(alpha = 0.75f), radius * 0.42f, center, style = Stroke(width = 1.6f))
+}
+
 private fun DrawScope.drawBaseboardAndWoodFloor(palette: RoomVisualPalette, floorY: Float) {
     val w = size.width
     val h = size.height
@@ -487,6 +825,7 @@ fun RoomObjectGraphic(
     visualType: RoomObjectVisual,
     palette: RoomVisualPalette,
     roomStyle: RoomStyleId,
+    gdSubTheme: GeometryDashSubTheme = GeometryDashSubTheme.SONIC_WAVE,
     weatherState: WeatherState,
     weatherEnabled: Boolean,
     frameImageBitmap: ImageBitmap?,
@@ -500,6 +839,11 @@ fun RoomObjectGraphic(
                 PaintingGraphic(
                     palette = palette,
                     isVoxel = isVoxel,
+                    gdDefaultDrawableRes = if (roomStyle == RoomStyleId.GEOMETRY_DASH) {
+                        gdSubTheme.mainDrawableRes()
+                    } else {
+                        null
+                    },
                     frameImageBitmap = frameImageBitmap,
                     modifier = Modifier.fillMaxSize()
                 )
@@ -801,6 +1145,7 @@ private fun DrawScope.drawCloud(left: Float, top: Float, width: Float, color: Co
 private fun PaintingGraphic(
     palette: RoomVisualPalette,
     isVoxel: Boolean,
+    gdDefaultDrawableRes: Int? = null,
     frameImageBitmap: ImageBitmap?,
     modifier: Modifier = Modifier
 ) {
@@ -859,7 +1204,7 @@ private fun PaintingGraphic(
                 size = Size(artW + 3f, artH + 3f)
             )
 
-            if (frameImageBitmap == null) {
+            if (frameImageBitmap == null && gdDefaultDrawableRes == null) {
                 if (isVoxel) {
                     // Iconic blocky pixel landscape painting
                     drawRect(Color(0xFF5FA8D3), Offset(artLeft, artTop), Size(artW, artH * 0.6f))
@@ -890,8 +1235,8 @@ private fun PaintingGraphic(
             }
         }
 
-        // 2. Perfectly centered custom photo seated directly inside the recessed museum mat aperture!
-        if (frameImageBitmap != null && wPx > 0f && hPx > 0f) {
+        // 2. Perfectly centered custom photo (or Geometry Dash level art) seated directly inside the museum mat aperture!
+        if ((frameImageBitmap != null || gdDefaultDrawableRes != null) && wPx > 0f && hPx > 0f) {
             Box(
                 modifier = Modifier
                     .offset {
@@ -906,13 +1251,22 @@ private fun PaintingGraphic(
                     )
                     .clip(RoundedCornerShape(1.5.dp))
             ) {
-                Image(
-                    bitmap = frameImageBitmap,
-                    contentDescription = "Picture frame artwork",
-                    contentScale = ContentScale.Crop,
-                    filterQuality = FilterQuality.High,
-                    modifier = Modifier.fillMaxSize()
-                )
+                if (frameImageBitmap != null) {
+                    Image(
+                        bitmap = frameImageBitmap,
+                        contentDescription = "Picture frame artwork",
+                        contentScale = ContentScale.Crop,
+                        filterQuality = FilterQuality.High,
+                        modifier = Modifier.fillMaxSize()
+                    )
+                } else if (gdDefaultDrawableRes != null) {
+                    Image(
+                        painter = painterResource(id = gdDefaultDrawableRes),
+                        contentDescription = "Geometry Dash level artwork",
+                        contentScale = ContentScale.Crop,
+                        modifier = Modifier.fillMaxSize()
+                    )
+                }
                 // Delicate gallery glass reflection & top inner-mat shadow so the photo blends naturally into the frame!
                 Canvas(modifier = Modifier.fillMaxSize()) {
                     drawRect(

@@ -40,6 +40,7 @@ import com.roomlauncher.app.system.RoomWallpaperRenderer
 import com.roomlauncher.app.system.SystemIntentHelper
 import com.roomlauncher.app.system.UpdateInstallReceiver
 import com.roomlauncher.app.ui.theme.ChargingAnimationStyle
+import com.roomlauncher.app.ui.theme.GeometryDashSubTheme
 import com.roomlauncher.app.ui.theme.RoomStyleId
 import com.roomlauncher.app.ui.theme.RoomThemeId
 import com.roomlauncher.app.ui.theme.RoomThemes
@@ -1021,6 +1022,19 @@ class RoomLauncherViewModel(application: Application) : AndroidViewModel(applica
         }
     }
 
+    fun setGeometryDashSubTheme(subTheme: GeometryDashSubTheme) {
+        updateConfig {
+            it.copy(
+                roomStyleId = RoomStyleId.GEOMETRY_DASH,
+                geometryDashSubTheme = subTheme,
+                dynamicThemeEnabled = false
+            )
+        }
+        if (_uiState.value.config.mirrorHomeWallpaper) {
+            syncHomeWallpaperNow(showToast = false)
+        }
+    }
+
     fun setTheme(themeId: RoomThemeId) {
         updateConfig { it.copy(themeId = themeId, dynamicThemeEnabled = false) }
         if (_uiState.value.config.mirrorHomeWallpaper) {
@@ -1357,6 +1371,7 @@ class RoomLauncherViewModel(application: Application) : AndroidViewModel(applica
             onboardingCompleted = true,
             onboardingStep = 3,
             roomStyleId = current.roomStyleId,
+            geometryDashSubTheme = current.geometryDashSubTheme,
             themeId = current.themeId,
             dynamicThemeEnabled = current.dynamicThemeEnabled,
             useQuickAnimations = current.useQuickAnimations,

@@ -52,7 +52,9 @@ import androidx.compose.ui.unit.sp
 import com.roomlauncher.app.data.BatteryStatus
 import com.roomlauncher.app.data.ChargeSource
 import com.roomlauncher.app.ui.theme.ChargingAnimationStyle
+import com.roomlauncher.app.ui.theme.GeometryDashSubTheme
 import com.roomlauncher.app.ui.theme.RoomStyleId
+import com.roomlauncher.app.ui.theme.accentNeonColors
 import kotlinx.coroutines.delay
 import kotlin.math.PI
 import kotlin.math.cos
@@ -67,6 +69,7 @@ import kotlin.math.sin
 fun ChargingSplashOverlay(
     batteryStatus: BatteryStatus,
     roomStyle: RoomStyleId,
+    gdSubTheme: GeometryDashSubTheme = GeometryDashSubTheme.SONIC_WAVE,
     animationStyle: ChargingAnimationStyle,
     triggerKey: Long,
     onFinished: () -> Unit
@@ -113,8 +116,10 @@ fun ChargingSplashOverlay(
 
     val effectiveVoxel = animationStyle == ChargingAnimationStyle.VOXEL_REDSTONE ||
         (animationStyle == ChargingAnimationStyle.MATCH_ROOM && roomStyle == RoomStyleId.MINECRAFT)
+    val effectiveGdCyber = animationStyle == ChargingAnimationStyle.MATCH_ROOM &&
+        roomStyle == RoomStyleId.GEOMETRY_DASH
 
-    val (primaryGlow, secondaryGlow, accentGlow) = animationPalette(animationStyle, roomStyle)
+    val (primaryGlow, secondaryGlow, accentGlow) = animationPalette(animationStyle, roomStyle, gdSubTheme)
     val p = entrance.value
     val fade = exitAlpha.value * p
 
@@ -169,7 +174,7 @@ fun ChargingSplashOverlay(
                         accentGlow = accentGlow
                     )
                 }
-                animationStyle == ChargingAnimationStyle.CYBER_PULSE -> {
+                animationStyle == ChargingAnimationStyle.CYBER_PULSE || effectiveGdCyber -> {
                     drawCyberPulseCharging(
                         w = w, h = h, cx = cx, cy = cy, baseRadius = baseRadius,
                         chargeFill = chargeSweep.value,
@@ -695,7 +700,8 @@ private fun DrawScope.drawVoxelRedstoneCharging(
 
 private fun animationPalette(
     animationStyle: ChargingAnimationStyle,
-    roomStyle: RoomStyleId
+    roomStyle: RoomStyleId,
+    gdSubTheme: GeometryDashSubTheme = GeometryDashSubTheme.SONIC_WAVE
 ): Triple<Color, Color, Color> = when (animationStyle) {
     ChargingAnimationStyle.LIQUID_GLASS -> Triple(Color(0xFF00B4D8), Color(0xFF0077B6), Color(0xFF90E0EF))
     ChargingAnimationStyle.AURORA_WAVE -> Triple(Color(0xFF06D6A0), Color(0xFF8338EC), Color(0xFF4CC9F0))
@@ -707,5 +713,6 @@ private fun animationPalette(
         RoomStyleId.TEEN_ROOM -> Triple(Color(0xFF9B5DE5), Color(0xFF00F5D4), Color(0xFFF15BB5))
         RoomStyleId.KIDS_ROOM -> Triple(Color(0xFFFFB703), Color(0xFF4CC9F0), Color(0xFFFF6B6B))
         RoomStyleId.MINECRAFT -> Triple(Color(0xFFE53935), Color(0xFF5CE65C), Color(0xFFFFE066))
+        RoomStyleId.GEOMETRY_DASH -> gdSubTheme.accentNeonColors()
     }
 }
