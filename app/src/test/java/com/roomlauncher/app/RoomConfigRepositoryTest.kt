@@ -54,6 +54,7 @@ class RoomConfigRepositoryTest {
             roomStyleId = RoomStyleId.TEEN_ROOM,
             themeId = RoomThemeId.MIDNIGHT_COZY,
             useQuickAnimations = true,
+            chargingAnimationEnabled = false,
             weatherEnabled = true,
             mirrorHomeWallpaper = true,
             posterLeftPath = "/tmp/poster_left.jpg",

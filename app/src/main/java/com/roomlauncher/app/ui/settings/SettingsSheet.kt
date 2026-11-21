@@ -26,6 +26,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Animation
+import androidx.compose.material.icons.rounded.Bolt
 import androidx.compose.material.icons.rounded.Check
 import androidx.compose.material.icons.rounded.Close
 import androidx.compose.material.icons.rounded.Cloud
@@ -71,6 +72,8 @@ fun SettingsSheet(
     onPickTeenPoster: (isLeft: Boolean, uri: Uri) -> Unit,
     onClearTeenPoster: (isLeft: Boolean) -> Unit,
     onToggleQuickAnimations: (Boolean) -> Unit,
+    onToggleChargingAnimation: (Boolean) -> Unit,
+    onPreviewChargingAnimation: () -> Unit,
     onToggleWeather: (Boolean) -> Unit,
     onRefreshWeather: () -> Unit,
     onToggleMirrorWallpaper: (Boolean) -> Unit,
@@ -139,7 +142,7 @@ fun SettingsSheet(
                         color = MaterialTheme.colorScheme.onBackground
                     )
                     Text(
-                        text = "Room Launcher v2.1",
+                        text = "Room Launcher v2.2",
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
@@ -332,7 +335,56 @@ fun SettingsSheet(
                     }
                 }
 
-                // 3. Live Weather in Window
+                // 3. Custom Room Charging Animation (when screen is on)
+                SettingsSectionCard(
+                    icon = Icons.Rounded.Bolt,
+                    title = "Charging Animation",
+                    subtitle = "Room-themed plug-in animation & ambient glow while screen is on"
+                ) {
+                    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.SpaceBetween
+                        ) {
+                            Column(modifier = Modifier.weight(1f).padding(end = 12.dp)) {
+                                Text(
+                                    text = "Custom Charging Animation",
+                                    style = MaterialTheme.typography.titleMedium,
+                                    fontWeight = FontWeight.SemiBold
+                                )
+                                Text(
+                                    text = if (uiState.config.chargingAnimationEnabled) {
+                                        "Matches your active Room Style (${uiState.config.roomStyleId.displayName})"
+                                    } else {
+                                        "Disabled"
+                                    },
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
+                            Switch(
+                                checked = uiState.config.chargingAnimationEnabled,
+                                onCheckedChange = onToggleChargingAnimation
+                            )
+                        }
+
+                        OutlinedButton(
+                            onClick = onPreviewChargingAnimation,
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Icon(
+                                imageVector = Icons.Rounded.Bolt,
+                                contentDescription = null,
+                                modifier = Modifier.size(18.dp)
+                            )
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Text("Preview Charging Animation")
+                        }
+                    }
+                }
+
+                // 4. Live Weather in Window
                 SettingsSectionCard(
                     icon = Icons.Rounded.Cloud,
                     title = "Window Live Weather",

@@ -171,17 +171,37 @@ private fun DrawScope.drawCozyShell(palette: RoomVisualPalette) {
     val h = size.height
     val floorY = h * 0.61f
 
-    drawRect(palette.wallMain, Offset.Zero, Size(w, floorY))
-    drawRect(palette.wallUpper, Offset.Zero, Size(w, h * 0.115f))
+    // Smooth seamless ceiling-to-wall gradient all the way from y = 0f behind the status bar
+    drawRect(
+        brush = Brush.verticalGradient(
+            colors = listOf(palette.wallUpper, palette.wallMain, palette.wallMain),
+            startY = 0f,
+            endY = floorY
+        ),
+        topLeft = Offset.Zero,
+        size = Size(w, floorY)
+    )
 
+    // Soft window daylight wash tapering smoothly downward
     val lightPath = Path().apply {
-        moveTo(w * 0.05f, h * 0.115f)
-        lineTo(w * 0.30f, h * 0.115f)
-        lineTo(w * 0.52f, floorY)
-        lineTo(w * 0.10f, floorY)
+        moveTo(w * 0.04f, h * 0.08f)
+        lineTo(w * 0.31f, h * 0.08f)
+        lineTo(w * 0.54f, floorY)
+        lineTo(w * 0.09f, floorY)
         close()
     }
-    drawPath(lightPath, palette.ambientLightTint)
+    drawPath(
+        path = lightPath,
+        brush = Brush.verticalGradient(
+            colors = listOf(
+                Color.Transparent,
+                palette.ambientLightTint,
+                palette.ambientLightTint.copy(alpha = palette.ambientLightTint.alpha * 0.55f)
+            ),
+            startY = h * 0.06f,
+            endY = floorY
+        )
+    )
 
     drawBaseboardAndWoodFloor(palette, floorY)
 
@@ -203,42 +223,52 @@ private fun DrawScope.drawTeenShell(palette: RoomVisualPalette) {
     val h = size.height
     val floorY = h * 0.61f
 
-    drawRect(palette.wallMain, Offset.Zero, Size(w, floorY))
-    drawRect(palette.wallUpper, Offset.Zero, Size(w, h * 0.09f))
+    // Seamless wall gradient right to y = 0f (zero cutoff behind notification bar!)
+    drawRect(
+        brush = Brush.verticalGradient(
+            colors = listOf(palette.wallUpper, palette.wallMain, palette.wallMain),
+            startY = 0f,
+            endY = floorY
+        ),
+        topLeft = Offset.Zero,
+        size = Size(w, floorY)
+    )
 
-    // RGB LED ceiling strip glow washing down upper wall!
+    val ledY = h * 0.068f
+    // RGB LED ambient ceiling wash glowing seamlessly ALL THE WAY from y = 0f past the LED tube!
     drawRect(
         brush = Brush.verticalGradient(
             colors = listOf(
-                Color(0xFF9B5DE5).copy(alpha = if (palette.isDark) 0.45f else 0.24f),
+                Color(0xFF9B5DE5).copy(alpha = if (palette.isDark) 0.42f else 0.22f),
+                Color(0xFFF15BB5).copy(alpha = if (palette.isDark) 0.46f else 0.24f),
                 Color(0xFF00BBF9).copy(alpha = if (palette.isDark) 0.20f else 0.10f),
                 Color.Transparent
             ),
-            startY = h * 0.05f,
-            endY = h * 0.26f
+            startY = 0f,
+            endY = h * 0.28f
         ),
-        topLeft = Offset(0f, h * 0.05f),
-        size = Size(w, h * 0.21f)
+        topLeft = Offset.Zero,
+        size = Size(w, h * 0.28f)
     )
     // Crisp neon LED tube strip along upper wall
     drawRect(
         brush = Brush.horizontalGradient(
             listOf(Color(0xFF00F5D4), Color(0xFF9B5DE5), Color(0xFFF15BB5), Color(0xFF00BBF9))
         ),
-        topLeft = Offset(0f, h * 0.072f),
-        size = Size(w, h * 0.007f)
+        topLeft = Offset(0f, ledY),
+        size = Size(w, h * 0.0065f)
     )
 
     // Warm string fairy lights draped across top wall
     val wirePath = Path().apply {
-        moveTo(0f, h * 0.08f)
-        quadraticTo(w * 0.25f, h * 0.125f, w * 0.50f, h * 0.088f)
-        quadraticTo(w * 0.75f, h * 0.125f, w, h * 0.08f)
+        moveTo(0f, ledY + h * 0.008f)
+        quadraticTo(w * 0.25f, ledY + h * 0.052f, w * 0.50f, ledY + h * 0.016f)
+        quadraticTo(w * 0.75f, ledY + h * 0.052f, w, ledY + h * 0.008f)
     }
     drawPath(wirePath, Color(0xFF555B6E).copy(alpha = 0.55f), style = Stroke(width = 2f))
     val bulbPoints = listOf(
-        0.10f to 0.096f, 0.22f to 0.105f, 0.35f to 0.101f,
-        0.50f to 0.088f, 0.65f to 0.101f, 0.78f to 0.105f, 0.90f to 0.096f
+        0.10f to 0.092f, 0.22f to 0.101f, 0.35f to 0.097f,
+        0.50f to 0.084f, 0.65f to 0.097f, 0.78f to 0.101f, 0.90f to 0.092f
     )
     bulbPoints.forEach { (bx, by) ->
         drawCircle(Color(0xFFFFD166).copy(alpha = 0.28f), radius = w * 0.025f, center = Offset(w * bx, h * by))
@@ -262,12 +292,21 @@ private fun DrawScope.drawKidsShell(palette: RoomVisualPalette) {
     val h = size.height
     val floorY = h * 0.61f
 
-    drawRect(palette.wallMain, Offset.Zero, Size(w, floorY))
-    drawRect(palette.wallUpper, Offset.Zero, Size(w, h * 0.10f))
+    // Smooth pastel ceiling-to-wall gradient extending all the way behind the status bar
+    drawRect(
+        brush = Brush.verticalGradient(
+            colors = listOf(palette.wallUpper, palette.wallMain, palette.wallMain),
+            startY = 0f,
+            endY = floorY
+        ),
+        topLeft = Offset.Zero,
+        size = Size(w, floorY)
+    )
 
-    // Painted playful wall stars & soft pastel dots
+    // Painted playful wall stars & soft pastel dots (spanning from behind status bar down to floor)
     val starColor = Color(0xFFF4B942).copy(alpha = if (palette.isDark) 0.50f else 0.45f)
     val stars = listOf(
+        0.12f to 0.045f, 0.42f to 0.035f, 0.76f to 0.048f,
         0.16f to 0.29f, 0.34f to 0.27f, 0.64f to 0.26f, 0.89f to 0.33f,
         0.53f to 0.38f, 0.24f to 0.56f, 0.79f to 0.57f
     )

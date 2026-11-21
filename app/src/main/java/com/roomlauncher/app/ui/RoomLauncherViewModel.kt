@@ -11,6 +11,8 @@ import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.roomlauncher.app.data.AppInfo
 import com.roomlauncher.app.data.AppRepository
+import com.roomlauncher.app.data.BatteryMonitor
+import com.roomlauncher.app.data.BatteryStatus
 import com.roomlauncher.app.data.HotspotActionType
 import com.roomlauncher.app.data.RoomConfig
 import com.roomlauncher.app.data.RoomConfigRepository
@@ -41,6 +43,8 @@ data class RoomUiState(
     val packageOwnerLabels: Map<String, String> = emptyMap(),
     val defaultUnsortedLabel: String = "Trash Can",
     val weatherState: WeatherState = WeatherState(),
+    val batteryStatus: BatteryStatus = BatteryStatus(),
+    val activeChargingSplashKey: Long = 0L,
     val frameImageBitmap: ImageBitmap? = null,
     val posterLeftBitmap: ImageBitmap? = null,
     val posterRightBitmap: ImageBitmap? = null,
@@ -75,11 +79,34 @@ class RoomLauncherViewModel(application: Application) : AndroidViewModel(applica
     private val configRepository = RoomConfigRepository(appContext)
     private val appRepository = AppRepository(appContext, viewModelScope)
     private val weatherRepository = WeatherRepository(appContext)
+    private val batteryMonitor = BatteryMonitor(appContext)
 
     private val _uiState = MutableStateFlow(RoomUiState())
     val uiState: StateFlow<RoomUiState> = _uiState.asStateFlow()
 
+    private var lastObservedPlugInId = 0L
+
     init {
+        batteryMonitor.start()
+        viewModelScope.launch {
+            batteryMonitor.status.collect { status ->
+                val triggerSplash = status.plugInEventId > lastObservedPlugInId &&
+                    _uiState.value.config.chargingAnimationEnabled &&
+                    _uiState.value.config.onboardingCompleted
+                lastObservedPlugInId = status.plugInEventId
+                _uiState.update { state ->
+                    state.copy(
+                        batteryStatus = status,
+                        activeChargingSplashKey = if (triggerSplash) {
+                            System.nanoTime()
+                        } else {
+                            state.activeChargingSplashKey
+                        }
+                    )
+                }
+            }
+        }
+
         viewModelScope.launch {
             val loadedConfig = configRepository.loadConfig()
             val frameBmp = loadFrameBitmap(loadedConfig.framePhotoPath)
@@ -139,6 +166,7 @@ class RoomLauncherViewModel(application: Application) : AndroidViewModel(applica
 
     override fun onCleared() {
         appRepository.stopListening()
+        batteryMonitor.stop()
         super.onCleared()
     }
 
@@ -365,6 +393,24 @@ class RoomLauncherViewModel(application: Application) : AndroidViewModel(applica
 
     fun setUseQuickAnimations(enabled: Boolean) {
         updateConfig { it.copy(useQuickAnimations = enabled) }
+    }
+
+    fun setChargingAnimationEnabled(enabled: Boolean) {
+        updateConfig { it.copy(chargingAnimationEnabled = enabled) }
+    }
+
+    fun triggerChargingAnimationPreview() {
+        _uiState.update {
+            it.copy(
+                showSettingsSheet = false,
+                showAllAppsSheet = false,
+                activeChargingSplashKey = System.nanoTime()
+            )
+        }
+    }
+
+    fun dismissChargingAnimation() {
+        _uiState.update { it.copy(activeChargingSplashKey = 0L) }
     }
 
     fun setWeatherEnabled(enabled: Boolean) {
@@ -613,6 +659,7 @@ class RoomLauncherViewModel(application: Application) : AndroidViewModel(applica
             roomStyleId = current.roomStyleId,
             themeId = current.themeId,
             useQuickAnimations = current.useQuickAnimations,
+            chargingAnimationEnabled = current.chargingAnimationEnabled,
             weatherEnabled = current.weatherEnabled,
             mirrorHomeWallpaper = current.mirrorHomeWallpaper,
             framePhotoPath = current.framePhotoPath,
