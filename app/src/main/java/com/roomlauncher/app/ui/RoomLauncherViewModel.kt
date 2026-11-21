@@ -11,16 +11,24 @@ import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.roomlauncher.app.data.AppInfo
 import com.roomlauncher.app.data.AppRepository
+import com.roomlauncher.app.data.AudioVisualizerEngine
 import com.roomlauncher.app.data.BatteryMonitor
 import com.roomlauncher.app.data.BatteryStatus
 import com.roomlauncher.app.data.HotspotActionType
+import com.roomlauncher.app.data.LyricsRepository
+import com.roomlauncher.app.data.LyricsState
+import com.roomlauncher.app.data.MusicDisplayMode
+import com.roomlauncher.app.data.MusicMediaMonitor
+import com.roomlauncher.app.data.NowPlayingState
 import com.roomlauncher.app.data.RoomConfig
 import com.roomlauncher.app.data.RoomConfigRepository
 import com.roomlauncher.app.data.RoomHotspot
 import com.roomlauncher.app.data.RoomObjectVisual
+import com.roomlauncher.app.data.VisualizerStyle
 import com.roomlauncher.app.data.WeatherRepository
 import com.roomlauncher.app.data.WeatherState
 import com.roomlauncher.app.data.WebShortcut
+import com.roomlauncher.app.system.RoomNotificationListenerService
 import com.roomlauncher.app.system.RoomWallpaperRenderer
 import com.roomlauncher.app.system.SystemIntentHelper
 import com.roomlauncher.app.ui.theme.ChargingAnimationStyle
@@ -28,6 +36,7 @@ import com.roomlauncher.app.ui.theme.RoomStyleId
 import com.roomlauncher.app.ui.theme.RoomThemeId
 import com.roomlauncher.app.ui.theme.RoomThemes
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -49,6 +58,12 @@ data class RoomUiState(
     val weatherState: WeatherState = WeatherState(),
     val batteryStatus: BatteryStatus = BatteryStatus(),
     val activeChargingSplashKey: Long = 0L,
+    val nowPlaying: NowPlayingState = NowPlayingState(),
+    val lyricsState: LyricsState = LyricsState.Idle,
+    val musicDisplayMode: MusicDisplayMode = MusicDisplayMode.VISUALIZER,
+    val isMusicExpanded: Boolean = false,
+    val hasNotificationAccess: Boolean = false,
+    val hasAudioPermission: Boolean = false,
     val currentHourOfDay: Int = Calendar.getInstance().get(Calendar.HOUR_OF_DAY),
     val frameImageBitmap: ImageBitmap? = null,
     val posterLeftBitmap: ImageBitmap? = null,
@@ -92,18 +107,55 @@ class RoomLauncherViewModel(application: Application) : AndroidViewModel(applica
     private val appRepository = AppRepository(appContext, viewModelScope)
     private val weatherRepository = WeatherRepository(appContext)
     private val batteryMonitor = BatteryMonitor(appContext)
+    private val musicMediaMonitor = MusicMediaMonitor(appContext)
+    private val lyricsRepository = LyricsRepository()
+    private val audioVisualizerEngine = AudioVisualizerEngine(appContext)
+
+    val fftBands: StateFlow<FloatArray> = audioVisualizerEngine.bands
+    val hasLiveFftSignal: StateFlow<Boolean> = audioVisualizerEngine.hasLiveSignal
 
     private val _uiState = MutableStateFlow(RoomUiState())
     val uiState: StateFlow<RoomUiState> = _uiState.asStateFlow()
 
     private var lastObservedPlugInId = 0L
+    private var lastLyricsTrackKey = ""
+    private var lyricsJob: Job? = null
+    private var isAppInForeground = true
 
     init {
         batteryMonitor.start()
+        musicMediaMonitor.startOrRefresh()
         viewModelScope.launch {
             while (true) {
                 delay(60_000L)
                 refreshDynamicThemeHour()
+            }
+        }
+        viewModelScope.launch {
+            musicMediaMonitor.nowPlaying.collect { track ->
+                val trackChanged = track.trackKey != lastLyricsTrackKey
+                _uiState.update { state ->
+                    state.copy(
+                        nowPlaying = track,
+                        isMusicExpanded = if (track.hasSession) state.isMusicExpanded else false,
+                        lyricsState = if (!track.hasSession) {
+                            LyricsState.Idle
+                        } else if (trackChanged) {
+                            LyricsState.Idle
+                        } else {
+                            state.lyricsState
+                        }
+                    )
+                }
+                if (trackChanged) {
+                    lyricsJob?.cancel()
+                    lastLyricsTrackKey = track.trackKey
+                    val cur = _uiState.value
+                    if (track.hasSession && cur.isMusicExpanded && cur.musicDisplayMode == MusicDisplayMode.LYRICS) {
+                        fetchLyricsForCurrentTrack(forceRefresh = false)
+                    }
+                }
+                syncAudioVisualizerState()
             }
         }
         viewModelScope.launch {
@@ -132,6 +184,8 @@ class RoomLauncherViewModel(application: Application) : AndroidViewModel(applica
             val posterRightBmp = loadFrameBitmap(loadedConfig.posterRightPath)
             val isDefault = SystemIntentHelper.isDefaultHomeLauncher(appContext)
             val isBatteryIgnored = SystemIntentHelper.isIgnoringBatteryOptimizations(appContext)
+            val hasNotifAccess = musicMediaMonitor.isNotificationAccessGranted()
+            val hasAudioPerm = audioVisualizerEngine.hasAudioPermission()
 
             // If the user just became default launcher while on the final onboarding step, finish onboarding cleanly
             val effectiveConfig = if (!loadedConfig.onboardingCompleted && loadedConfig.onboardingStep >= 3 && isDefault) {
@@ -146,13 +200,16 @@ class RoomLauncherViewModel(application: Application) : AndroidViewModel(applica
                 it.copy(
                     isLoaded = true,
                     config = effectiveConfig,
+                    musicDisplayMode = effectiveConfig.musicDefaultMode,
                     packageOwnerLabels = RoomConfigRepository.buildPackageOwnerLabelMap(effectiveConfig),
                     defaultUnsortedLabel = RoomConfigRepository.defaultUnsortedLabel(effectiveConfig),
                     frameImageBitmap = frameBmp,
                     posterLeftBitmap = posterLeftBmp,
                     posterRightBitmap = posterRightBmp,
                     isBatteryOptimizationIgnored = isBatteryIgnored,
-                    isDefaultLauncher = isDefault
+                    isDefaultLauncher = isDefault,
+                    hasNotificationAccess = hasNotifAccess,
+                    hasAudioPermission = hasAudioPerm
                 )
             }
 
@@ -183,9 +240,20 @@ class RoomLauncherViewModel(application: Application) : AndroidViewModel(applica
     }
 
     override fun onCleared() {
+        lyricsJob?.cancel()
+        audioVisualizerEngine.stop()
+        musicMediaMonitor.stop()
         appRepository.stopListening()
         batteryMonitor.stop()
         super.onCleared()
+    }
+
+    fun setAppForeground(inForeground: Boolean) {
+        isAppInForeground = inForeground
+        if (inForeground) {
+            musicMediaMonitor.startOrRefresh()
+        }
+        syncAudioVisualizerState()
     }
 
     /**
@@ -196,6 +264,8 @@ class RoomLauncherViewModel(application: Application) : AndroidViewModel(applica
         refreshDynamicThemeHour()
         val isBatteryIgnored = SystemIntentHelper.isIgnoringBatteryOptimizations(appContext)
         val isDefault = SystemIntentHelper.isDefaultHomeLauncher(appContext)
+        val hasNotifAccess = musicMediaMonitor.isNotificationAccessGranted()
+        val hasAudioPerm = audioVisualizerEngine.hasAudioPermission()
         val state = _uiState.value
 
         val shouldAutoCompleteOnboarding =
@@ -210,9 +280,14 @@ class RoomLauncherViewModel(application: Application) : AndroidViewModel(applica
         _uiState.update {
             it.copy(
                 isBatteryOptimizationIgnored = isBatteryIgnored,
-                isDefaultLauncher = isDefault
+                isDefaultLauncher = isDefault,
+                hasNotificationAccess = hasNotifAccess,
+                hasAudioPermission = hasAudioPerm
             )
         }
+
+        musicMediaMonitor.startOrRefresh()
+        syncAudioVisualizerState()
 
         if (state.installedApps.isEmpty()) {
             viewModelScope.launch { appRepository.refreshInstalledApps() }
@@ -239,10 +314,12 @@ class RoomLauncherViewModel(application: Application) : AndroidViewModel(applica
                 isEditMode = false,
                 activeHotspotId = null,
                 editingHotspotId = null,
+                isMusicExpanded = false,
                 showAllAppsSheet = false,
                 showSettingsSheet = false
             )
         }
+        syncAudioVisualizerState()
         updateConfig { it.copy(onboardingCompleted = false, onboardingStep = 0) }
     }
 
@@ -251,10 +328,12 @@ class RoomLauncherViewModel(application: Application) : AndroidViewModel(applica
             it.copy(
                 isEditMode = true,
                 activeHotspotId = null,
+                isMusicExpanded = false,
                 showAllAppsSheet = false,
                 showSettingsSheet = false
             )
         }
+        syncAudioVisualizerState()
     }
 
     fun exitEditMode() {
@@ -274,10 +353,12 @@ class RoomLauncherViewModel(application: Application) : AndroidViewModel(applica
         _uiState.update {
             it.copy(
                 activeHotspotId = hotspotId,
+                isMusicExpanded = false,
                 showAllAppsSheet = false,
                 showSettingsSheet = false
             )
         }
+        syncAudioVisualizerState()
     }
 
     fun closeHotspotPanel() {
@@ -305,9 +386,11 @@ class RoomLauncherViewModel(application: Application) : AndroidViewModel(applica
             it.copy(
                 showAllAppsSheet = true,
                 activeHotspotId = null,
+                isMusicExpanded = false,
                 showSettingsSheet = false
             )
         }
+        syncAudioVisualizerState()
     }
 
     fun closeAllApps() {
@@ -320,9 +403,11 @@ class RoomLauncherViewModel(application: Application) : AndroidViewModel(applica
                 showSettingsSheet = true,
                 showAllAppsSheet = false,
                 activeHotspotId = null,
+                isMusicExpanded = false,
                 isEditMode = false
             )
         }
+        syncAudioVisualizerState()
     }
 
     fun closeSettings() {
@@ -344,6 +429,10 @@ class RoomLauncherViewModel(application: Application) : AndroidViewModel(applica
                 closeSettings()
                 true
             }
+            state.isMusicExpanded -> {
+                collapseMusicVisualizer()
+                true
+            }
             state.activeHotspotId != null -> {
                 closeHotspotPanel()
                 true
@@ -358,6 +447,157 @@ class RoomLauncherViewModel(application: Application) : AndroidViewModel(applica
             }
             else -> false
         }
+    }
+
+    // ---- Music Visualizer & Open-Source Synced Lyrics (LRCLIB) ----
+
+    fun expandMusicVisualizer(targetMode: MusicDisplayMode? = null) {
+        val mode = targetMode ?: _uiState.value.musicDisplayMode
+        _uiState.update {
+            it.copy(
+                isMusicExpanded = true,
+                musicDisplayMode = mode,
+                activeHotspotId = null,
+                showAllAppsSheet = false,
+                showSettingsSheet = false
+            )
+        }
+        if (mode == MusicDisplayMode.LYRICS) {
+            fetchLyricsForCurrentTrack(forceRefresh = false)
+        }
+        syncAudioVisualizerState()
+    }
+
+    fun collapseMusicVisualizer() {
+        _uiState.update { it.copy(isMusicExpanded = false) }
+        syncAudioVisualizerState()
+    }
+
+    fun setMusicDisplayMode(mode: MusicDisplayMode) {
+        _uiState.update { it.copy(musicDisplayMode = mode) }
+        if (mode == MusicDisplayMode.LYRICS) {
+            fetchLyricsForCurrentTrack(forceRefresh = false)
+        }
+        syncAudioVisualizerState()
+    }
+
+    fun setMusicVisualizerEnabled(enabled: Boolean) {
+        updateConfig { it.copy(musicVisualizerEnabled = enabled) }
+        if (!enabled) {
+            musicMediaMonitor.stopDemoPreview()
+            _uiState.update { it.copy(isMusicExpanded = false) }
+        }
+        syncAudioVisualizerState()
+    }
+
+    fun setMusicVisualizerStyle(style: VisualizerStyle) {
+        updateConfig { it.copy(musicVisualizerStyle = style) }
+    }
+
+    fun setMusicDefaultMode(mode: MusicDisplayMode) {
+        updateConfig { it.copy(musicDefaultMode = mode) }
+        _uiState.update { it.copy(musicDisplayMode = mode) }
+    }
+
+    fun setAudioReactiveVisualizerEnabled(enabled: Boolean) {
+        val hasPerm = audioVisualizerEngine.hasAudioPermission()
+        _uiState.update { it.copy(hasAudioPermission = hasPerm) }
+        updateConfig { it.copy(audioReactiveVisualizerEnabled = enabled && hasPerm) }
+        syncAudioVisualizerState()
+    }
+
+    fun openNotificationAccessSettings() {
+        RoomNotificationListenerService.openNotificationListenerSettings(appContext)
+    }
+
+    fun previewMusicVisualizer() {
+        musicMediaMonitor.startDemoPreview()
+        val startMode = _uiState.value.config.musicDefaultMode
+        _uiState.update {
+            it.copy(
+                showSettingsSheet = false,
+                showAllAppsSheet = false,
+                activeHotspotId = null,
+                isEditMode = false,
+                musicDisplayMode = startMode,
+                isMusicExpanded = true,
+                lyricsState = LyricsRepository.demoSyncedLyrics()
+            )
+        }
+        syncAudioVisualizerState()
+    }
+
+    fun stopMusicDemoPreview() {
+        musicMediaMonitor.stopDemoPreview()
+        _uiState.update { it.copy(isMusicExpanded = false) }
+        syncAudioVisualizerState()
+    }
+
+    fun toggleMusicPlayPause() = musicMediaMonitor.togglePlayPause()
+
+    fun skipMusicNext() = musicMediaMonitor.skipNext()
+
+    fun skipMusicPrevious() = musicMediaMonitor.skipPrevious()
+
+    fun seekMusicTo(positionMs: Long) = musicMediaMonitor.seekTo(positionMs)
+
+    fun openActiveMusicApp() = musicMediaMonitor.openActivePlayer()
+
+    fun retryFetchLyrics() {
+        fetchLyricsForCurrentTrack(forceRefresh = true)
+    }
+
+    private fun fetchLyricsForCurrentTrack(forceRefresh: Boolean) {
+        val track = _uiState.value.nowPlaying
+        if (!track.hasSession || track.title.isBlank()) {
+            _uiState.update { it.copy(lyricsState = LyricsState.Idle) }
+            return
+        }
+        if (track.isDemo) {
+            _uiState.update { it.copy(lyricsState = LyricsRepository.demoSyncedLyrics()) }
+            return
+        }
+        val currentLyrics = _uiState.value.lyricsState
+        if (!forceRefresh &&
+            track.trackKey == lastLyricsTrackKey &&
+            (currentLyrics is LyricsState.Synced ||
+                currentLyrics is LyricsState.Plain ||
+                currentLyrics is LyricsState.Instrumental ||
+                currentLyrics is LyricsState.Loading)
+        ) {
+            return
+        }
+
+        lastLyricsTrackKey = track.trackKey
+        lyricsJob?.cancel()
+        _uiState.update { it.copy(lyricsState = LyricsState.Loading) }
+        lyricsJob = viewModelScope.launch {
+            val fetched = lyricsRepository.fetchLyrics(
+                trackKey = track.trackKey,
+                title = track.title,
+                artist = track.artist,
+                album = track.album,
+                durationMs = track.durationMs,
+                forceRefresh = forceRefresh
+            )
+            // Only apply if track hasn't changed while fetching
+            if (_uiState.value.nowPlaying.trackKey == track.trackKey) {
+                _uiState.update { it.copy(lyricsState = fetched) }
+            }
+        }
+    }
+
+    private fun syncAudioVisualizerState() {
+        val state = _uiState.value
+        val shouldCapture = isAppInForeground &&
+            state.config.musicVisualizerEnabled &&
+            state.config.audioReactiveVisualizerEnabled &&
+            state.nowPlaying.hasSession &&
+            state.nowPlaying.isPlaying &&
+            !state.nowPlaying.isDemo &&
+            state.isMusicExpanded &&
+            state.musicDisplayMode == MusicDisplayMode.VISUALIZER
+        audioVisualizerEngine.setActive(shouldCapture)
     }
 
     // ---- Theme, Room Style, Animation, Weather, Wallpaper, Photos Settings ----
@@ -710,6 +950,10 @@ class RoomLauncherViewModel(application: Application) : AndroidViewModel(applica
             useQuickAnimations = current.useQuickAnimations,
             chargingAnimationEnabled = current.chargingAnimationEnabled,
             chargingAnimationStyle = current.chargingAnimationStyle,
+            musicVisualizerEnabled = current.musicVisualizerEnabled,
+            musicVisualizerStyle = current.musicVisualizerStyle,
+            musicDefaultMode = current.musicDefaultMode,
+            audioReactiveVisualizerEnabled = current.audioReactiveVisualizerEnabled,
             weatherEnabled = current.weatherEnabled,
             mirrorHomeWallpaper = current.mirrorHomeWallpaper,
             framePhotoPath = current.framePhotoPath,

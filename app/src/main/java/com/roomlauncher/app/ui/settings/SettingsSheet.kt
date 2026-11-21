@@ -32,9 +32,12 @@ import androidx.compose.material.icons.rounded.Close
 import androidx.compose.material.icons.rounded.Cloud
 import androidx.compose.material.icons.rounded.DeleteOutline
 import androidx.compose.material.icons.rounded.Edit
+import androidx.compose.material.icons.rounded.GraphicEq
 import androidx.compose.material.icons.rounded.Home
 import androidx.compose.material.icons.rounded.Image
 import androidx.compose.material.icons.rounded.LocationOn
+import androidx.compose.material.icons.rounded.MusicNote
+import androidx.compose.material.icons.rounded.NotificationsActive
 import androidx.compose.material.icons.rounded.Palette
 import androidx.compose.material.icons.rounded.Refresh
 import androidx.compose.material.icons.rounded.RestartAlt
@@ -59,6 +62,8 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import com.roomlauncher.app.data.MusicDisplayMode
+import com.roomlauncher.app.data.VisualizerStyle
 import com.roomlauncher.app.ui.RoomUiState
 import com.roomlauncher.app.ui.theme.ChargingAnimationStyle
 import com.roomlauncher.app.ui.theme.RoomStyleId
@@ -77,6 +82,12 @@ fun SettingsSheet(
     onToggleChargingAnimation: (Boolean) -> Unit,
     onSelectChargingAnimationStyle: (ChargingAnimationStyle) -> Unit,
     onPreviewChargingAnimation: () -> Unit,
+    onToggleMusicVisualizerEnabled: (Boolean) -> Unit,
+    onSelectVisualizerStyle: (VisualizerStyle) -> Unit,
+    onSelectMusicDefaultMode: (MusicDisplayMode) -> Unit,
+    onToggleAudioReactiveVisualizer: (Boolean) -> Unit,
+    onOpenNotificationAccess: () -> Unit,
+    onPreviewMusicVisualizer: () -> Unit,
     onToggleWeather: (Boolean) -> Unit,
     onRefreshWeather: () -> Unit,
     onToggleMirrorWallpaper: (Boolean) -> Unit,
@@ -94,6 +105,12 @@ fun SettingsSheet(
         if (granted) {
             onRefreshWeather()
         }
+    }
+
+    val audioPermissionLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.RequestPermission()
+    ) { granted ->
+        onToggleAudioReactiveVisualizer(granted)
     }
 
     val photoPickerLauncher = rememberLauncherForActivityResult(
@@ -145,7 +162,7 @@ fun SettingsSheet(
                         color = MaterialTheme.colorScheme.onBackground
                     )
                     Text(
-                        text = "Room Launcher v2.3.1",
+                        text = "Room Launcher v2.4",
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
@@ -487,6 +504,262 @@ fun SettingsSheet(
                             )
                             Spacer(modifier = Modifier.width(6.dp))
                             Text("Preview Charging Animation")
+                        }
+                    }
+                }
+
+                // 3.5 Music Visualizer & Open-Source Synced Lyrics (LRCLIB)
+                SettingsSectionCard(
+                    icon = Icons.Rounded.GraphicEq,
+                    title = "Music Visualizer & Lyrics",
+                    subtitle = "Live song title, progress bar, animated visualizer, and open-source LRCLIB synced lyrics"
+                ) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Column(modifier = Modifier.weight(1f).padding(end = 12.dp)) {
+                            Text(
+                                text = "Show Now-Playing Bar",
+                                style = MaterialTheme.typography.titleMedium,
+                                fontWeight = FontWeight.SemiBold
+                            )
+                            Text(
+                                text = "Automatically appears when Spotify, YouTube Music, or any media player is active",
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                        Switch(
+                            checked = uiState.config.musicVisualizerEnabled,
+                            onCheckedChange = onToggleMusicVisualizerEnabled
+                        )
+                    }
+
+                    if (uiState.config.musicVisualizerEnabled) {
+                        Spacer(modifier = Modifier.height(12.dp))
+
+                        // Notification Access Permission Status
+                        Surface(
+                            shape = RoundedCornerShape(14.dp),
+                            color = if (uiState.hasNotificationAccess) {
+                                MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.42f)
+                            } else {
+                                MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.65f)
+                            },
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(horizontal = 12.dp, vertical = 10.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.SpaceBetween
+                            ) {
+                                Column(modifier = Modifier.weight(1f).padding(end = 10.dp)) {
+                                    Text(
+                                        text = if (uiState.hasNotificationAccess) {
+                                            "Notification Access Connected ✓"
+                                        } else {
+                                            "Notification Access Needed"
+                                        },
+                                        style = MaterialTheme.typography.titleSmall,
+                                        fontWeight = FontWeight.SemiBold,
+                                        color = MaterialTheme.colorScheme.onSurface
+                                    )
+                                    Text(
+                                        text = if (uiState.hasNotificationAccess) {
+                                            "Room Launcher can read active song title, artist, album art & progress."
+                                        } else {
+                                            "Android requires Notification Access so the launcher can detect playing music."
+                                        },
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
+                                }
+                                if (!uiState.hasNotificationAccess) {
+                                    Button(
+                                        onClick = onOpenNotificationAccess,
+                                        shape = RoundedCornerShape(12.dp)
+                                    ) {
+                                        Icon(
+                                            imageVector = Icons.Rounded.NotificationsActive,
+                                            contentDescription = null,
+                                            modifier = Modifier.size(16.dp)
+                                        )
+                                        Spacer(modifier = Modifier.width(5.dp))
+                                        Text("Enable")
+                                    }
+                                }
+                            }
+                        }
+
+                        Spacer(modifier = Modifier.height(12.dp))
+
+                        // Visualizer Style Picker
+                        Text(
+                            text = "Visualizer Style",
+                            style = MaterialTheme.typography.titleSmall,
+                            fontWeight = FontWeight.SemiBold,
+                            color = MaterialTheme.colorScheme.onSurface
+                        )
+                        Spacer(modifier = Modifier.height(6.dp))
+                        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                            VisualizerStyle.entries.forEach { style ->
+                                val selected = uiState.config.musicVisualizerStyle == style
+                                Surface(
+                                    shape = RoundedCornerShape(12.dp),
+                                    color = if (selected) {
+                                        MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.55f)
+                                    } else {
+                                        MaterialTheme.colorScheme.surface
+                                    },
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .border(
+                                            width = if (selected) 2.dp else 1.dp,
+                                            color = if (selected) {
+                                                MaterialTheme.colorScheme.primary
+                                            } else {
+                                                MaterialTheme.colorScheme.outlineVariant
+                                            },
+                                            shape = RoundedCornerShape(12.dp)
+                                        )
+                                        .clip(RoundedCornerShape(12.dp))
+                                        .clickable { onSelectVisualizerStyle(style) }
+                                ) {
+                                    Row(
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .padding(horizontal = 12.dp, vertical = 9.dp),
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        horizontalArrangement = Arrangement.SpaceBetween
+                                    ) {
+                                        Column(modifier = Modifier.weight(1f)) {
+                                            Text(
+                                                text = style.displayName,
+                                                style = MaterialTheme.typography.labelLarge,
+                                                fontWeight = FontWeight.SemiBold,
+                                                color = MaterialTheme.colorScheme.onSurface
+                                            )
+                                            Text(
+                                                text = style.description,
+                                                style = MaterialTheme.typography.labelSmall,
+                                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                                            )
+                                        }
+                                        if (selected) {
+                                            Icon(
+                                                imageVector = Icons.Rounded.Check,
+                                                contentDescription = "Selected style",
+                                                tint = MaterialTheme.colorScheme.primary,
+                                                modifier = Modifier.size(18.dp)
+                                            )
+                                        }
+                                    }
+                                }
+                            }
+                        }
+
+                        Spacer(modifier = Modifier.height(12.dp))
+
+                        // Default Expanded View: Visualizer vs Lyrics
+                        Text(
+                            text = "Default Expanded View",
+                            style = MaterialTheme.typography.titleSmall,
+                            fontWeight = FontWeight.SemiBold,
+                            color = MaterialTheme.colorScheme.onSurface
+                        )
+                        Spacer(modifier = Modifier.height(6.dp))
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            MusicDisplayMode.entries.forEach { mode ->
+                                val selected = uiState.config.musicDefaultMode == mode
+                                Surface(
+                                    shape = RoundedCornerShape(12.dp),
+                                    color = if (selected) {
+                                        MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.6f)
+                                    } else {
+                                        MaterialTheme.colorScheme.surface
+                                    },
+                                    modifier = Modifier
+                                        .weight(1f)
+                                        .border(
+                                            width = if (selected) 2.dp else 1.dp,
+                                            color = if (selected) {
+                                                MaterialTheme.colorScheme.primary
+                                            } else {
+                                                MaterialTheme.colorScheme.outlineVariant
+                                            },
+                                            shape = RoundedCornerShape(12.dp)
+                                        )
+                                        .clip(RoundedCornerShape(12.dp))
+                                        .clickable { onSelectMusicDefaultMode(mode) }
+                                ) {
+                                    Box(
+                                        contentAlignment = Alignment.Center,
+                                        modifier = Modifier.padding(vertical = 10.dp)
+                                    ) {
+                                        Text(
+                                            text = mode.displayName,
+                                            style = MaterialTheme.typography.labelLarge,
+                                            fontWeight = FontWeight.SemiBold,
+                                            color = MaterialTheme.colorScheme.onSurface
+                                        )
+                                    }
+                                }
+                            }
+                        }
+
+                        Spacer(modifier = Modifier.height(12.dp))
+
+                        // Optional Real-Time Audio-Reactive FFT Capture
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.SpaceBetween
+                        ) {
+                            Column(modifier = Modifier.weight(1f).padding(end = 12.dp)) {
+                                Text(
+                                    text = "Real-Time Audio Reactive",
+                                    style = MaterialTheme.typography.titleSmall,
+                                    fontWeight = FontWeight.SemiBold
+                                )
+                                Text(
+                                    text = "Optional: taps live audio FFT (requires Android audio permission; automatically falls back to smooth ambient waves on Bluetooth/DRM streams)",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
+                            Switch(
+                                checked = uiState.config.audioReactiveVisualizerEnabled && uiState.hasAudioPermission,
+                                onCheckedChange = { wantEnabled ->
+                                    if (wantEnabled && !uiState.hasAudioPermission) {
+                                        audioPermissionLauncher.launch(Manifest.permission.RECORD_AUDIO)
+                                    } else {
+                                        onToggleAudioReactiveVisualizer(wantEnabled)
+                                    }
+                                }
+                            )
+                        }
+
+                        Spacer(modifier = Modifier.height(12.dp))
+
+                        OutlinedButton(
+                            onClick = onPreviewMusicVisualizer,
+                            shape = RoundedCornerShape(12.dp),
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Icon(
+                                imageVector = Icons.Rounded.MusicNote,
+                                contentDescription = null,
+                                modifier = Modifier.size(18.dp)
+                            )
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Text("Preview Visualizer & Synced Lyrics")
                         }
                     }
                 }

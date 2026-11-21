@@ -3,10 +3,12 @@ package com.roomlauncher.app
 import android.content.pm.ApplicationInfo
 import com.roomlauncher.app.data.AppInfo
 import com.roomlauncher.app.data.HotspotActionType
+import com.roomlauncher.app.data.MusicDisplayMode
 import com.roomlauncher.app.data.RoomConfig
 import com.roomlauncher.app.data.RoomConfigRepository
 import com.roomlauncher.app.data.RoomHotspot
 import com.roomlauncher.app.data.RoomObjectVisual
+import com.roomlauncher.app.data.VisualizerStyle
 import com.roomlauncher.app.data.WebShortcut
 import com.roomlauncher.app.ui.theme.ChargingAnimationStyle
 import com.roomlauncher.app.ui.theme.RoomStyleId
@@ -59,6 +61,10 @@ class RoomConfigRepositoryTest {
             useQuickAnimations = true,
             chargingAnimationEnabled = true,
             chargingAnimationStyle = ChargingAnimationStyle.LIQUID_GLASS,
+            musicVisualizerEnabled = true,
+            musicVisualizerStyle = VisualizerStyle.VINYL_GROOVE,
+            musicDefaultMode = MusicDisplayMode.LYRICS,
+            audioReactiveVisualizerEnabled = true,
             weatherEnabled = true,
             mirrorHomeWallpaper = true,
             posterLeftPath = "/tmp/poster_left.jpg",
