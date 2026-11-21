@@ -65,6 +65,7 @@ class RoomConfigRepositoryTest {
             musicVisualizerStyle = VisualizerStyle.VINYL_GROOVE,
             musicDefaultMode = MusicDisplayMode.LYRICS,
             audioReactiveVisualizerEnabled = true,
+            autoCheckUpdatesEnabled = false,
             weatherEnabled = true,
             mirrorHomeWallpaper = true,
             posterLeftPath = "/tmp/poster_left.jpg",

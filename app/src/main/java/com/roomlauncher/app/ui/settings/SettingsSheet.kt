@@ -41,19 +41,23 @@ import androidx.compose.material.icons.rounded.NotificationsActive
 import androidx.compose.material.icons.rounded.Palette
 import androidx.compose.material.icons.rounded.Refresh
 import androidx.compose.material.icons.rounded.RestartAlt
+import androidx.compose.material.icons.rounded.SystemUpdate
 import androidx.compose.material.icons.rounded.Tune
 import androidx.compose.material.icons.rounded.Wallpaper
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -88,6 +92,12 @@ fun SettingsSheet(
     onToggleAudioReactiveVisualizer: (Boolean) -> Unit,
     onOpenNotificationAccess: () -> Unit,
     onPreviewMusicVisualizer: () -> Unit,
+    onToggleAutoCheckUpdates: (Boolean) -> Unit,
+    onCheckForUpdates: () -> Unit,
+    onShowUpdatePopup: () -> Unit,
+    onDismissUpdatePopup: () -> Unit,
+    onDownloadAndInstallUpdate: () -> Unit,
+    onOpenUpdateReleasePage: () -> Unit,
     onToggleWeather: (Boolean) -> Unit,
     onRefreshWeather: () -> Unit,
     onToggleMirrorWallpaper: (Boolean) -> Unit,
@@ -162,7 +172,7 @@ fun SettingsSheet(
                         color = MaterialTheme.colorScheme.onBackground
                     )
                     Text(
-                        text = "Room Launcher v2.4",
+                        text = "Room Launcher v${uiState.updateState.currentVersion}",
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
@@ -913,7 +923,103 @@ fun SettingsSheet(
                     }
                 }
 
-                // 6. Room & Launcher Controls
+                // 6. Auto-Updates (GitHub: Cooreo/LauncherAPP)
+                val upd = uiState.updateState
+                SettingsSectionCard(
+                    icon = Icons.Rounded.SystemUpdate,
+                    title = "App Updates",
+                    subtitle = "Checks GitHub (Cooreo/LauncherAPP) for newer Room Launcher releases"
+                ) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Column(modifier = Modifier.weight(1f).padding(end = 12.dp)) {
+                            Text(
+                                text = "Auto-Check for Updates",
+                                style = MaterialTheme.typography.titleMedium,
+                                fontWeight = FontWeight.SemiBold
+                            )
+                            val statusText = when {
+                                upd.isDownloading -> {
+                                    if (upd.downloadProgress >= 0f) {
+                                        "Downloading update… ${(upd.downloadProgress * 100).toInt()}%"
+                                    } else {
+                                        "Downloading update…"
+                                    }
+                                }
+                                upd.isChecking -> "Checking GitHub for new releases…"
+                                upd.availableUpdate != null ->
+                                    "Update available: v${upd.availableUpdate.versionName} (installed v${upd.currentVersion})"
+                                upd.errorMessage != null -> upd.errorMessage
+                                upd.isUpToDate -> "You're up to date (v${upd.currentVersion})"
+                                else -> "Installed version: v${upd.currentVersion}"
+                            }
+                            Text(
+                                text = statusText,
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = if (upd.availableUpdate != null) {
+                                    MaterialTheme.colorScheme.primary
+                                } else {
+                                    MaterialTheme.colorScheme.onSurfaceVariant
+                                }
+                            )
+                        }
+                        Switch(
+                            checked = uiState.config.autoCheckUpdatesEnabled,
+                            onCheckedChange = onToggleAutoCheckUpdates
+                        )
+                    }
+
+                    Spacer(modifier = Modifier.height(10.dp))
+
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        OutlinedButton(
+                            onClick = onCheckForUpdates,
+                            enabled = !upd.isChecking && !upd.isDownloading,
+                            shape = RoundedCornerShape(12.dp),
+                            modifier = Modifier.weight(1f)
+                        ) {
+                            if (upd.isChecking) {
+                                CircularProgressIndicator(
+                                    modifier = Modifier.size(16.dp),
+                                    strokeWidth = 2.dp
+                                )
+                                Spacer(modifier = Modifier.width(8.dp))
+                                Text("Checking…")
+                            } else {
+                                Icon(
+                                    imageVector = Icons.Rounded.Refresh,
+                                    contentDescription = null,
+                                    modifier = Modifier.size(18.dp)
+                                )
+                                Spacer(modifier = Modifier.width(6.dp))
+                                Text("Check for Updates")
+                            }
+                        }
+
+                        if (upd.availableUpdate != null) {
+                            Button(
+                                onClick = onShowUpdatePopup,
+                                shape = RoundedCornerShape(12.dp)
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Rounded.SystemUpdate,
+                                    contentDescription = null,
+                                    modifier = Modifier.size(18.dp)
+                                )
+                                Spacer(modifier = Modifier.width(6.dp))
+                                Text("Update v${upd.availableUpdate.versionName}")
+                            }
+                        }
+                    }
+                }
+
+                // 7. Room & Launcher Controls
                 SettingsSectionCard(
                     icon = Icons.Rounded.Tune,
                     title = "Room & Setup",
@@ -956,6 +1062,117 @@ fun SettingsSheet(
                 Spacer(modifier = Modifier.height(16.dp))
             }
         }
+    }
+
+    // Update Available Popup inside Settings
+    val availableUpdate = uiState.updateState.availableUpdate
+    if (uiState.updateState.showUpdateDialog && availableUpdate != null) {
+        val upd = uiState.updateState
+        val sizeText = if (availableUpdate.sizeBytes > 0L) {
+            val mb = availableUpdate.sizeBytes.toDouble() / (1024.0 * 1024.0)
+            String.format(java.util.Locale.US, " • %.1f MB", mb)
+        } else {
+            ""
+        }
+        AlertDialog(
+            onDismissRequest = {
+                if (!upd.isDownloading) onDismissUpdatePopup()
+            },
+            icon = {
+                Icon(
+                    imageVector = Icons.Rounded.SystemUpdate,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.primary
+                )
+            },
+            title = {
+                Text(
+                    text = "Update Available — v${availableUpdate.versionName}",
+                    fontWeight = FontWeight.Bold
+                )
+            },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    Text(
+                        text = "Installed: v${upd.currentVersion}  →  Latest: v${availableUpdate.versionName}$sizeText",
+                        style = MaterialTheme.typography.labelLarge,
+                        color = MaterialTheme.colorScheme.primary
+                    )
+                    if (availableUpdate.releaseNotes.isNotBlank()) {
+                        Text(
+                            text = availableUpdate.releaseNotes.take(420),
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                    if (upd.isDownloading) {
+                        Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                            if (upd.downloadProgress >= 0f) {
+                                LinearProgressIndicator(
+                                    progress = { upd.downloadProgress.coerceIn(0f, 1f) },
+                                    modifier = Modifier.fillMaxWidth()
+                                )
+                                Text(
+                                    text = "Downloading APK… ${(upd.downloadProgress * 100).toInt()}%",
+                                    style = MaterialTheme.typography.labelMedium,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            } else {
+                                LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
+                                Text(
+                                    text = "Downloading APK…",
+                                    style = MaterialTheme.typography.labelMedium,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
+                        }
+                    }
+                    if (upd.needsInstallPermission) {
+                        Text(
+                            text = "Allow 'Install unknown apps' for Room Launcher in Android Settings, then return here to finish installing.",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.error
+                        )
+                    }
+                    if (upd.errorMessage != null && !upd.isDownloading) {
+                        Text(
+                            text = upd.errorMessage,
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.error
+                        )
+                    }
+                    TextButton(
+                        onClick = onOpenUpdateReleasePage,
+                        modifier = Modifier.align(Alignment.Start)
+                    ) {
+                        Text("Open Release on GitHub")
+                    }
+                }
+            },
+            confirmButton = {
+                Button(
+                    onClick = onDownloadAndInstallUpdate,
+                    enabled = !upd.isDownloading
+                ) {
+                    Text(
+                        when {
+                            upd.isDownloading -> "Downloading…"
+                            upd.needsInstallPermission -> "Allow & Install"
+                            !upd.downloadedApkPath.isNullOrBlank() -> "Install Now"
+                            else -> "Download & Install"
+                        }
+                    )
+                }
+            },
+            dismissButton = {
+                TextButton(
+                    onClick = onDismissUpdatePopup,
+                    enabled = !upd.isDownloading
+                ) {
+                    Text("Later")
+                }
+            }
+        )
     }
 }
 
