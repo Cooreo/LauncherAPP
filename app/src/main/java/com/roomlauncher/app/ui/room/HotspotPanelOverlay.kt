@@ -1,8 +1,10 @@
 package com.roomlauncher.app.ui.room
 
 import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.spring
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -14,6 +16,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -32,12 +35,17 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Add
+import androidx.compose.material.icons.rounded.AddLink
 import androidx.compose.material.icons.rounded.Apps
+import androidx.compose.material.icons.rounded.ChevronLeft
+import androidx.compose.material.icons.rounded.ChevronRight
 import androidx.compose.material.icons.rounded.Close
 import androidx.compose.material.icons.rounded.DeleteOutline
 import androidx.compose.material.icons.rounded.Edit
+import androidx.compose.material.icons.rounded.Language
 import androidx.compose.material.icons.rounded.Search
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Button
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -49,6 +57,7 @@ import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -67,6 +76,7 @@ import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.boundsInRoot
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.layout.positionInRoot
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -76,11 +86,10 @@ import androidx.compose.ui.unit.dp
 import com.roomlauncher.app.data.AppInfo
 import com.roomlauncher.app.data.HotspotActionType
 import com.roomlauncher.app.data.RoomHotspot
+import com.roomlauncher.app.data.RoomObjectVisual
+import com.roomlauncher.app.data.WebShortcut
 import com.roomlauncher.app.ui.components.AppIconView
-import com.roomlauncher.app.ui.theme.RoomSage
-import com.roomlauncher.app.ui.theme.RoomSageContainer
-import com.roomlauncher.app.ui.theme.RoomTerracotta
-import com.roomlauncher.app.ui.theme.RoomTerracottaContainer
+import com.roomlauncher.app.ui.theme.LocalRoomPalette
 import kotlin.math.roundToInt
 
 @Composable
@@ -89,7 +98,12 @@ fun HotspotPanelOverlay(
     apps: List<AppInfo>,
     allInstalledApps: List<AppInfo>,
     otherPanelHotspots: List<RoomHotspot>,
+    webShortcuts: List<WebShortcut>,
+    useQuickAnimations: Boolean,
     onLaunchApp: (AppInfo) -> Unit,
+    onOpenWebShortcut: (WebShortcut) -> Unit,
+    onAddWebShortcut: (title: String, url: String) -> Unit,
+    onDeleteWebShortcut: (String) -> Unit,
     onMoveAppToHotspot: (packageName: String, targetHotspotId: String) -> Unit,
     onRemoveAppFromPanel: (packageName: String) -> Unit,
     onOpenAllApps: () -> Unit,
@@ -97,16 +111,60 @@ fun HotspotPanelOverlay(
     onDismiss: () -> Unit
 ) {
     val haptic = LocalHapticFeedback.current
-    val animProgress = remember(hotspot.id) { Animatable(0f) }
+    val palette = LocalRoomPalette.current
+    val density = LocalDensity.current
+    val animProgress = remember(hotspot.id, useQuickAnimations) { Animatable(0f) }
 
-    LaunchedEffect(hotspot.id) {
-        animProgress.animateTo(
-            targetValue = 1f,
-            animationSpec = spring(
-                dampingRatio = Spring.DampingRatioMediumBouncy,
-                stiffness = Spring.StiffnessMedium
-            )
-        )
+    val richVisual = !useQuickAnimations
+    val isTvRich = richVisual && hotspot.visualType == RoomObjectVisual.TV
+    val isBookRich = richVisual && hotspot.visualType == RoomObjectVisual.SHELF
+    val isTrashRich = richVisual && hotspot.visualType == RoomObjectVisual.TRASH_CAN
+    val isConsoleRich = richVisual && hotspot.visualType == RoomObjectVisual.CONSOLE
+    val isStickyRich = hotspot.visualType == RoomObjectVisual.STICKY_NOTE
+
+    LaunchedEffect(hotspot.id, useQuickAnimations) {
+        animProgress.snapTo(0f)
+        when {
+            useQuickAnimations -> {
+                animProgress.animateTo(
+                    targetValue = 1f,
+                    animationSpec = spring(
+                        dampingRatio = Spring.DampingRatioMediumBouncy,
+                        stiffness = Spring.StiffnessMedium
+                    )
+                )
+            }
+            isTvRich -> {
+                animProgress.animateTo(
+                    targetValue = 1f,
+                    animationSpec = tween(durationMillis = 440, easing = FastOutSlowInEasing)
+                )
+            }
+            isBookRich -> {
+                animProgress.animateTo(
+                    targetValue = 1f,
+                    animationSpec = tween(durationMillis = 460, easing = FastOutSlowInEasing)
+                )
+            }
+            isTrashRich -> {
+                animProgress.animateTo(
+                    targetValue = 1f,
+                    animationSpec = spring(
+                        dampingRatio = 0.62f,
+                        stiffness = Spring.StiffnessLow
+                    )
+                )
+            }
+            else -> {
+                animProgress.animateTo(
+                    targetValue = 1f,
+                    animationSpec = spring(
+                        dampingRatio = Spring.DampingRatioMediumBouncy,
+                        stiffness = Spring.StiffnessMediumLow
+                    )
+                )
+            }
+        }
     }
 
     var draggingApp by remember { mutableStateOf<AppInfo?>(null) }
@@ -115,6 +173,31 @@ fun HotspotPanelOverlay(
     val dropZoneBounds = remember { mutableStateMapOf<String, Rect>() }
     var rootOffset by remember { mutableStateOf(Offset.Zero) }
     var showAddAppsDialog by remember { mutableStateOf(false) }
+    var showAddWebShortcutDialog by remember { mutableStateOf(false) }
+
+    val p = animProgress.value.coerceIn(0f, 1.25f)
+
+    // Choose tailored surface styling per object when Rich Animations are active
+    val containerColor = when {
+        isTvRich -> Color(0xFF14191F)
+        isConsoleRich -> Color(0xFF161B24)
+        isStickyRich -> if (palette.isDark) Color(0xFF3A331C) else Color(0xFFFFF5C2)
+        isBookRich -> if (palette.isDark) Color(0xFF26211B) else Color(0xFFFBF6EA)
+        else -> MaterialTheme.colorScheme.surface
+    }
+    val contentOnContainer = when {
+        isTvRich || isConsoleRich -> Color(0xFFF3F6FA)
+        isStickyRich -> if (palette.isDark) Color(0xFFFFF3C4) else Color(0xFF3A2F12)
+        else -> MaterialTheme.colorScheme.onSurface
+    }
+    val mutedOnContainer = contentOnContainer.copy(alpha = 0.72f)
+    val borderColor = when {
+        isTvRich -> Color(0xFF2D3846)
+        isConsoleRich -> palette.consoleAccent.copy(alpha = 0.55f)
+        isBookRich -> palette.woodMid.copy(alpha = 0.7f)
+        isStickyRich -> palette.stickyNoteFold.copy(alpha = 0.8f)
+        else -> Color.Transparent
+    }
 
     Box(
         modifier = Modifier
@@ -122,7 +205,7 @@ fun HotspotPanelOverlay(
             .onGloballyPositioned { coords ->
                 rootOffset = coords.positionInRoot()
             }
-            .background(Color.Black.copy(alpha = 0.45f * animProgress.value.coerceIn(0f, 1f)))
+            .background(Color.Black.copy(alpha = (if (isTvRich) 0.65f else 0.48f) * p.coerceIn(0f, 1f)))
             .clickable(
                 interactionSource = remember { MutableInteractionSource() },
                 indication = null,
@@ -131,257 +214,517 @@ fun HotspotPanelOverlay(
         contentAlignment = Alignment.Center
     ) {
         Surface(
-            shape = RoundedCornerShape(28.dp),
-            color = MaterialTheme.colorScheme.surface,
+            shape = RoundedCornerShape(
+                when {
+                    isTvRich -> 20.dp
+                    isBookRich -> 18.dp
+                    isStickyRich -> 14.dp
+                    else -> 28.dp
+                }
+            ),
+            color = containerColor,
             tonalElevation = 8.dp,
-            shadowElevation = 16.dp,
+            shadowElevation = 18.dp,
             modifier = Modifier
-                .fillMaxWidth(0.92f)
-                .heightIn(min = 260.dp, max = 580.dp)
+                .fillMaxWidth(0.93f)
+                .heightIn(min = 270.dp, max = 600.dp)
+                .border(
+                    width = if (borderColor != Color.Transparent) 2.5.dp else 0.dp,
+                    color = borderColor,
+                    shape = RoundedCornerShape(
+                        when {
+                            isTvRich -> 20.dp
+                            isBookRich -> 18.dp
+                            isStickyRich -> 14.dp
+                            else -> 28.dp
+                        }
+                    )
+                )
                 .graphicsLayer {
-                    val scale = 0.2f + 0.8f * animProgress.value
-                    scaleX = scale
-                    scaleY = scale
-                    alpha = animProgress.value.coerceIn(0f, 1f)
-                    transformOrigin = TransformOrigin(hotspot.centerX, hotspot.centerY)
+                    when {
+                        useQuickAnimations -> {
+                            val scale = 0.2f + 0.8f * p
+                            scaleX = scale
+                            scaleY = scale
+                            alpha = p.coerceIn(0f, 1f)
+                            transformOrigin = TransformOrigin(hotspot.centerX, hotspot.centerY)
+                        }
+                        isTvRich -> {
+                            // Classic CRT/OLED TV Power-On: horizontal bar expands fast, then blooms vertically!
+                            val widthPhase = (p / 0.42f).coerceIn(0.05f, 1f)
+                            val heightPhase = ((p - 0.30f) / 0.70f).coerceIn(0.03f, 1f)
+                            scaleX = widthPhase
+                            scaleY = heightPhase
+                            alpha = (p * 2.5f).coerceIn(0f, 1f)
+                            transformOrigin = TransformOrigin(0.5f, 0.5f)
+                        }
+                        isBookRich -> {
+                            // Book cover swings open smoothly on Y axis with perspective
+                            cameraDistance = 14f * density.density
+                            rotationY = (1f - p.coerceIn(0f, 1f)) * -72f
+                            scaleX = 0.65f + 0.35f * p.coerceIn(0f, 1f)
+                            scaleY = 0.78f + 0.22f * p.coerceIn(0f, 1f)
+                            alpha = (p * 1.5f).coerceIn(0f, 1f)
+                            transformOrigin = TransformOrigin(0.15f, 0.5f)
+                        }
+                        isTrashRich -> {
+                            // Pops straight up out of the Trash Can!
+                            val clamped = p.coerceIn(0f, 1.15f)
+                            translationY = (1f - clamped) * 320f
+                            scaleX = 0.35f + 0.65f * clamped.coerceIn(0f, 1f)
+                            scaleY = 0.25f + 0.75f * clamped.coerceIn(0f, 1f)
+                            alpha = (p * 1.8f).coerceIn(0f, 1f)
+                            transformOrigin = TransformOrigin(hotspot.centerX, 0.95f)
+                        }
+                        isConsoleRich -> {
+                            translationY = (1f - p.coerceIn(0f, 1f)) * 180f
+                            scaleX = 0.85f + 0.15f * p.coerceIn(0f, 1f)
+                            scaleY = 0.85f + 0.15f * p.coerceIn(0f, 1f)
+                            alpha = p.coerceIn(0f, 1f)
+                        }
+                        isStickyRich -> {
+                            rotationZ = (1f - p.coerceIn(0f, 1f)) * -8f
+                            val scale = 0.35f + 0.65f * p.coerceIn(0f, 1f)
+                            scaleX = scale
+                            scaleY = scale
+                            alpha = p.coerceIn(0f, 1f)
+                            transformOrigin = TransformOrigin(hotspot.centerX, hotspot.centerY)
+                        }
+                        else -> {
+                            val scale = 0.2f + 0.8f * p
+                            scaleX = scale
+                            scaleY = scale
+                            alpha = p.coerceIn(0f, 1f)
+                            transformOrigin = TransformOrigin(hotspot.centerX, hotspot.centerY)
+                        }
+                    }
                 }
                 .clickable(
                     interactionSource = remember { MutableInteractionSource() },
                     indication = null,
-                    onClick = {} // absorb clicks inside panel
+                    onClick = {}
                 )
         ) {
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 18.dp, vertical = 16.dp)
-            ) {
-                // Panel Header
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.SpaceBetween
-                ) {
-                    Column(modifier = Modifier.weight(1f)) {
-                        Text(
-                            text = hotspot.label,
-                            style = MaterialTheme.typography.headlineMedium,
-                            color = MaterialTheme.colorScheme.onSurface,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis
-                        )
-                        val subtitleText = buildString {
-                            if (hotspot.subtitle.isNotBlank()) {
-                                append(hotspot.subtitle)
-                                append(" • ")
-                            }
-                            append("${apps.size} ")
-                            append(if (apps.size == 1) "app" else "apps")
-                        }
-                        Text(
-                            text = subtitleText,
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis
-                        )
-                    }
-
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        if (hotspot.actionType == HotspotActionType.PANEL) {
-                            IconButton(onClick = { showAddAppsDialog = true }) {
-                                Icon(
-                                    imageVector = Icons.Rounded.Add,
-                                    contentDescription = "Add apps to ${hotspot.label}",
-                                    tint = MaterialTheme.colorScheme.primary
-                                )
-                            }
-                        }
-                        IconButton(onClick = onOpenEditHotspot) {
-                            Icon(
-                                imageVector = Icons.Rounded.Edit,
-                                contentDescription = "Edit ${hotspot.label}",
-                                tint = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-                        }
-                        IconButton(onClick = onDismiss) {
-                            Icon(
-                                imageVector = Icons.Rounded.Close,
-                                contentDescription = "Close panel"
-                            )
-                        }
-                    }
-                }
-
-                // Drag-and-drop destination bar (other panels / Trash Can)
-                if (otherPanelHotspots.isNotEmpty()) {
-                    Spacer(modifier = Modifier.height(10.dp))
-                    Text(
-                        text = if (draggingApp != null) {
-                            "Drop \"${draggingApp?.label}\" on an object to move it:"
-                        } else {
-                            "Hold & drag any app onto another object to move:"
-                        },
-                        style = MaterialTheme.typography.labelSmall,
-                        color = if (draggingApp != null) RoomTerracotta else MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                    Spacer(modifier = Modifier.height(6.dp))
-                    LazyRow(
-                        horizontalArrangement = Arrangement.spacedBy(8.dp),
-                        modifier = Modifier.fillMaxWidth()
-                    ) {
-                        items(otherPanelHotspots, key = { it.id }) { target ->
-                            val isHovered = hoveredTargetId == target.id
-                            val isDragging = draggingApp != null
-                            val bgColor = when {
-                                isHovered -> RoomTerracotta
-                                isDragging -> RoomTerracottaContainer
-                                else -> RoomSageContainer.copy(alpha = 0.65f)
-                            }
-                            val textColor = when {
-                                isHovered -> Color.White
-                                isDragging -> MaterialTheme.colorScheme.onSurface
-                                else -> RoomSage
-                            }
-                            val borderColor = when {
-                                isHovered -> RoomTerracotta
-                                isDragging -> RoomTerracotta.copy(alpha = 0.7f)
-                                else -> Color.Transparent
-                            }
-
-                            Box(
-                                modifier = Modifier
-                                    .onGloballyPositioned { coords ->
-                                        dropZoneBounds[target.id] = coords.boundsInRoot()
-                                    }
-                                    .clip(RoundedCornerShape(12.dp))
-                                    .background(bgColor)
-                                    .border(1.5.dp, borderColor, RoundedCornerShape(12.dp))
-                                    .padding(horizontal = 12.dp, vertical = 7.dp)
-                            ) {
-                                Text(
-                                    text = target.label,
-                                    style = MaterialTheme.typography.labelLarge,
-                                    color = textColor
-                                )
-                            }
-                        }
-                    }
-                }
-
-                Spacer(modifier = Modifier.height(12.dp))
-                HorizontalDivider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.5f))
-                Spacer(modifier = Modifier.height(10.dp))
-
-                // Apps Grid
-                if (apps.isEmpty()) {
-                    Column(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(vertical = 32.dp),
-                        horizontalAlignment = Alignment.CenterHorizontally,
-                        verticalArrangement = Arrangement.spacedBy(8.dp)
-                    ) {
-                        Text(
-                            text = if (hotspot.actionType == HotspotActionType.UNSORTED_PANEL) {
-                                "All apps are neatly organized!"
-                            } else {
-                                "No apps placed in ${hotspot.label} yet"
-                            },
-                            style = MaterialTheme.typography.titleMedium,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            textAlign = TextAlign.Center
-                        )
-                        if (hotspot.actionType == HotspotActionType.PANEL) {
-                            TextButton(onClick = { showAddAppsDialog = true }) {
-                                Icon(Icons.Rounded.Add, contentDescription = null)
-                                Spacer(modifier = Modifier.width(6.dp))
-                                Text("Add Apps to ${hotspot.label}")
-                            }
-                        }
-                    }
-                } else {
-                    LazyVerticalGrid(
-                        columns = GridCells.Fixed(4),
-                        contentPadding = PaddingValues(vertical = 6.dp),
-                        horizontalArrangement = Arrangement.spacedBy(8.dp),
-                        verticalArrangement = Arrangement.spacedBy(14.dp),
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .weight(1f, fill = false)
-                    ) {
-                        items(apps, key = { it.packageName }) { app ->
-                            DraggablePanelAppTile(
-                                app = app,
-                                isBeingDragged = draggingApp?.packageName == app.packageName,
-                                showQuickRemove = hotspot.actionType == HotspotActionType.PANEL,
-                                onTap = { onLaunchApp(app) },
-                                onRemoveToTrash = { onRemoveAppFromPanel(app.packageName) },
-                                onDragStart = { startRootPos ->
-                                    haptic.performHapticFeedback(HapticFeedbackType.LongPress)
-                                    draggingApp = app
-                                    dragFingerRootPos = startRootPos
-                                    hoveredTargetId = findDropTarget(startRootPos, dropZoneBounds)
-                                },
-                                onDragMove = { currentRootPos ->
-                                    dragFingerRootPos = currentRootPos
-                                    hoveredTargetId = findDropTarget(currentRootPos, dropZoneBounds)
-                                },
-                                onDragEnd = {
-                                    val targetId = hoveredTargetId
-                                    val droppedApp = draggingApp
-                                    if (targetId != null && droppedApp != null) {
-                                        haptic.performHapticFeedback(HapticFeedbackType.LongPress)
-                                        onMoveAppToHotspot(droppedApp.packageName, targetId)
-                                    }
-                                    draggingApp = null
-                                    hoveredTargetId = null
-                                },
-                                onDragCancel = {
-                                    draggingApp = null
-                                    hoveredTargetId = null
-                                }
-                            )
-                        }
-                    }
-                }
-
-                Spacer(modifier = Modifier.height(10.dp))
-                HorizontalDivider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.5f))
-
-                // Panel Footer — A-Z List Fallback
-                Row(
+            Box {
+                Column(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(top = 6.dp),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
+                        .padding(horizontal = 16.dp, vertical = 14.dp)
                 ) {
-                    TextButton(onClick = onOpenAllApps) {
-                        Icon(
-                            imageVector = Icons.Rounded.Apps,
-                            contentDescription = null,
-                            modifier = Modifier.size(18.dp)
+                    // Console glowing accent LED bar
+                    if (isConsoleRich) {
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth(0.45f)
+                                .height(4.dp)
+                                .align(Alignment.CenterHorizontally)
+                                .clip(CircleShape)
+                                .background(palette.consoleAccent)
                         )
-                        Spacer(modifier = Modifier.width(6.dp))
-                        Text("All Apps (A–Z)")
+                        Spacer(modifier = Modifier.height(10.dp))
                     }
-                    if (hotspot.actionType == HotspotActionType.PANEL) {
-                        TextButton(onClick = { showAddAppsDialog = true }) {
-                            Icon(
-                                imageVector = Icons.Rounded.Add,
-                                contentDescription = null,
-                                modifier = Modifier.size(18.dp)
+
+                    // Trash Can popped lid accent bar
+                    if (isTrashRich) {
+                        Row(
+                            modifier = Modifier
+                                .align(Alignment.CenterHorizontally)
+                                .padding(bottom = 6.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(6.dp)
+                        ) {
+                            Box(
+                                modifier = Modifier
+                                    .width(42.dp)
+                                    .height(5.dp)
+                                    .clip(CircleShape)
+                                    .background(palette.trashRim)
                             )
-                            Spacer(modifier = Modifier.width(4.dp))
-                            Text("Add Apps")
                         }
                     }
+
+                    // Panel Header
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                text = hotspot.label,
+                                style = MaterialTheme.typography.headlineMedium,
+                                color = contentOnContainer,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
+                            )
+                            val subtitleText = buildString {
+                                if (hotspot.subtitle.isNotBlank()) {
+                                    append(hotspot.subtitle)
+                                    append(" • ")
+                                }
+                                append("${apps.size} ")
+                                append(if (apps.size == 1) "app" else "apps")
+                            }
+                            Text(
+                                text = subtitleText,
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = mutedOnContainer,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
+                            )
+                        }
+
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            if (isStickyRich) {
+                                IconButton(onClick = { showAddWebShortcutDialog = true }) {
+                                    Icon(
+                                        imageVector = Icons.Rounded.AddLink,
+                                        contentDescription = "Add web shortcut",
+                                        tint = contentOnContainer
+                                    )
+                                }
+                            }
+                            if (hotspot.actionType == HotspotActionType.PANEL) {
+                                IconButton(onClick = { showAddAppsDialog = true }) {
+                                    Icon(
+                                        imageVector = Icons.Rounded.Add,
+                                        contentDescription = "Add apps to ${hotspot.label}",
+                                        tint = contentOnContainer
+                                    )
+                                }
+                            }
+                            IconButton(onClick = onOpenEditHotspot) {
+                                Icon(
+                                    imageVector = Icons.Rounded.Edit,
+                                    contentDescription = "Edit ${hotspot.label}",
+                                    tint = mutedOnContainer
+                                )
+                            }
+                            IconButton(onClick = onDismiss) {
+                                Icon(
+                                    imageVector = Icons.Rounded.Close,
+                                    contentDescription = "Close panel",
+                                    tint = contentOnContainer
+                                )
+                            }
+                        }
+                    }
+
+                    // Drag-and-drop destination bar (other panels / Trash Can)
+                    if (otherPanelHotspots.isNotEmpty()) {
+                        Spacer(modifier = Modifier.height(8.dp))
+                        Text(
+                            text = if (draggingApp != null) {
+                                "Drop \"${draggingApp?.label}\" on an object to move it:"
+                            } else {
+                                "Hold & drag any app onto another object to move:"
+                            },
+                            style = MaterialTheme.typography.labelSmall,
+                            color = if (draggingApp != null) MaterialTheme.colorScheme.secondary else mutedOnContainer
+                        )
+                        Spacer(modifier = Modifier.height(6.dp))
+                        LazyRow(
+                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            items(otherPanelHotspots, key = { it.id }) { target ->
+                                val isHovered = hoveredTargetId == target.id
+                                val isDragging = draggingApp != null
+                                val bgColor = when {
+                                    isHovered -> MaterialTheme.colorScheme.secondary
+                                    isDragging -> MaterialTheme.colorScheme.secondaryContainer
+                                    else -> contentOnContainer.copy(alpha = 0.10f)
+                                }
+                                val textColor = when {
+                                    isHovered -> MaterialTheme.colorScheme.onSecondary
+                                    isDragging -> MaterialTheme.colorScheme.onSecondaryContainer
+                                    else -> contentOnContainer
+                                }
+
+                                Box(
+                                    modifier = Modifier
+                                        .onGloballyPositioned { coords ->
+                                            dropZoneBounds[target.id] = coords.boundsInRoot()
+                                        }
+                                        .clip(RoundedCornerShape(12.dp))
+                                        .background(bgColor)
+                                        .border(
+                                            1.dp,
+                                            if (isHovered || isDragging) MaterialTheme.colorScheme.secondary else Color.Transparent,
+                                            RoundedCornerShape(12.dp)
+                                        )
+                                        .padding(horizontal = 12.dp, vertical = 6.dp)
+                                ) {
+                                    Text(
+                                        text = target.label,
+                                        style = MaterialTheme.typography.labelLarge,
+                                        color = textColor
+                                    )
+                                }
+                            }
+                        }
+                    }
+
+                    // Sticky Note Web Shortcuts Section!
+                    if (isStickyRich) {
+                        Spacer(modifier = Modifier.height(10.dp))
+                        HorizontalDivider(color = contentOnContainer.copy(alpha = 0.18f))
+                        Spacer(modifier = Modifier.height(8.dp))
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text(
+                                text = "Pinned Web Shortcuts",
+                                style = MaterialTheme.typography.labelLarge,
+                                color = contentOnContainer
+                            )
+                            TextButton(
+                                onClick = { showAddWebShortcutDialog = true },
+                                contentPadding = PaddingValues(horizontal = 8.dp, vertical = 2.dp)
+                            ) {
+                                Icon(Icons.Rounded.AddLink, contentDescription = null, modifier = Modifier.size(16.dp))
+                                Spacer(modifier = Modifier.width(4.dp))
+                                Text("Add URL", style = MaterialTheme.typography.labelLarge)
+                            }
+                        }
+                        if (webShortcuts.isEmpty()) {
+                            Text(
+                                text = "Pin your favorite websites here for one-tap access.",
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = mutedOnContainer,
+                                modifier = Modifier.padding(bottom = 4.dp)
+                            )
+                        } else {
+                            LazyRow(
+                                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                items(webShortcuts, key = { it.id }) { shortcut ->
+                                    Row(
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        modifier = Modifier
+                                            .clip(RoundedCornerShape(12.dp))
+                                            .background(contentOnContainer.copy(alpha = 0.12f))
+                                            .clickable { onOpenWebShortcut(shortcut) }
+                                            .padding(start = 10.dp, end = 4.dp, top = 6.dp, bottom = 6.dp)
+                                    ) {
+                                        Icon(
+                                            imageVector = Icons.Rounded.Language,
+                                            contentDescription = null,
+                                            tint = contentOnContainer,
+                                            modifier = Modifier.size(16.dp)
+                                        )
+                                        Spacer(modifier = Modifier.width(6.dp))
+                                        Text(
+                                            text = shortcut.title,
+                                            style = MaterialTheme.typography.labelLarge,
+                                            color = contentOnContainer
+                                        )
+                                        IconButton(
+                                            onClick = { onDeleteWebShortcut(shortcut.id) },
+                                            modifier = Modifier.size(24.dp)
+                                        ) {
+                                            Icon(
+                                                imageVector = Icons.Rounded.Close,
+                                                contentDescription = "Remove ${shortcut.title}",
+                                                tint = mutedOnContainer,
+                                                modifier = Modifier.size(14.dp)
+                                            )
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.height(10.dp))
+                    HorizontalDivider(color = contentOnContainer.copy(alpha = 0.18f))
+                    Spacer(modifier = Modifier.height(8.dp))
+
+                    // Content Body: Either Open Two-Page Book Spread (for Shelf!) or Standard 4-Column Grid
+                    if (apps.isEmpty()) {
+                        Column(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(vertical = 28.dp),
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                            verticalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            Text(
+                                text = if (hotspot.actionType == HotspotActionType.UNSORTED_PANEL) {
+                                    "All apps are neatly organized!"
+                                } else {
+                                    "No apps placed in ${hotspot.label} yet"
+                                },
+                                style = MaterialTheme.typography.titleMedium,
+                                color = mutedOnContainer,
+                                textAlign = TextAlign.Center
+                            )
+                            if (hotspot.actionType == HotspotActionType.PANEL) {
+                                TextButton(onClick = { showAddAppsDialog = true }) {
+                                    Icon(Icons.Rounded.Add, contentDescription = null)
+                                    Spacer(modifier = Modifier.width(6.dp))
+                                    Text("Add Apps to ${hotspot.label}")
+                                }
+                            }
+                        }
+                    } else if (isBookRich) {
+                        // Shelf Two-Page Open Book Spread!
+                        ShelfBookSpread(
+                            apps = apps,
+                            textColor = contentOnContainer,
+                            mutedColor = mutedOnContainer,
+                            spineColor = palette.woodMid.copy(alpha = 0.45f),
+                            draggingPackage = draggingApp?.packageName,
+                            showQuickRemove = hotspot.actionType == HotspotActionType.PANEL,
+                            onTapApp = onLaunchApp,
+                            onRemoveToTrash = onRemoveAppFromPanel,
+                            onDragStart = { app, pos ->
+                                haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                                draggingApp = app
+                                dragFingerRootPos = pos
+                                hoveredTargetId = findDropTarget(pos, dropZoneBounds)
+                            },
+                            onDragMove = { pos ->
+                                dragFingerRootPos = pos
+                                hoveredTargetId = findDropTarget(pos, dropZoneBounds)
+                            },
+                            onDragEnd = {
+                                val targetId = hoveredTargetId
+                                val droppedApp = draggingApp
+                                if (targetId != null && droppedApp != null) {
+                                    haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                                    onMoveAppToHotspot(droppedApp.packageName, targetId)
+                                }
+                                draggingApp = null
+                                hoveredTargetId = null
+                            },
+                            onDragCancel = {
+                                draggingApp = null
+                                hoveredTargetId = null
+                            },
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .weight(1f, fill = false)
+                        )
+                    } else {
+                        LazyVerticalGrid(
+                            columns = GridCells.Fixed(4),
+                            contentPadding = PaddingValues(vertical = 6.dp),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                            verticalArrangement = Arrangement.spacedBy(12.dp),
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .weight(1f, fill = false)
+                        ) {
+                            items(apps, key = { it.packageName }) { app ->
+                                DraggablePanelAppTile(
+                                    app = app,
+                                    labelColor = contentOnContainer,
+                                    isBeingDragged = draggingApp?.packageName == app.packageName,
+                                    showQuickRemove = hotspot.actionType == HotspotActionType.PANEL,
+                                    onTap = { onLaunchApp(app) },
+                                    onRemoveToTrash = { onRemoveAppFromPanel(app.packageName) },
+                                    onDragStart = { startRootPos ->
+                                        haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                                        draggingApp = app
+                                        dragFingerRootPos = startRootPos
+                                        hoveredTargetId = findDropTarget(startRootPos, dropZoneBounds)
+                                    },
+                                    onDragMove = { currentRootPos ->
+                                        dragFingerRootPos = currentRootPos
+                                        hoveredTargetId = findDropTarget(currentRootPos, dropZoneBounds)
+                                    },
+                                    onDragEnd = {
+                                        val targetId = hoveredTargetId
+                                        val droppedApp = draggingApp
+                                        if (targetId != null && droppedApp != null) {
+                                            haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                                            onMoveAppToHotspot(droppedApp.packageName, targetId)
+                                        }
+                                        draggingApp = null
+                                        hoveredTargetId = null
+                                    },
+                                    onDragCancel = {
+                                        draggingApp = null
+                                        hoveredTargetId = null
+                                    }
+                                )
+                            }
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.height(8.dp))
+                    HorizontalDivider(color = contentOnContainer.copy(alpha = 0.18f))
+
+                    // Footer — A–Z List Fallback + TV Power LED
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(top = 6.dp),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        TextButton(onClick = onOpenAllApps) {
+                            Icon(
+                                imageVector = Icons.Rounded.Apps,
+                                contentDescription = null,
+                                tint = contentOnContainer,
+                                modifier = Modifier.size(18.dp)
+                            )
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Text("All Apps (A–Z)", color = contentOnContainer)
+                        }
+
+                        if (isTvRich) {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(6.dp)
+                            ) {
+                                Box(
+                                    modifier = Modifier
+                                        .size(8.dp)
+                                        .clip(CircleShape)
+                                        .background(Color(0xFF7CC49E))
+                                )
+                                Text(
+                                    text = "ON",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = Color(0xFF7CC49E)
+                                )
+                            }
+                        }
+
+                        if (hotspot.actionType == HotspotActionType.PANEL) {
+                            TextButton(onClick = { showAddAppsDialog = true }) {
+                                Icon(
+                                    imageVector = Icons.Rounded.Add,
+                                    contentDescription = null,
+                                    tint = contentOnContainer,
+                                    modifier = Modifier.size(18.dp)
+                                )
+                                Spacer(modifier = Modifier.width(4.dp))
+                                Text("Add Apps", color = contentOnContainer)
+                            }
+                        }
+                    }
+                }
+
+                // Bright white CRT flash veil during TV Power-On opening phase!
+                if (isTvRich && p < 0.72f) {
+                    val flashAlpha = (1f - (p / 0.72f)).coerceIn(0f, 0.92f)
+                    Box(
+                        modifier = Modifier
+                            .matchParentSize()
+                            .background(Color.White.copy(alpha = flashAlpha))
+                    )
                 }
             }
         }
 
-        // Floating dragged app icon following the user's finger across the overlay
+        // Floating dragged app icon
         val activeDragApp = draggingApp
         if (activeDragApp != null) {
             val localPos = dragFingerRootPos - rootOffset
@@ -409,10 +752,195 @@ fun HotspotPanelOverlay(
             hotspotLabel = hotspot.label,
             allApps = allInstalledApps,
             alreadyInPanel = apps.map { it.packageName }.toSet(),
-            onAddApp = { pkg ->
-                onMoveAppToHotspot(pkg, hotspot.id)
-            },
+            onAddApp = { pkg -> onMoveAppToHotspot(pkg, hotspot.id) },
             onDismiss = { showAddAppsDialog = false }
+        )
+    }
+
+    if (showAddWebShortcutDialog) {
+        AddWebShortcutDialog(
+            onAdd = { title, url ->
+                onAddWebShortcut(title, url)
+                showAddWebShortcutDialog = false
+            },
+            onDismiss = { showAddWebShortcutDialog = false }
+        )
+    }
+}
+
+/**
+ * Splits Shelf apps into a crisp two-page open book spread (4 apps on Left Page, 4 on Right Page)
+ * with pagination controls when there are more than 8 apps.
+ */
+@Composable
+private fun ShelfBookSpread(
+    apps: List<AppInfo>,
+    textColor: Color,
+    mutedColor: Color,
+    spineColor: Color,
+    draggingPackage: String?,
+    showQuickRemove: Boolean,
+    onTapApp: (AppInfo) -> Unit,
+    onRemoveToTrash: (String) -> Unit,
+    onDragStart: (AppInfo, Offset) -> Unit,
+    onDragMove: (Offset) -> Unit,
+    onDragEnd: () -> Unit,
+    onDragCancel: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    val appsPerSpread = 8
+    val totalSpreads = ((apps.size - 1) / appsPerSpread + 1).coerceAtLeast(1)
+    var currentSpread by remember(apps.size) { mutableIntStateOf(0) }
+    val safeSpread = currentSpread.coerceIn(0, totalSpreads - 1)
+
+    val startIdx = safeSpread * appsPerSpread
+    val spreadApps = apps.subList(startIdx, minOf(startIdx + appsPerSpread, apps.size))
+    val leftPageApps = spreadApps.take(4)
+    val rightPageApps = spreadApps.drop(4)
+
+    Column(modifier = modifier) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .heightIn(min = 210.dp),
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            // Left Book Page
+            BookPageColumn(
+                pageNumber = safeSpread * 2 + 1,
+                apps = leftPageApps,
+                textColor = textColor,
+                mutedColor = mutedColor,
+                draggingPackage = draggingPackage,
+                showQuickRemove = showQuickRemove,
+                onTapApp = onTapApp,
+                onRemoveToTrash = onRemoveToTrash,
+                onDragStart = onDragStart,
+                onDragMove = onDragMove,
+                onDragEnd = onDragEnd,
+                onDragCancel = onDragCancel,
+                modifier = Modifier.weight(1f)
+            )
+
+            // Center Book Spine Divider
+            Box(
+                modifier = Modifier
+                    .width(3.dp)
+                    .height(210.dp)
+                    .clip(CircleShape)
+                    .background(spineColor)
+            )
+
+            // Right Book Page
+            BookPageColumn(
+                pageNumber = safeSpread * 2 + 2,
+                apps = rightPageApps,
+                textColor = textColor,
+                mutedColor = mutedColor,
+                draggingPackage = draggingPackage,
+                showQuickRemove = showQuickRemove,
+                onTapApp = onTapApp,
+                onRemoveToTrash = onRemoveToTrash,
+                onDragStart = onDragStart,
+                onDragMove = onDragMove,
+                onDragEnd = onDragEnd,
+                onDragCancel = onDragCancel,
+                modifier = Modifier.weight(1f)
+            )
+        }
+
+        if (totalSpreads > 1) {
+            Spacer(modifier = Modifier.height(6.dp))
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                TextButton(
+                    onClick = { if (safeSpread > 0) currentSpread = safeSpread - 1 },
+                    enabled = safeSpread > 0
+                ) {
+                    Icon(Icons.Rounded.ChevronLeft, contentDescription = "Previous page")
+                    Text("Prev")
+                }
+                Text(
+                    text = "Pages ${safeSpread * 2 + 1}–${safeSpread * 2 + 2} of ${totalSpreads * 2}",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = mutedColor
+                )
+                TextButton(
+                    onClick = { if (safeSpread < totalSpreads - 1) currentSpread = safeSpread + 1 },
+                    enabled = safeSpread < totalSpreads - 1
+                ) {
+                    Text("Next")
+                    Icon(Icons.Rounded.ChevronRight, contentDescription = "Next page")
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun BookPageColumn(
+    pageNumber: Int,
+    apps: List<AppInfo>,
+    textColor: Color,
+    mutedColor: Color,
+    draggingPackage: String?,
+    showQuickRemove: Boolean,
+    onTapApp: (AppInfo) -> Unit,
+    onRemoveToTrash: (String) -> Unit,
+    onDragStart: (AppInfo, Offset) -> Unit,
+    onDragMove: (Offset) -> Unit,
+    onDragEnd: () -> Unit,
+    onDragCancel: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    Column(
+        modifier = modifier.padding(vertical = 4.dp),
+        verticalArrangement = Arrangement.spacedBy(10.dp),
+        horizontalAlignment = Alignment.CenterHorizontally
+    ) {
+        if (apps.isEmpty()) {
+            Spacer(modifier = Modifier.height(60.dp))
+            Text(
+                text = "Blank page",
+                style = MaterialTheme.typography.labelSmall,
+                color = mutedColor.copy(alpha = 0.6f)
+            )
+        } else {
+            apps.chunked(2).forEach { pair ->
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                ) {
+                    pair.forEach { app ->
+                        Box(modifier = Modifier.weight(1f)) {
+                            DraggablePanelAppTile(
+                                app = app,
+                                labelColor = textColor,
+                                isBeingDragged = draggingPackage == app.packageName,
+                                showQuickRemove = showQuickRemove,
+                                onTap = { onTapApp(app) },
+                                onRemoveToTrash = { onRemoveToTrash(app.packageName) },
+                                onDragStart = { pos -> onDragStart(app, pos) },
+                                onDragMove = onDragMove,
+                                onDragEnd = onDragEnd,
+                                onDragCancel = onDragCancel
+                            )
+                        }
+                    }
+                    if (pair.size == 1) {
+                        Spacer(modifier = Modifier.weight(1f))
+                    }
+                }
+            }
+        }
+        Spacer(modifier = Modifier.weight(1f, fill = false))
+        Text(
+            text = "— $pageNumber —",
+            style = MaterialTheme.typography.labelSmall,
+            color = mutedColor.copy(alpha = 0.65f)
         )
     }
 }
@@ -426,6 +954,7 @@ private fun findDropTarget(point: Offset, zones: Map<String, Rect>): String? {
 @Composable
 private fun DraggablePanelAppTile(
     app: AppInfo,
+    labelColor: Color,
     isBeingDragged: Boolean,
     showQuickRemove: Boolean,
     onTap: () -> Unit,
@@ -460,12 +989,8 @@ private fun DraggablePanelAppTile(
                         currentPointerInRoot += dragAmount
                         onDragMove(currentPointerInRoot)
                     },
-                    onDragEnd = {
-                        onDragEnd()
-                    },
-                    onDragCancel = {
-                        onDragCancel()
-                    }
+                    onDragEnd = { onDragEnd() },
+                    onDragCancel = { onDragCancel() }
                 )
             }
             .padding(vertical = 4.dp, horizontal = 2.dp)
@@ -473,10 +998,10 @@ private fun DraggablePanelAppTile(
         Column(
             modifier = Modifier.fillMaxWidth(),
             horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.spacedBy(6.dp)
+            verticalArrangement = Arrangement.spacedBy(5.dp)
         ) {
             Box {
-                AppIconView(app = app, size = 48.dp)
+                AppIconView(app = app, size = 46.dp)
                 if (showQuickRemove) {
                     Box(
                         contentAlignment = Alignment.Center,
@@ -500,13 +1025,60 @@ private fun DraggablePanelAppTile(
             Text(
                 text = app.label,
                 style = MaterialTheme.typography.labelSmall,
-                color = MaterialTheme.colorScheme.onSurface,
+                color = labelColor,
                 maxLines = 2,
                 textAlign = TextAlign.Center,
                 overflow = TextOverflow.Ellipsis
             )
         }
     }
+}
+
+@Composable
+private fun AddWebShortcutDialog(
+    onAdd: (title: String, url: String) -> Unit,
+    onDismiss: () -> Unit
+) {
+    var title by remember { mutableStateOf("") }
+    var url by remember { mutableStateOf("") }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Add Web Shortcut") },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                OutlinedTextField(
+                    value = title,
+                    onValueChange = { title = it },
+                    label = { Text("Label (e.g. GitHub, News)") },
+                    singleLine = true,
+                    shape = RoundedCornerShape(12.dp),
+                    modifier = Modifier.fillMaxWidth()
+                )
+                OutlinedTextField(
+                    value = url,
+                    onValueChange = { url = it },
+                    label = { Text("URL (e.g. github.com)") },
+                    singleLine = true,
+                    shape = RoundedCornerShape(12.dp),
+                    modifier = Modifier.fillMaxWidth()
+                )
+            }
+        },
+        confirmButton = {
+            Button(
+                onClick = { onAdd(title, url) },
+                enabled = title.isNotBlank() && url.isNotBlank()
+            ) {
+                Text("Pin Shortcut")
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text("Cancel")
+            }
+        }
+    )
 }
 
 @Composable

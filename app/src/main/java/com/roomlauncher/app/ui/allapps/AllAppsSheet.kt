@@ -4,6 +4,8 @@ import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
+import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.foundation.gestures.detectVerticalDragGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -26,13 +28,16 @@ import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.rounded.ChevronRight
 import androidx.compose.material.icons.rounded.Close
 import androidx.compose.material.icons.rounded.DriveFileMove
 import androidx.compose.material.icons.rounded.Info
 import androidx.compose.material.icons.rounded.MoreVert
 import androidx.compose.material.icons.rounded.Search
-import androidx.compose.material3.DropdownMenu
-import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material.icons.rounded.Settings
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -41,7 +46,9 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.Immutable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -50,7 +57,10 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -61,18 +71,34 @@ import com.roomlauncher.app.system.SystemIntentHelper
 import com.roomlauncher.app.ui.components.AppIconView
 import kotlinx.coroutines.launch
 
-@OptIn(ExperimentalFoundationApi::class)
+@Immutable
+private sealed interface AllAppsEntry {
+    @Immutable
+    data class Header(val letter: String) : AllAppsEntry
+
+    @Immutable
+    data class AppItem(val app: AppInfo, val ownerLabel: String) : AllAppsEntry
+
+    data object SettingsCard : AllAppsEntry
+}
+
 @Composable
 fun AllAppsSheet(
     installedApps: List<AppInfo>,
+    packageOwnerLabels: Map<String, String>,
+    defaultUnsortedLabel: String,
     panelHotspots: List<RoomHotspot>,
-    ownerForPackage: (String) -> RoomHotspot?,
     onLaunchApp: (AppInfo) -> Unit,
     onMoveApp: (packageName: String, targetHotspotId: String) -> Unit,
+    onOpenSettings: () -> Unit,
     onDismiss: () -> Unit
 ) {
     val context = LocalContext.current
+    val haptic = LocalHapticFeedback.current
     var searchQuery by remember { mutableStateOf("") }
+    var selectedAppForMenu by remember { mutableStateOf<AppInfo?>(null) }
+    var activeScrubLetter by remember { mutableStateOf<String?>(null) }
+
     val listState = rememberLazyListState()
     val coroutineScope = rememberCoroutineScope()
 
@@ -87,25 +113,30 @@ fun AllAppsSheet(
         }
     }
 
-    val groupedApps = remember(filteredApps) {
-        filteredApps.groupBy { app ->
-            val first = app.label.firstOrNull()?.uppercaseChar() ?: '#'
-            if (first in 'A'..'Z') first.toString() else "#"
-        }.toSortedMap(compareBy { if (it == "#") "~" else it })
-    }
+    // Flatten into a single fast, stable list with precomputed letter-to-index map
+    val listModel = remember(filteredApps, packageOwnerLabels, defaultUnsortedLabel) {
+        val entries = ArrayList<AllAppsEntry>(filteredApps.size + 32)
+        val letterToIndex = LinkedHashMap<String, Int>()
+        var lastLetter: String? = null
 
-    val sectionLetters = remember(groupedApps) { groupedApps.keys.toList() }
-
-    // Map each letter to its flat item index in the LazyColumn for fast jump
-    val letterIndexMap = remember(groupedApps) {
-        val map = mutableMapOf<String, Int>()
-        var idx = 0
-        for ((letter, apps) in groupedApps) {
-            map[letter] = idx
-            idx += 1 + apps.size
+        for (app in filteredApps) {
+            val firstChar = app.label.firstOrNull()?.uppercaseChar() ?: '#'
+            val letter = if (firstChar in 'A'..'Z') firstChar.toString() else "#"
+            if (letter != lastLetter) {
+                letterToIndex[letter] = entries.size
+                entries.add(AllAppsEntry.Header(letter))
+                lastLetter = letter
+            }
+            val owner = packageOwnerLabels[app.packageName] ?: defaultUnsortedLabel
+            entries.add(AllAppsEntry.AppItem(app, owner))
         }
-        map
+        entries.add(AllAppsEntry.SettingsCard)
+        entries to letterToIndex
     }
+
+    val flatEntries = listModel.first
+    val letterIndexMap = listModel.second
+    val sectionLetters = remember(letterIndexMap) { letterIndexMap.keys.toList() }
 
     Surface(
         modifier = Modifier.fillMaxSize(),
@@ -118,11 +149,11 @@ fun AllAppsSheet(
                 .navigationBarsPadding()
                 .imePadding()
         ) {
-            // Top header bar
+            // Header
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(start = 20.dp, end = 12.dp, top = 12.dp, bottom = 8.dp),
+                    .padding(start = 20.dp, end = 8.dp, top = 10.dp, bottom = 6.dp),
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
@@ -138,11 +169,20 @@ fun AllAppsSheet(
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 }
-                IconButton(onClick = onDismiss) {
-                    Icon(
-                        imageVector = Icons.Rounded.Close,
-                        contentDescription = "Close all apps"
-                    )
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    IconButton(onClick = onOpenSettings) {
+                        Icon(
+                            imageVector = Icons.Rounded.Settings,
+                            contentDescription = "Room Launcher Settings",
+                            tint = MaterialTheme.colorScheme.primary
+                        )
+                    }
+                    IconButton(onClick = onDismiss) {
+                        Icon(
+                            imageVector = Icons.Rounded.Close,
+                            contentDescription = "Close all apps"
+                        )
+                    }
                 }
             }
 
@@ -151,9 +191,7 @@ fun AllAppsSheet(
                 value = searchQuery,
                 onValueChange = { searchQuery = it },
                 placeholder = { Text("Search apps…") },
-                leadingIcon = {
-                    Icon(Icons.Rounded.Search, contentDescription = null)
-                },
+                leadingIcon = { Icon(Icons.Rounded.Search, contentDescription = null) },
                 trailingIcon = {
                     if (searchQuery.isNotEmpty()) {
                         IconButton(onClick = { searchQuery = "" }) {
@@ -172,16 +210,19 @@ fun AllAppsSheet(
                     .padding(horizontal = 16.dp, vertical = 6.dp)
             )
 
-            // Main list + fast alphabet index rail
+            // Fast App List + Interactive Drag-and-Tap A-Z Rail
             Box(
                 modifier = Modifier
                     .weight(1f)
                     .fillMaxWidth()
             ) {
                 if (filteredApps.isEmpty()) {
-                    Box(
-                        modifier = Modifier.fillMaxSize(),
-                        contentAlignment = Alignment.Center
+                    Column(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .padding(24.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        verticalArrangement = Arrangement.Center
                     ) {
                         Text(
                             text = if (searchQuery.isNotEmpty()) {
@@ -192,6 +233,8 @@ fun AllAppsSheet(
                             style = MaterialTheme.typography.bodyLarge,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
+                        Spacer(modifier = Modifier.height(20.dp))
+                        SettingsDeckCard(onClick = onOpenSettings)
                     }
                 } else {
                     LazyColumn(
@@ -199,109 +242,213 @@ fun AllAppsSheet(
                         contentPadding = PaddingValues(
                             start = 16.dp,
                             end = 36.dp,
-                            top = 8.dp,
-                            bottom = 24.dp
+                            top = 4.dp,
+                            bottom = 28.dp
                         ),
                         modifier = Modifier.fillMaxSize()
                     ) {
-                        groupedApps.forEach { (letter, appsInSection) ->
-                            stickyHeader(key = "header_$letter") {
-                                Box(
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .background(MaterialTheme.colorScheme.background)
-                                        .padding(vertical = 6.dp)
-                                ) {
-                                    Text(
-                                        text = letter,
-                                        style = MaterialTheme.typography.labelLarge,
-                                        color = MaterialTheme.colorScheme.primary,
-                                        fontWeight = FontWeight.Bold
-                                    )
+                        items(
+                            items = flatEntries,
+                            key = { entry ->
+                                when (entry) {
+                                    is AllAppsEntry.Header -> "hdr_${entry.letter}"
+                                    is AllAppsEntry.AppItem -> entry.app.packageName
+                                    AllAppsEntry.SettingsCard -> "footer_settings"
+                                }
+                            },
+                            contentType = { entry ->
+                                when (entry) {
+                                    is AllAppsEntry.Header -> "header"
+                                    is AllAppsEntry.AppItem -> "app"
+                                    AllAppsEntry.SettingsCard -> "settings"
                                 }
                             }
-                            items(
-                                items = appsInSection,
-                                key = { it.packageName }
-                            ) { app ->
-                                val owner = ownerForPackage(app.packageName)
-                                AllAppRow(
-                                    app = app,
-                                    ownerLabel = owner?.label ?: "Trash Can",
-                                    panelHotspots = panelHotspots,
-                                    onLaunch = { onLaunchApp(app) },
-                                    onMoveToHotspot = { targetId ->
-                                        onMoveApp(app.packageName, targetId)
-                                    },
-                                    onOpenAppInfo = {
-                                        SystemIntentHelper.openAppInfoSettings(context, app.packageName)
-                                    }
-                                )
+                        ) { entry ->
+                            when (entry) {
+                                is AllAppsEntry.Header -> {
+                                    Text(
+                                        text = entry.letter,
+                                        style = MaterialTheme.typography.labelLarge,
+                                        color = MaterialTheme.colorScheme.primary,
+                                        fontWeight = FontWeight.Bold,
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .padding(top = 12.dp, bottom = 4.dp, start = 6.dp)
+                                    )
+                                }
+                                is AllAppsEntry.AppItem -> {
+                                    FastAllAppRow(
+                                        app = entry.app,
+                                        ownerLabel = entry.ownerLabel,
+                                        onLaunch = { onLaunchApp(entry.app) },
+                                        onOpenMenu = { selectedAppForMenu = entry.app }
+                                    )
+                                }
+                                AllAppsEntry.SettingsCard -> {
+                                    Spacer(modifier = Modifier.height(16.dp))
+                                    SettingsDeckCard(onClick = onOpenSettings)
+                                }
                             }
                         }
                     }
 
-                    // Subtle A–Z quick-jump rail on right edge
+                    // Responsive Touch & Drag A–Z Fast Scroller Rail
                     if (sectionLetters.size > 1 && searchQuery.isBlank()) {
-                        Column(
+                        AlphabetFastScrollerRail(
+                            letters = sectionLetters,
+                            activeLetter = activeScrubLetter,
+                            onLetterSelected = { letter ->
+                                if (letter != activeScrubLetter) {
+                                    activeScrubLetter = letter
+                                    haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                                    letterIndexMap[letter]?.let { targetIdx ->
+                                        coroutineScope.launch {
+                                            listState.scrollToItem(targetIdx)
+                                        }
+                                    }
+                                }
+                            },
+                            onScrubEnd = { activeScrubLetter = null },
                             modifier = Modifier
                                 .align(Alignment.CenterEnd)
                                 .fillMaxHeight()
-                                .padding(end = 6.dp, top = 8.dp, bottom = 8.dp),
-                            verticalArrangement = Arrangement.Center,
-                            horizontalAlignment = Alignment.CenterHorizontally
+                                .padding(end = 2.dp, top = 8.dp, bottom = 12.dp)
+                        )
+                    }
+
+                    // Large Floating Letter Indicator while scrubbing A–Z rail
+                    val bubbleLetter = activeScrubLetter
+                    if (bubbleLetter != null) {
+                        Box(
+                            contentAlignment = Alignment.Center,
+                            modifier = Modifier
+                                .align(Alignment.CenterEnd)
+                                .padding(end = 52.dp)
+                                .size(64.dp)
+                                .clip(CircleShape)
+                                .background(MaterialTheme.colorScheme.primary)
                         ) {
-                            sectionLetters.forEach { letter ->
-                                Text(
-                                    text = letter,
-                                    fontSize = 11.sp,
-                                    fontWeight = FontWeight.SemiBold,
-                                    color = MaterialTheme.colorScheme.primary,
-                                    modifier = Modifier
-                                        .clip(CircleShape)
-                                        .clickable {
-                                            letterIndexMap[letter]?.let { index ->
-                                                coroutineScope.launch {
-                                                    listState.animateScrollToItem(index)
-                                                }
-                                            }
-                                        }
-                                        .padding(horizontal = 6.dp, vertical = 1.dp)
-                                )
-                            }
+                            Text(
+                                text = bubbleLetter,
+                                style = MaterialTheme.typography.headlineLarge,
+                                color = MaterialTheme.colorScheme.onPrimary,
+                                fontWeight = FontWeight.Bold
+                            )
                         }
                     }
                 }
             }
         }
     }
+
+    // Single shared App Actions dialog (replaces 80+ per-row DropdownMenus for huge perf gain!)
+    val menuApp = selectedAppForMenu
+    if (menuApp != null) {
+        AlertDialog(
+            onDismissRequest = { selectedAppForMenu = null },
+            title = {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    AppIconView(app = menuApp, size = 36.dp)
+                    Text(
+                        text = menuApp.label,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                }
+            },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                    Text(
+                        text = "Move to Room Object",
+                        style = MaterialTheme.typography.labelLarge,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.padding(bottom = 4.dp)
+                    )
+                    panelHotspots.forEach { target ->
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clip(RoundedCornerShape(12.dp))
+                                .clickable {
+                                    onMoveApp(menuApp.packageName, target.id)
+                                    selectedAppForMenu = null
+                                }
+                                .padding(horizontal = 10.dp, vertical = 10.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(12.dp)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Rounded.DriveFileMove,
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.primary,
+                                modifier = Modifier.size(20.dp)
+                            )
+                            Text(
+                                text = target.label,
+                                style = MaterialTheme.typography.bodyLarge
+                            )
+                        }
+                    }
+                    HorizontalDivider(modifier = Modifier.padding(vertical = 6.dp))
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clip(RoundedCornerShape(12.dp))
+                            .clickable {
+                                val pkg = menuApp.packageName
+                                selectedAppForMenu = null
+                                SystemIntentHelper.openAppInfoSettings(context, pkg)
+                            }
+                            .padding(horizontal = 10.dp, vertical = 10.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(12.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Rounded.Info,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.size(20.dp)
+                        )
+                        Text(
+                            text = "App Info",
+                            style = MaterialTheme.typography.bodyLarge
+                        )
+                    }
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = { selectedAppForMenu = null }) {
+                    Text("Close")
+                }
+            }
+        )
+    }
 }
 
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
-private fun AllAppRow(
+private fun FastAllAppRow(
     app: AppInfo,
     ownerLabel: String,
-    panelHotspots: List<RoomHotspot>,
     onLaunch: () -> Unit,
-    onMoveToHotspot: (String) -> Unit,
-    onOpenAppInfo: () -> Unit
+    onOpenMenu: () -> Unit
 ) {
-    var menuExpanded by remember { mutableStateOf(false) }
-
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .clip(RoundedCornerShape(14.dp))
+            .clip(RoundedCornerShape(12.dp))
             .combinedClickable(
                 onClick = onLaunch,
-                onLongClick = { menuExpanded = true }
+                onLongClick = onOpenMenu
             )
-            .padding(horizontal = 8.dp, vertical = 8.dp),
+            .padding(horizontal = 6.dp, vertical = 7.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        AppIconView(app = app, size = 42.dp)
-        Spacer(modifier = Modifier.width(14.dp))
+        AppIconView(app = app, size = 40.dp)
+        Spacer(modifier = Modifier.width(12.dp))
         Column(modifier = Modifier.weight(1f)) {
             Text(
                 text = app.label,
@@ -318,45 +465,135 @@ private fun AllAppRow(
                 overflow = TextOverflow.Ellipsis
             )
         }
-        Box {
-            IconButton(
-                onClick = { menuExpanded = true },
-                modifier = Modifier.size(36.dp)
-            ) {
-                Icon(
-                    imageVector = Icons.Rounded.MoreVert,
-                    contentDescription = "App actions",
-                    tint = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-            }
-            DropdownMenu(
-                expanded = menuExpanded,
-                onDismissRequest = { menuExpanded = false }
-            ) {
-                panelHotspots.forEach { target ->
-                    DropdownMenuItem(
-                        text = { Text("Move to ${target.label}") },
-                        leadingIcon = {
-                            Icon(Icons.Rounded.DriveFileMove, contentDescription = null)
-                        },
-                        onClick = {
-                            menuExpanded = false
-                            onMoveToHotspot(target.id)
-                        }
-                    )
-                }
-                HorizontalDivider()
-                DropdownMenuItem(
-                    text = { Text("App Info") },
-                    leadingIcon = {
-                        Icon(Icons.Rounded.Info, contentDescription = null)
-                    },
-                    onClick = {
-                        menuExpanded = false
-                        onOpenAppInfo()
+        IconButton(
+            onClick = onOpenMenu,
+            modifier = Modifier.size(34.dp)
+        ) {
+            Icon(
+                imageVector = Icons.Rounded.MoreVert,
+                contentDescription = "App actions",
+                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.size(20.dp)
+            )
+        }
+    }
+}
+
+@Composable
+private fun AlphabetFastScrollerRail(
+    letters: List<String>,
+    activeLetter: String?,
+    onLetterSelected: (String) -> Unit,
+    onScrubEnd: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    fun letterAtY(y: Float, totalHeight: Int): String? {
+        if (letters.isEmpty() || totalHeight <= 0) return null
+        val fraction = (y / totalHeight.toFloat()).coerceIn(0f, 0.9999f)
+        val index = (fraction * letters.size).toInt().coerceIn(0, letters.lastIndex)
+        return letters[index]
+    }
+
+    Column(
+        modifier = modifier
+            .width(30.dp)
+            .clip(RoundedCornerShape(16.dp))
+            .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.55f))
+            .pointerInput(letters) {
+                detectTapGestures(
+                    onPress = { offset ->
+                        letterAtY(offset.y, size.height)?.let(onLetterSelected)
+                        tryAwaitRelease()
+                        onScrubEnd()
                     }
                 )
             }
+            .pointerInput(letters) {
+                detectVerticalDragGestures(
+                    onDragStart = { offset ->
+                        letterAtY(offset.y, size.height)?.let(onLetterSelected)
+                    },
+                    onVerticalDrag = { change, _ ->
+                        change.consume()
+                        letterAtY(change.position.y, size.height)?.let(onLetterSelected)
+                    },
+                    onDragEnd = { onScrubEnd() },
+                    onDragCancel = { onScrubEnd() }
+                )
+            }
+            .padding(vertical = 4.dp),
+        horizontalAlignment = Alignment.CenterHorizontally
+    ) {
+        letters.forEach { letter ->
+            val isActive = letter == activeLetter
+            Box(
+                contentAlignment = Alignment.Center,
+                modifier = Modifier
+                    .weight(1f)
+                    .fillMaxWidth()
+            ) {
+                Text(
+                    text = letter,
+                    fontSize = if (isActive) 12.sp else 10.sp,
+                    fontWeight = if (isActive) FontWeight.ExtraBold else FontWeight.SemiBold,
+                    color = if (isActive) {
+                        MaterialTheme.colorScheme.secondary
+                    } else {
+                        MaterialTheme.colorScheme.primary
+                    }
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun SettingsDeckCard(onClick: () -> Unit) {
+    Card(
+        shape = RoundedCornerShape(20.dp),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable(onClick = onClick)
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 16.dp, vertical = 14.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(14.dp)
+        ) {
+            Box(
+                contentAlignment = Alignment.Center,
+                modifier = Modifier
+                    .size(42.dp)
+                    .clip(RoundedCornerShape(14.dp))
+                    .background(MaterialTheme.colorScheme.primaryContainer)
+            ) {
+                Icon(
+                    imageVector = Icons.Rounded.Settings,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.primary
+                )
+            }
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = "Room Launcher Settings",
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.SemiBold,
+                    color = MaterialTheme.colorScheme.onSurface
+                )
+                Text(
+                    text = "Themes, dark mode, animations, weather & wallpaper",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+            Icon(
+                imageVector = Icons.Rounded.ChevronRight,
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.onSurfaceVariant
+            )
         }
     }
 }

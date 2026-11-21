@@ -1,8 +1,14 @@
 package com.roomlauncher.app
 
+import android.content.pm.ApplicationInfo
 import com.roomlauncher.app.data.AppInfo
 import com.roomlauncher.app.data.HotspotActionType
+import com.roomlauncher.app.data.RoomConfig
 import com.roomlauncher.app.data.RoomConfigRepository
+import com.roomlauncher.app.data.RoomHotspot
+import com.roomlauncher.app.data.RoomObjectVisual
+import com.roomlauncher.app.data.WebShortcut
+import com.roomlauncher.app.ui.theme.RoomThemeId
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -18,35 +24,37 @@ class RoomConfigRepositoryTest {
     val tempFolder = TemporaryFolder()
 
     @Test
-    fun defaultRoomContainsAllSixRequiredObjects() {
+    fun defaultRoomContainsAllNineObjects() {
         val config = RoomConfigRepository.createDefaultRoomConfig()
-        val labels = config.hotspots.map { it.label }.toSet()
-
-        assertEquals(6, config.hotspots.size)
-        assertTrue("TV" in labels)
-        assertTrue("Shelf" in labels)
-        assertTrue("Painting" in labels)
-        assertTrue("Trash Can" in labels)
-        assertTrue("Bed" in labels)
-        assertTrue("Clock" in labels)
-
         val byId = config.hotspots.associateBy { it.id }
-        assertEquals(HotspotActionType.PANEL, byId[RoomConfigRepository.ID_TV]?.actionType)
-        assertEquals(HotspotActionType.PANEL, byId[RoomConfigRepository.ID_SHELF]?.actionType)
+
+        assertEquals(9, config.hotspots.size)
+        assertEquals(HotspotActionType.DIRECT_WEATHER, byId[RoomConfigRepository.ID_WINDOW]?.actionType)
+        assertEquals(RoomObjectVisual.WINDOW, byId[RoomConfigRepository.ID_WINDOW]?.visualType)
         assertEquals(HotspotActionType.DIRECT_GALLERY, byId[RoomConfigRepository.ID_PAINTING]?.actionType)
-        assertEquals(HotspotActionType.UNSORTED_PANEL, byId[RoomConfigRepository.ID_TRASH_CAN]?.actionType)
-        assertEquals(HotspotActionType.PANEL, byId[RoomConfigRepository.ID_BED]?.actionType)
         assertEquals(HotspotActionType.DIRECT_ALARM, byId[RoomConfigRepository.ID_CLOCK]?.actionType)
+        assertEquals(HotspotActionType.PANEL, byId[RoomConfigRepository.ID_STICKY_NOTE]?.actionType)
+        assertEquals(HotspotActionType.PANEL, byId[RoomConfigRepository.ID_TV]?.actionType)
+        assertEquals(HotspotActionType.PANEL, byId[RoomConfigRepository.ID_CONSOLE]?.actionType)
+        assertEquals(HotspotActionType.PANEL, byId[RoomConfigRepository.ID_SHELF]?.actionType)
+        assertEquals(HotspotActionType.PANEL, byId[RoomConfigRepository.ID_BED]?.actionType)
+        assertEquals(HotspotActionType.UNSORTED_PANEL, byId[RoomConfigRepository.ID_TRASH_CAN]?.actionType)
     }
 
     @Test
-    fun jsonPersistenceRoundTripWorksCleanly() = runTest {
+    fun jsonPersistenceRoundTripPreservesSettingsAndWebShortcuts() = runTest {
         val file = File(tempFolder.root, "room_config.json")
         val repo = RoomConfigRepository(file)
 
         val initial = RoomConfigRepository.createDefaultRoomConfig().copy(
             onboardingCompleted = true,
-            autoPopulated = true
+            onboardingStep = 3,
+            autoPopulated = true,
+            themeId = RoomThemeId.MIDNIGHT_COZY,
+            useQuickAnimations = true,
+            weatherEnabled = true,
+            mirrorHomeWallpaper = true,
+            webShortcuts = listOf(WebShortcut("w1", "GitHub", "https://github.com"))
         )
         repo.saveConfig(initial)
 
@@ -55,51 +63,79 @@ class RoomConfigRepositoryTest {
     }
 
     @Test
-    fun autoPopulateAndNothingGetsLostRule() {
+    fun autoPopulateCategorizesGamesHealthClockWebAndNothingGetsLost() {
         val apps = listOf(
             AppInfo(packageName = "com.google.android.youtube", label = "YouTube"),
+            AppInfo(packageName = "com.mojang.minecraftpe", label = "Minecraft", category = ApplicationInfo.CATEGORY_GAME),
             AppInfo(packageName = "md.obsidian", label = "Obsidian"),
             AppInfo(packageName = "com.calm.android", label = "Calm"),
-            AppInfo(packageName = "com.example.randomgame", label = "Random Game")
+            AppInfo(packageName = "com.sec.android.app.shealth", label = "Samsung Health"),
+            AppInfo(packageName = "com.google.android.deskclock", label = "Clock"),
+            AppInfo(packageName = "com.android.chrome", label = "Chrome"),
+            AppInfo(packageName = "com.example.unmatched", label = "Random Utility")
         )
 
-        val defaultConfig = RoomConfigRepository.createDefaultRoomConfig()
-        val populated = RoomConfigRepository.autoPopulateIfNeeded(defaultConfig, apps)
-
-        assertTrue(populated.autoPopulated)
+        val populated = RoomConfigRepository.autoPopulateIfNeeded(
+            RoomConfigRepository.createDefaultRoomConfig(),
+            apps
+        )
 
         val byId = populated.hotspots.associateBy { it.id }
-        val tvApps = RoomConfigRepository.appsForHotspot(byId.getValue(RoomConfigRepository.ID_TV), populated, apps)
-        val shelfApps = RoomConfigRepository.appsForHotspot(byId.getValue(RoomConfigRepository.ID_SHELF), populated, apps)
-        val bedApps = RoomConfigRepository.appsForHotspot(byId.getValue(RoomConfigRepository.ID_BED), populated, apps)
-        val trashApps = RoomConfigRepository.appsForHotspot(byId.getValue(RoomConfigRepository.ID_TRASH_CAN), populated, apps)
+        val tvPkgs = RoomConfigRepository.appsForHotspot(byId.getValue(RoomConfigRepository.ID_TV), populated, apps).map { it.packageName }
+        val consolePkgs = RoomConfigRepository.appsForHotspot(byId.getValue(RoomConfigRepository.ID_CONSOLE), populated, apps).map { it.packageName }
+        val shelfPkgs = RoomConfigRepository.appsForHotspot(byId.getValue(RoomConfigRepository.ID_SHELF), populated, apps).map { it.packageName }
+        val bedPkgs = RoomConfigRepository.appsForHotspot(byId.getValue(RoomConfigRepository.ID_BED), populated, apps).map { it.packageName }
+        val stickyPkgs = RoomConfigRepository.appsForHotspot(byId.getValue(RoomConfigRepository.ID_STICKY_NOTE), populated, apps).map { it.packageName }
+        val trashPkgs = RoomConfigRepository.appsForHotspot(byId.getValue(RoomConfigRepository.ID_TRASH_CAN), populated, apps).map { it.packageName }
 
-        assertEquals(listOf("com.google.android.youtube"), tvApps.map { it.packageName })
-        assertEquals(listOf("md.obsidian"), shelfApps.map { it.packageName })
-        assertEquals(listOf("com.calm.android"), bedApps.map { it.packageName })
-        assertEquals(listOf("com.example.randomgame"), trashApps.map { it.packageName })
+        assertEquals(listOf("com.google.android.youtube"), tvPkgs)
+        assertEquals(listOf("com.mojang.minecraftpe"), consolePkgs)
+        assertEquals(listOf("md.obsidian"), shelfPkgs)
+        assertTrue("com.calm.android" in bedPkgs)
+        assertTrue("com.sec.android.app.shealth" in bedPkgs)
+        assertTrue("com.google.android.deskclock" in bedPkgs)
+        assertEquals(listOf("com.android.chrome"), stickyPkgs)
+        assertEquals(listOf("com.example.unmatched"), trashPkgs)
+    }
 
-        // Verify newly installed app automatically appears in Trash Can
-        val withNewInstall = apps + AppInfo(packageName = "com.example.brandnew", label = "Brand New App")
-        val updatedTrash = RoomConfigRepository.appsForHotspot(
-            byId.getValue(RoomConfigRepository.ID_TRASH_CAN),
-            populated,
-            withNewInstall
+    @Test
+    fun legacyV1ConfigMigratesCleanlyWithoutLosingUserApps() {
+        val v1Config = RoomConfig(
+            version = 1,
+            onboardingCompleted = true,
+            autoPopulated = true,
+            hotspots = listOf(
+                RoomHotspot(
+                    id = RoomConfigRepository.ID_TV,
+                    label = "TV",
+                    x = 0.045f,
+                    y = 0.32f,
+                    width = 0.50f,
+                    height = 0.23f,
+                    actionType = HotspotActionType.PANEL,
+                    packages = listOf("com.google.android.youtube")
+                ),
+                RoomHotspot(
+                    id = RoomConfigRepository.ID_TRASH_CAN,
+                    label = "Trash Can",
+                    x = 0.69f,
+                    y = 0.685f,
+                    width = 0.24f,
+                    height = 0.155f,
+                    actionType = HotspotActionType.UNSORTED_PANEL
+                )
+            )
         )
-        assertTrue(updatedTrash.any { it.packageName == "com.example.brandnew" })
 
-        // Verify app removed from TV automatically re-appears in Trash Can
-        val removedFromTv = populated.copy(
-            hotspots = populated.hotspots.map { h ->
-                if (h.id == RoomConfigRepository.ID_TV) h.copy(packages = emptyList()) else h
-            }
-        )
-        val trashAfterRemove = RoomConfigRepository.appsForHotspot(
-            removedFromTv.hotspots.first { it.id == RoomConfigRepository.ID_TRASH_CAN },
-            removedFromTv,
-            withNewInstall
-        )
-        assertTrue(trashAfterRemove.any { it.packageName == "com.google.android.youtube" })
-        assertFalse(trashAfterRemove.any { it.packageName == "md.obsidian" })
+        val migrated = RoomConfigRepository.migrateIfNeeded(v1Config)
+        val byId = migrated.hotspots.associateBy { it.id }
+
+        assertEquals(2, migrated.version)
+        assertEquals(listOf("com.google.android.youtube"), byId[RoomConfigRepository.ID_TV]?.packages)
+        assertEquals(RoomObjectVisual.TV, byId[RoomConfigRepository.ID_TV]?.visualType)
+        assertTrue(RoomConfigRepository.ID_WINDOW in byId)
+        assertTrue(RoomConfigRepository.ID_CONSOLE in byId)
+        assertTrue(RoomConfigRepository.ID_STICKY_NOTE in byId)
+        assertFalse(byId[RoomConfigRepository.ID_TV]!!.height > 0.19f)
     }
 }

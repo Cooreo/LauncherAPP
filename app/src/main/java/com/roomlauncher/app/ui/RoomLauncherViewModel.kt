@@ -1,6 +1,12 @@
 package com.roomlauncher.app.ui
 
 import android.app.Application
+import android.graphics.BitmapFactory
+import android.net.Uri
+import android.widget.Toast
+import androidx.compose.runtime.Immutable
+import androidx.compose.ui.graphics.ImageBitmap
+import androidx.compose.ui.graphics.asImageBitmap
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.roomlauncher.app.data.AppInfo
@@ -9,25 +15,41 @@ import com.roomlauncher.app.data.HotspotActionType
 import com.roomlauncher.app.data.RoomConfig
 import com.roomlauncher.app.data.RoomConfigRepository
 import com.roomlauncher.app.data.RoomHotspot
+import com.roomlauncher.app.data.RoomObjectVisual
+import com.roomlauncher.app.data.WeatherRepository
+import com.roomlauncher.app.data.WeatherState
+import com.roomlauncher.app.data.WebShortcut
+import com.roomlauncher.app.system.RoomWallpaperRenderer
 import com.roomlauncher.app.system.SystemIntentHelper
+import com.roomlauncher.app.ui.theme.RoomThemeId
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
+import java.io.File
 import java.util.UUID
 
+@Immutable
 data class RoomUiState(
     val isLoaded: Boolean = false,
     val config: RoomConfig = RoomConfigRepository.createDefaultRoomConfig(),
     val installedApps: List<AppInfo> = emptyList(),
+    val packageOwnerLabels: Map<String, String> = emptyMap(),
+    val defaultUnsortedLabel: String = "Trash Can",
+    val weatherState: WeatherState = WeatherState(),
+    val frameImageBitmap: ImageBitmap? = null,
     val isEditMode: Boolean = false,
     val activeHotspotId: String? = null,
     val editingHotspotId: String? = null,
     val showAddHotspotDialog: Boolean = false,
     val showAllAppsSheet: Boolean = false,
+    val showSettingsSheet: Boolean = false,
     val isBatteryOptimizationIgnored: Boolean = false,
-    val isDefaultLauncher: Boolean = false
+    val isDefaultLauncher: Boolean = false,
+    val isSyncingWallpaper: Boolean = false
 ) {
     val activeHotspot: RoomHotspot?
         get() = config.hotspots.firstOrNull { it.id == activeHotspotId }
@@ -37,9 +59,6 @@ data class RoomUiState(
 
     fun appsFor(hotspot: RoomHotspot): List<AppInfo> =
         RoomConfigRepository.appsForHotspot(hotspot, config, installedApps)
-
-    fun ownerFor(packageName: String): RoomHotspot? =
-        RoomConfigRepository.ownerHotspotForPackage(packageName, config)
 
     val panelHotspots: List<RoomHotspot>
         get() = config.hotspots.filter {
@@ -52,6 +71,7 @@ class RoomLauncherViewModel(application: Application) : AndroidViewModel(applica
     private val appContext = application.applicationContext
     private val configRepository = RoomConfigRepository(appContext)
     private val appRepository = AppRepository(appContext, viewModelScope)
+    private val weatherRepository = WeatherRepository(appContext)
 
     private val _uiState = MutableStateFlow(RoomUiState())
     val uiState: StateFlow<RoomUiState> = _uiState.asStateFlow()
@@ -59,16 +79,35 @@ class RoomLauncherViewModel(application: Application) : AndroidViewModel(applica
     init {
         viewModelScope.launch {
             val loadedConfig = configRepository.loadConfig()
+            val frameBmp = loadFrameBitmap(loadedConfig.framePhotoPath)
+            val isDefault = SystemIntentHelper.isDefaultHomeLauncher(appContext)
+            val isBatteryIgnored = SystemIntentHelper.isIgnoringBatteryOptimizations(appContext)
+
+            // If the user just became default launcher while on the final onboarding step, finish onboarding cleanly
+            val effectiveConfig = if (!loadedConfig.onboardingCompleted && loadedConfig.onboardingStep >= 3 && isDefault) {
+                loadedConfig.copy(onboardingCompleted = true).also {
+                    configRepository.saveConfig(it)
+                }
+            } else {
+                loadedConfig
+            }
+
             _uiState.update {
                 it.copy(
                     isLoaded = true,
-                    config = loadedConfig,
-                    isBatteryOptimizationIgnored = SystemIntentHelper.isIgnoringBatteryOptimizations(appContext),
-                    isDefaultLauncher = SystemIntentHelper.isDefaultHomeLauncher(appContext)
+                    config = effectiveConfig,
+                    packageOwnerLabels = RoomConfigRepository.buildPackageOwnerLabelMap(effectiveConfig),
+                    defaultUnsortedLabel = RoomConfigRepository.defaultUnsortedLabel(effectiveConfig),
+                    frameImageBitmap = frameBmp,
+                    isBatteryOptimizationIgnored = isBatteryIgnored,
+                    isDefaultLauncher = isDefault
                 )
             }
 
-            // Collect live installed apps and auto-populate once on first load
+            if (effectiveConfig.weatherEnabled) {
+                refreshWeather(forceRefresh = false)
+            }
+
             appRepository.installedApps.collect { apps ->
                 val current = _uiState.value.config
                 val populated = if (!current.autoPopulated && apps.isNotEmpty()) {
@@ -81,7 +120,9 @@ class RoomLauncherViewModel(application: Application) : AndroidViewModel(applica
                 _uiState.update {
                     it.copy(
                         installedApps = apps,
-                        config = populated
+                        config = populated,
+                        packageOwnerLabels = RoomConfigRepository.buildPackageOwnerLabelMap(populated),
+                        defaultUnsortedLabel = RoomConfigRepository.defaultUnsortedLabel(populated)
                     )
                 }
             }
@@ -94,20 +135,48 @@ class RoomLauncherViewModel(application: Application) : AndroidViewModel(applica
         super.onCleared()
     }
 
+    /**
+     * Refreshes permission & launcher status on ON_RESUME without triggering laggy full PackageManager reloads.
+     * Also prevents the onboarding reset bug when Android fires HOME intent right after ROLE_HOME is granted.
+     */
     fun refreshSystemStatus() {
+        val isBatteryIgnored = SystemIntentHelper.isIgnoringBatteryOptimizations(appContext)
+        val isDefault = SystemIntentHelper.isDefaultHomeLauncher(appContext)
+        val state = _uiState.value
+
+        val shouldAutoCompleteOnboarding =
+            !state.config.onboardingCompleted &&
+                state.config.onboardingStep >= 3 &&
+                isDefault
+
+        if (shouldAutoCompleteOnboarding) {
+            updateConfig { it.copy(onboardingCompleted = true) }
+        }
+
         _uiState.update {
             it.copy(
-                isBatteryOptimizationIgnored = SystemIntentHelper.isIgnoringBatteryOptimizations(appContext),
-                isDefaultLauncher = SystemIntentHelper.isDefaultHomeLauncher(appContext)
+                isBatteryOptimizationIgnored = isBatteryIgnored,
+                isDefaultLauncher = isDefault
             )
         }
-        viewModelScope.launch {
-            appRepository.refreshInstalledApps()
+
+        if (state.installedApps.isEmpty()) {
+            viewModelScope.launch { appRepository.refreshInstalledApps() }
+        }
+        if (state.config.weatherEnabled) {
+            refreshWeather(forceRefresh = false)
+        }
+    }
+
+    fun setOnboardingStep(step: Int) {
+        val clamped = step.coerceIn(0, 3)
+        if (_uiState.value.config.onboardingStep != clamped) {
+            updateConfig { it.copy(onboardingStep = clamped) }
         }
     }
 
     fun completeOnboarding() {
-        updateConfig { it.copy(onboardingCompleted = true) }
+        updateConfig { it.copy(onboardingCompleted = true, onboardingStep = 3) }
     }
 
     fun reopenOnboarding() {
@@ -116,10 +185,11 @@ class RoomLauncherViewModel(application: Application) : AndroidViewModel(applica
                 isEditMode = false,
                 activeHotspotId = null,
                 editingHotspotId = null,
-                showAllAppsSheet = false
+                showAllAppsSheet = false,
+                showSettingsSheet = false
             )
         }
-        updateConfig { it.copy(onboardingCompleted = false) }
+        updateConfig { it.copy(onboardingCompleted = false, onboardingStep = 0) }
     }
 
     fun enterEditMode() {
@@ -127,7 +197,8 @@ class RoomLauncherViewModel(application: Application) : AndroidViewModel(applica
             it.copy(
                 isEditMode = true,
                 activeHotspotId = null,
-                showAllAppsSheet = false
+                showAllAppsSheet = false,
+                showSettingsSheet = false
             )
         }
     }
@@ -140,13 +211,17 @@ class RoomLauncherViewModel(application: Application) : AndroidViewModel(applica
                 showAddHotspotDialog = false
             )
         }
+        if (_uiState.value.config.mirrorHomeWallpaper) {
+            syncHomeWallpaperNow(showToast = false)
+        }
     }
 
     fun openHotspotPanel(hotspotId: String) {
         _uiState.update {
             it.copy(
                 activeHotspotId = hotspotId,
-                showAllAppsSheet = false
+                showAllAppsSheet = false,
+                showSettingsSheet = false
             )
         }
     }
@@ -175,13 +250,29 @@ class RoomLauncherViewModel(application: Application) : AndroidViewModel(applica
         _uiState.update {
             it.copy(
                 showAllAppsSheet = true,
-                activeHotspotId = null
+                activeHotspotId = null,
+                showSettingsSheet = false
             )
         }
     }
 
     fun closeAllApps() {
         _uiState.update { it.copy(showAllAppsSheet = false) }
+    }
+
+    fun openSettings() {
+        _uiState.update {
+            it.copy(
+                showSettingsSheet = true,
+                showAllAppsSheet = false,
+                activeHotspotId = null,
+                isEditMode = false
+            )
+        }
+    }
+
+    fun closeSettings() {
+        _uiState.update { it.copy(showSettingsSheet = false) }
     }
 
     fun handleBackPressed(): Boolean {
@@ -193,6 +284,10 @@ class RoomLauncherViewModel(application: Application) : AndroidViewModel(applica
             }
             state.editingHotspotId != null -> {
                 closeEditHotspot()
+                true
+            }
+            state.showSettingsSheet -> {
+                closeSettings()
                 true
             }
             state.activeHotspotId != null -> {
@@ -210,6 +305,111 @@ class RoomLauncherViewModel(application: Application) : AndroidViewModel(applica
             else -> false
         }
     }
+
+    // ---- Theme, Animation, Weather, Wallpaper, Frame Photo Settings ----
+
+    fun setTheme(themeId: RoomThemeId) {
+        updateConfig { it.copy(themeId = themeId) }
+        if (_uiState.value.config.mirrorHomeWallpaper) {
+            syncHomeWallpaperNow(showToast = false)
+        }
+    }
+
+    fun setUseQuickAnimations(enabled: Boolean) {
+        updateConfig { it.copy(useQuickAnimations = enabled) }
+    }
+
+    fun setWeatherEnabled(enabled: Boolean) {
+        updateConfig { it.copy(weatherEnabled = enabled) }
+        if (enabled) {
+            refreshWeather(forceRefresh = true)
+        }
+    }
+
+    fun refreshWeather(forceRefresh: Boolean = true) {
+        viewModelScope.launch {
+            val state = weatherRepository.fetchWeather(forceRefresh = forceRefresh)
+            _uiState.update { it.copy(weatherState = state) }
+        }
+    }
+
+    fun setMirrorHomeWallpaper(enabled: Boolean) {
+        updateConfig { it.copy(mirrorHomeWallpaper = enabled) }
+        if (enabled) {
+            syncHomeWallpaperNow(showToast = true)
+        }
+    }
+
+    fun syncHomeWallpaperNow(showToast: Boolean = true) {
+        if (_uiState.value.isSyncingWallpaper) return
+        viewModelScope.launch {
+            _uiState.update { it.copy(isSyncingWallpaper = true) }
+            val state = _uiState.value
+            val ok = RoomWallpaperRenderer.applyHomeScreenWallpaper(
+                context = appContext,
+                config = state.config,
+                weather = state.weatherState
+            )
+            _uiState.update { it.copy(isSyncingWallpaper = false) }
+            if (showToast) {
+                Toast.makeText(
+                    appContext,
+                    if (ok) "Home screen wallpaper synced to your room" else "Could not update home wallpaper",
+                    Toast.LENGTH_SHORT
+                ).show()
+            }
+        }
+    }
+
+    fun setFramePhoto(uri: Uri) {
+        viewModelScope.launch {
+            val savedPath = SystemIntentHelper.saveFramePhoto(appContext, uri)
+            if (savedPath != null) {
+                val bmp = loadFrameBitmap(savedPath)
+                _uiState.update { it.copy(frameImageBitmap = bmp) }
+                updateConfig { it.copy(framePhotoPath = savedPath) }
+                if (_uiState.value.config.mirrorHomeWallpaper) {
+                    syncHomeWallpaperNow(showToast = false)
+                }
+                Toast.makeText(appContext, "Picture frame updated!", Toast.LENGTH_SHORT).show()
+            } else {
+                Toast.makeText(appContext, "Could not load selected photo", Toast.LENGTH_SHORT).show()
+            }
+        }
+    }
+
+    fun clearFramePhoto() {
+        _uiState.value.config.framePhotoPath?.let { path ->
+            runCatching { File(path).delete() }
+        }
+        _uiState.update { it.copy(frameImageBitmap = null) }
+        updateConfig { it.copy(framePhotoPath = null) }
+        if (_uiState.value.config.mirrorHomeWallpaper) {
+            syncHomeWallpaperNow(showToast = false)
+        }
+    }
+
+    // ---- Sticky Note Web Shortcuts ----
+
+    fun addWebShortcut(title: String, url: String) {
+        val cleanTitle = title.trim()
+        val cleanUrl = url.trim()
+        if (cleanTitle.isEmpty() || cleanUrl.isEmpty()) return
+        val shortcut = WebShortcut(
+            id = "web_${UUID.randomUUID().toString().take(8)}",
+            title = cleanTitle,
+            url = cleanUrl
+        )
+        updateConfig { it.copy(webShortcuts = it.webShortcuts + shortcut) }
+    }
+
+    fun deleteWebShortcut(id: String) {
+        updateConfig { config ->
+            config.copy(webShortcuts = config.webShortcuts.filterNot { it.id == id })
+        }
+    }
+
+    // ---- Room Hotspot Layout & App Assignment ----
 
     fun moveHotspot(hotspotId: String, newX: Float, newY: Float) {
         updateConfig { config ->
@@ -258,7 +458,6 @@ class RoomLauncherViewModel(application: Application) : AndroidViewModel(applica
             config.copy(
                 hotspots = config.hotspots.map { hotspot ->
                     if (hotspot.id == hotspotId) {
-                        // Ensure at least one UNSORTED_PANEL remains so nothing gets lost
                         val safeType = if (
                             hotspot.actionType == HotspotActionType.UNSORTED_PANEL &&
                             newActionType != HotspotActionType.UNSORTED_PANEL &&
@@ -285,7 +484,8 @@ class RoomLauncherViewModel(application: Application) : AndroidViewModel(applica
     fun addHotspot(
         label: String,
         subtitle: String,
-        actionType: HotspotActionType
+        actionType: HotspotActionType,
+        visualType: RoomObjectVisual = RoomObjectVisual.CUSTOM
     ) {
         val trimmedLabel = label.trim().ifEmpty { return }
         val newHotspot = RoomHotspot(
@@ -296,7 +496,8 @@ class RoomLauncherViewModel(application: Application) : AndroidViewModel(applica
             y = 0.42f,
             width = 0.34f,
             height = 0.14f,
-            actionType = actionType
+            actionType = actionType,
+            visualType = visualType
         )
         updateConfig { config ->
             config.copy(hotspots = config.hotspots + newHotspot)
@@ -311,7 +512,6 @@ class RoomLauncherViewModel(application: Application) : AndroidViewModel(applica
         if (target.actionType == HotspotActionType.UNSORTED_PANEL && unsortedCount <= 1) {
             return false
         }
-        // Removing a panel hotspot automatically causes its packages to appear in Trash Can
         updateConfig { config ->
             config.copy(hotspots = config.hotspots.filterNot { it.id == hotspotId })
         }
@@ -319,12 +519,6 @@ class RoomLauncherViewModel(application: Application) : AndroidViewModel(applica
         return true
     }
 
-    /**
-     * Moves [packageName] into [targetHotspotId].
-     * - Removes it from all other PANEL hotspots.
-     * - If target is a PANEL, appends it to that panel.
-     * - If target is UNSORTED_PANEL (Trash Can), leaving it unassigned moves it to Trash Can.
-     */
     fun moveAppToHotspot(packageName: String, targetHotspotId: String) {
         updateConfig { config ->
             val target = config.hotspots.firstOrNull { it.id == targetHotspotId } ?: return@updateConfig config
@@ -348,9 +542,6 @@ class RoomLauncherViewModel(application: Application) : AndroidViewModel(applica
         }
     }
 
-    /**
-     * Removes [packageName] from [hotspotId], automatically returning it to Trash Can (Unsorted).
-     */
     fun removeAppFromHotspot(packageName: String, hotspotId: String) {
         updateConfig { config ->
             config.copy(
@@ -366,19 +557,41 @@ class RoomLauncherViewModel(application: Application) : AndroidViewModel(applica
     }
 
     fun resetRoomLayout() {
+        val current = _uiState.value.config
         val installed = _uiState.value.installedApps
-        val base = RoomConfigRepository.createDefaultRoomConfig().copy(onboardingCompleted = true)
+        val base = RoomConfigRepository.createDefaultRoomConfig().copy(
+            onboardingCompleted = true,
+            onboardingStep = 3,
+            themeId = current.themeId,
+            useQuickAnimations = current.useQuickAnimations,
+            weatherEnabled = current.weatherEnabled,
+            mirrorHomeWallpaper = current.mirrorHomeWallpaper,
+            framePhotoPath = current.framePhotoPath,
+            webShortcuts = current.webShortcuts
+        )
         val populated = RoomConfigRepository.autoPopulateIfNeeded(base, installed)
         _uiState.update {
             it.copy(
                 config = populated,
+                packageOwnerLabels = RoomConfigRepository.buildPackageOwnerLabelMap(populated),
+                defaultUnsortedLabel = RoomConfigRepository.defaultUnsortedLabel(populated),
                 editingHotspotId = null,
                 activeHotspotId = null
             )
         }
         viewModelScope.launch {
             configRepository.saveConfig(populated)
+            if (populated.mirrorHomeWallpaper) {
+                syncHomeWallpaperNow(showToast = false)
+            }
         }
+    }
+
+    private suspend fun loadFrameBitmap(path: String?): ImageBitmap? = withContext(Dispatchers.IO) {
+        if (path.isNullOrBlank()) return@withContext null
+        val f = File(path)
+        if (!f.exists()) return@withContext null
+        runCatching { BitmapFactory.decodeFile(path)?.asImageBitmap() }.getOrNull()
     }
 
     private fun updateConfig(transform: (RoomConfig) -> RoomConfig) {
@@ -386,7 +599,11 @@ class RoomLauncherViewModel(application: Application) : AndroidViewModel(applica
         _uiState.update { state ->
             val next = transform(state.config)
             updatedConfig = next
-            state.copy(config = next)
+            state.copy(
+                config = next,
+                packageOwnerLabels = RoomConfigRepository.buildPackageOwnerLabelMap(next),
+                defaultUnsortedLabel = RoomConfigRepository.defaultUnsortedLabel(next)
+            )
         }
         updatedConfig?.let { toSave ->
             viewModelScope.launch {

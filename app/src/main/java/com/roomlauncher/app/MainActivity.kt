@@ -1,45 +1,74 @@
 package com.roomlauncher.app
 
+import android.content.Intent
+import android.graphics.Color
 import android.os.Bundle
 import androidx.activity.ComponentActivity
+import androidx.activity.SystemBarStyle
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
+import androidx.activity.viewModels
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import androidx.lifecycle.viewmodel.compose.viewModel
 import com.roomlauncher.app.ui.RoomLauncherViewModel
 import com.roomlauncher.app.ui.onboarding.OnboardingScreen
 import com.roomlauncher.app.ui.room.RoomScreen
+import com.roomlauncher.app.ui.theme.LocalRoomPalette
 import com.roomlauncher.app.ui.theme.RoomLauncherTheme
 
 class MainActivity : ComponentActivity() {
+
+    private val launcherViewModel: RoomLauncherViewModel by viewModels()
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
 
         setContent {
-            RoomLauncherTheme {
-                RoomLauncherRoot()
+            val uiState by launcherViewModel.uiState.collectAsStateWithLifecycle()
+
+            RoomLauncherTheme(themeId = uiState.config.themeId) {
+                val palette = LocalRoomPalette.current
+                LaunchedEffect(palette.isDark) {
+                    val barStyle = if (palette.isDark) {
+                        SystemBarStyle.dark(Color.TRANSPARENT)
+                    } else {
+                        SystemBarStyle.light(Color.TRANSPARENT, Color.TRANSPARENT)
+                    }
+                    enableEdgeToEdge(
+                        statusBarStyle = barStyle,
+                        navigationBarStyle = barStyle
+                    )
+                }
+
+                RoomLauncherRoot(viewModel = launcherViewModel)
             }
         }
+    }
+
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        setIntent(intent)
+        // Pressing Home or accepting ROLE_HOME delivers a new HOME intent; refresh status cleanly
+        launcherViewModel.refreshSystemStatus()
     }
 }
 
 @Composable
 private fun RoomLauncherRoot(
-    viewModel: RoomLauncherViewModel = viewModel()
+    viewModel: RoomLauncherViewModel
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     val lifecycleOwner = LocalLifecycleOwner.current
@@ -71,9 +100,11 @@ private fun RoomLauncherRoot(
         }
         !uiState.config.onboardingCompleted -> {
             OnboardingScreen(
+                currentStep = uiState.config.onboardingStep,
                 installedAppCount = uiState.installedApps.size,
                 isBatteryOptimizationIgnored = uiState.isBatteryOptimizationIgnored,
                 isDefaultLauncher = uiState.isDefaultLauncher,
+                onStepChange = viewModel::setOnboardingStep,
                 onRefreshStatus = viewModel::refreshSystemStatus,
                 onComplete = viewModel::completeOnboarding
             )
@@ -89,15 +120,29 @@ private fun RoomLauncherRoot(
                 onEditHotspotClose = viewModel::closeEditHotspot,
                 onAddHotspotOpen = viewModel::openAddHotspotDialog,
                 onAddHotspotClose = viewModel::closeAddHotspotDialog,
-                onAddHotspot = viewModel::addHotspot,
+                onAddHotspot = { label, subtitle, action ->
+                    viewModel.addHotspot(label, subtitle, action)
+                },
                 onMoveHotspot = viewModel::moveHotspot,
                 onResizeHotspot = viewModel::resizeHotspot,
                 onUpdateHotspotDetails = viewModel::updateHotspotDetails,
                 onDeleteHotspot = { id -> viewModel.deleteHotspot(id) },
                 onMoveAppToHotspot = viewModel::moveAppToHotspot,
                 onRemoveAppFromHotspot = viewModel::removeAppFromHotspot,
+                onAddWebShortcut = viewModel::addWebShortcut,
+                onDeleteWebShortcut = viewModel::deleteWebShortcut,
                 onOpenAllApps = viewModel::openAllApps,
                 onCloseAllApps = viewModel::closeAllApps,
+                onOpenSettings = viewModel::openSettings,
+                onCloseSettings = viewModel::closeSettings,
+                onSelectTheme = viewModel::setTheme,
+                onToggleQuickAnimations = viewModel::setUseQuickAnimations,
+                onToggleWeather = viewModel::setWeatherEnabled,
+                onRefreshWeather = { viewModel.refreshWeather(forceRefresh = true) },
+                onToggleMirrorWallpaper = viewModel::setMirrorHomeWallpaper,
+                onSyncWallpaperNow = { viewModel.syncHomeWallpaperNow(showToast = true) },
+                onPickFramePhoto = viewModel::setFramePhoto,
+                onClearFramePhoto = viewModel::clearFramePhoto,
                 onResetLayout = viewModel::resetRoomLayout,
                 onReopenOnboarding = viewModel::reopenOnboarding
             )

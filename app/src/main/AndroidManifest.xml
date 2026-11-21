@@ -13,14 +13,25 @@
     <!-- Allows direct Clock hotspot to launch system alarms smoothly -->
     <uses-permission android:name="com.android.alarm.permission.SET_ALARM" />
 
+    <!-- Allows live weather rendering in the Room Window via Open-Meteo -->
+    <uses-permission android:name="android.permission.INTERNET" />
+    <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
+
+    <!-- Allows mirroring the current room layout onto the Home screen wallpaper (not Lock screen) -->
+    <uses-permission android:name="android.permission.SET_WALLPAPER" />
+
     <queries>
         <intent>
             <action android:name="android.intent.action.MAIN" />
             <category android:name="android.intent.category.LAUNCHER" />
         </intent>
         <intent>
+            <action android:name="android.intent.action.MAIN" />
+            <category android:name="android.intent.category.APP_GALLERY" />
+        </intent>
+        <intent>
             <action android:name="android.intent.action.VIEW" />
-            <data android:mimeType="image/*" />
+            <data android:scheme="https" />
         </intent>
         <intent>
             <action android:name="android.intent.action.SHOW_ALARMS" />
@@ -37,11 +48,10 @@
 
         <activity
             android:name=".MainActivity"
-            android:clearTaskOnLaunch="true"
-            android:excludeFromRecents="true"
             android:exported="true"
             android:launchMode="singleTask"
             android:stateNotNeeded="true"
+            android:excludeFromRecents="true"
             android:windowSoftInputMode="adjustResize">
 
             <intent-filter>

@@ -90,9 +90,15 @@ class AppRepository(
                 resolveInfo.loadLabel(pm)?.toString()?.trim()
             }.getOrNull().orEmpty().ifEmpty { pkg }
 
+            val appInfo = activityInfo.applicationInfo
             val category = runCatching {
-                activityInfo.applicationInfo?.category ?: ApplicationInfo.CATEGORY_UNDEFINED
+                appInfo?.category ?: ApplicationInfo.CATEGORY_UNDEFINED
             }.getOrDefault(ApplicationInfo.CATEGORY_UNDEFINED)
+
+            @Suppress("DEPRECATION")
+            val isGameFlag = runCatching {
+                appInfo != null && (appInfo.flags and ApplicationInfo.FLAG_IS_GAME) != 0
+            }.getOrDefault(false)
 
             val cachedIcon = iconCache[pkg] ?: runCatching {
                 val drawable = resolveInfo.loadIcon(pm)
@@ -106,12 +112,12 @@ class AppRepository(
                     packageName = pkg,
                     label = label,
                     category = category,
+                    isGameFlag = isGameFlag,
                     icon = cachedIcon
                 )
             )
         }
 
-        // Prune stale icons from uninstalled packages
         iconCache.keys.retainAll(seenPackages)
 
         val sorted = apps.sortedBy { it.label.lowercase() }
@@ -137,6 +143,6 @@ class AppRepository(
     }
 
     companion object {
-        private const val ICON_SIZE_PX = 128
+        private const val ICON_SIZE_PX = 96
     }
 }

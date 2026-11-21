@@ -1,13 +1,15 @@
 package com.roomlauncher.app.ui.room
 
+import android.net.Uri
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.ExperimentalFoundationApi
-import androidx.compose.foundation.Image
-import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.gestures.detectTapGestures
@@ -18,6 +20,7 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -51,35 +54,38 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.TransformOrigin
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.input.pointer.pointerInput
-import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalHapticFeedback
-import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
-import com.roomlauncher.app.R
 import com.roomlauncher.app.data.HotspotActionType
 import com.roomlauncher.app.data.RoomHotspot
+import com.roomlauncher.app.data.RoomObjectVisual
 import com.roomlauncher.app.system.SystemIntentHelper
 import com.roomlauncher.app.ui.RoomUiState
 import com.roomlauncher.app.ui.allapps.AllAppsSheet
+import com.roomlauncher.app.ui.settings.SettingsSheet
+import com.roomlauncher.app.ui.theme.LocalRoomPalette
 import com.roomlauncher.app.ui.theme.RoomInk
 import com.roomlauncher.app.ui.theme.RoomSage
+import com.roomlauncher.app.ui.theme.RoomThemeId
 import kotlinx.coroutines.delay
 import java.text.SimpleDateFormat
+import java.util.Calendar
 import java.util.Date
 import java.util.Locale
 import kotlin.math.roundToInt
@@ -103,20 +109,48 @@ fun RoomScreen(
     onDeleteHotspot: (hotspotId: String) -> Unit,
     onMoveAppToHotspot: (packageName: String, targetHotspotId: String) -> Unit,
     onRemoveAppFromHotspot: (packageName: String, hotspotId: String) -> Unit,
+    onAddWebShortcut: (title: String, url: String) -> Unit,
+    onDeleteWebShortcut: (String) -> Unit,
     onOpenAllApps: () -> Unit,
     onCloseAllApps: () -> Unit,
+    onOpenSettings: () -> Unit,
+    onCloseSettings: () -> Unit,
+    onSelectTheme: (RoomThemeId) -> Unit,
+    onToggleQuickAnimations: (Boolean) -> Unit,
+    onToggleWeather: (Boolean) -> Unit,
+    onRefreshWeather: () -> Unit,
+    onToggleMirrorWallpaper: (Boolean) -> Unit,
+    onSyncWallpaperNow: () -> Unit,
+    onPickFramePhoto: (Uri) -> Unit,
+    onClearFramePhoto: () -> Unit,
     onResetLayout: () -> Unit,
     onReopenOnboarding: () -> Unit
 ) {
     val context = LocalContext.current
     val haptic = LocalHapticFeedback.current
     val density = LocalDensity.current
+    val palette = LocalRoomPalette.current
 
     var zoomScale by remember { mutableFloatStateOf(1f) }
     var panOffset by remember { mutableStateOf(Offset.Zero) }
     var showResetConfirm by remember { mutableStateOf(false) }
 
-    // Reset zoom when entering edit mode so hotspot coordinates remain crisp and predictable
+    // Live minutes of day for analog Clock wall hands + top ambient date/time pill
+    var nowDate by remember { mutableStateOf(Date()) }
+    var currentMinutesOfDay by remember {
+        val cal = Calendar.getInstance()
+        mutableIntStateOf(cal.get(Calendar.HOUR_OF_DAY) * 60 + cal.get(Calendar.MINUTE))
+    }
+    LaunchedEffect(Unit) {
+        while (true) {
+            val cal = Calendar.getInstance()
+            nowDate = cal.time
+            currentMinutesOfDay = cal.get(Calendar.HOUR_OF_DAY) * 60 + cal.get(Calendar.MINUTE)
+            delay(30_000L)
+        }
+    }
+
+    // Reset manual zoom when entering edit mode
     LaunchedEffect(uiState.isEditMode) {
         if (uiState.isEditMode) {
             zoomScale = 1f
@@ -124,17 +158,33 @@ fun RoomScreen(
         }
     }
 
+    // Rich TV animation: smoothly zoom the room camera toward the TV when TV panel opens!
+    val activeHotspot = uiState.activeHotspot
+    val isTvZoomActive = !uiState.config.useQuickAnimations &&
+        activeHotspot?.visualType == RoomObjectVisual.TV
+    val tvZoomFactor by animateFloatAsState(
+        targetValue = if (isTvZoomActive) 1.55f else 1f,
+        animationSpec = tween(durationMillis = 360, easing = FastOutSlowInEasing),
+        label = "tv_camera_zoom"
+    )
+    val tvPivotX = activeHotspot?.centerX ?: 0.3f
+    val tvPivotY = activeHotspot?.centerY ?: 0.38f
+
     val handleHotspotTap: (RoomHotspot) -> Unit = { hotspot ->
         when (hotspot.actionType) {
             HotspotActionType.PANEL,
             HotspotActionType.UNSORTED_PANEL -> onHotspotPanelOpen(hotspot.id)
             HotspotActionType.DIRECT_GALLERY -> SystemIntentHelper.openGallery(context)
             HotspotActionType.DIRECT_ALARM -> SystemIntentHelper.openAlarms(context)
+            HotspotActionType.DIRECT_WEATHER -> {
+                val installedPairs = uiState.installedApps.map { it.packageName to it.label }
+                SystemIntentHelper.openWeather(context, installedPairs)
+            }
         }
     }
 
     Box(modifier = Modifier.fillMaxSize()) {
-        // Main interactive room canvas with percentage-mapped hotspots
+        // Main interactive room canvas with movable themed objects
         BoxWithConstraints(
             modifier = Modifier
                 .fillMaxSize()
@@ -180,21 +230,25 @@ fun RoomScreen(
                 modifier = Modifier
                     .fillMaxSize()
                     .graphicsLayer {
-                        scaleX = zoomScale
-                        scaleY = zoomScale
+                        val combinedScale = zoomScale * tvZoomFactor
+                        scaleX = combinedScale
+                        scaleY = combinedScale
                         translationX = panOffset.x
                         translationY = panOffset.y
+                        transformOrigin = if (tvZoomFactor > 1.01f) {
+                            TransformOrigin(tvPivotX, tvPivotY)
+                        } else {
+                            TransformOrigin.Center
+                        }
                     }
             ) {
-                // Default minimalist illustrated room background
-                Image(
-                    painter = painterResource(id = R.drawable.bg_room_default),
-                    contentDescription = "Room home screen illustration",
-                    contentScale = ContentScale.FillBounds,
+                // 1. Empty Themed Room Shell (walls, floor, rug)
+                RoomShellCanvas(
+                    palette = palette,
                     modifier = Modifier.fillMaxSize()
                 )
 
-                // Render hotspots at percentage coordinates
+                // 2. Movable Illustrated Objects (both artwork & tap/drag hitbox live together!)
                 uiState.config.hotspots.forEach { hotspot ->
                     if (uiState.isEditMode) {
                         EditableHotspotBox(
@@ -202,6 +256,10 @@ fun RoomScreen(
                             roomWidthPx = roomWidthPx,
                             roomHeightPx = roomHeightPx,
                             appCount = uiState.appsFor(hotspot).size,
+                            weatherState = uiState.weatherState,
+                            weatherEnabled = uiState.config.weatherEnabled,
+                            frameImageBitmap = uiState.frameImageBitmap,
+                            currentMinutesOfDay = currentMinutesOfDay,
                             onMoveFinished = { newX, newY ->
                                 onMoveHotspot(hotspot.id, newX, newY)
                             },
@@ -231,13 +289,23 @@ fun RoomScreen(
                                         onEnterEditMode()
                                     }
                                 )
-                        )
+                        ) {
+                            RoomObjectGraphic(
+                                visualType = hotspot.visualType,
+                                palette = palette,
+                                weatherState = uiState.weatherState,
+                                weatherEnabled = uiState.config.weatherEnabled,
+                                frameImageBitmap = uiState.frameImageBitmap,
+                                currentMinutesOfDay = currentMinutesOfDay,
+                                modifier = Modifier.fillMaxSize()
+                            )
+                        }
                     }
                 }
             }
         }
 
-        // Top minimalist clock/date chip (outside Edit Mode) OR Edit Mode toolbar
+        // Top ambient date/time chip (outside Edit Mode) OR Edit Mode toolbar
         if (!uiState.isEditMode) {
             Row(
                 modifier = Modifier
@@ -248,7 +316,7 @@ fun RoomScreen(
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                AmbientDateTimePill()
+                AmbientDateTimePill(now = nowDate, hudTextColor = palette.hudTextColor)
 
                 if (zoomScale > 1.05f) {
                     Surface(
@@ -284,14 +352,14 @@ fun RoomScreen(
                 onDone = onExitEditMode,
                 onAddObject = onAddHotspotOpen,
                 onResetClick = { showResetConfirm = true },
-                onOpenSetup = onReopenOnboarding,
+                onOpenSettings = onOpenSettings,
                 modifier = Modifier
                     .align(Alignment.TopCenter)
                     .statusBarsPadding()
             )
         }
 
-        // Bottom subtle swipe-up zone & All Apps A-Z fallback pill
+        // Bottom subtle swipe-up zone & All Apps A–Z fallback pill
         if (!uiState.isEditMode) {
             var swipeAccumulated by remember { mutableFloatStateOf(0f) }
             Box(
@@ -317,7 +385,11 @@ fun RoomScreen(
             ) {
                 Surface(
                     shape = RoundedCornerShape(24.dp),
-                    color = RoomInk.copy(alpha = 0.62f),
+                    color = if (palette.isDark) {
+                        Color.White.copy(alpha = 0.14f)
+                    } else {
+                        RoomInk.copy(alpha = 0.62f)
+                    },
                     modifier = Modifier.clickable(onClick = onOpenAllApps)
                 ) {
                     Row(
@@ -341,18 +413,25 @@ fun RoomScreen(
             }
         }
 
-        // Animated Panel Overlay (expands outward from tapped hotspot)
-        val activeHotspot = uiState.activeHotspot
+        // Animated Panel Overlay (with per-object Rich Animations or Quick Animations)
         if (activeHotspot != null) {
             HotspotPanelOverlay(
                 hotspot = activeHotspot,
                 apps = uiState.appsFor(activeHotspot),
                 allInstalledApps = uiState.installedApps,
                 otherPanelHotspots = uiState.panelHotspots.filter { it.id != activeHotspot.id },
+                webShortcuts = uiState.config.webShortcuts,
+                useQuickAnimations = uiState.config.useQuickAnimations,
                 onLaunchApp = { app ->
                     onHotspotPanelClose()
                     SystemIntentHelper.launchApp(context, app.packageName)
                 },
+                onOpenWebShortcut = { shortcut ->
+                    onHotspotPanelClose()
+                    SystemIntentHelper.openWebUrl(context, shortcut.url)
+                },
+                onAddWebShortcut = onAddWebShortcut,
+                onDeleteWebShortcut = onDeleteWebShortcut,
                 onMoveAppToHotspot = onMoveAppToHotspot,
                 onRemoveAppFromPanel = { pkg ->
                     onRemoveAppFromHotspot(pkg, activeHotspot.id)
@@ -370,27 +449,55 @@ fun RoomScreen(
             )
         }
 
-        // Fast A–Z Searchable All Apps Fallback Drawer
+        // Fast A–Z Searchable All Apps Drawer + Settings Card at the bottom
         AnimatedVisibility(
             visible = uiState.showAllAppsSheet,
-            enter = slideInVertically(initialOffsetY = { it / 2 }) + fadeIn(),
-            exit = slideOutVertically(targetOffsetY = { it / 2 }) + fadeOut()
+            enter = slideInVertically(initialOffsetY = { it / 3 }) + fadeIn(tween(180)),
+            exit = slideOutVertically(targetOffsetY = { it / 3 }) + fadeOut(tween(150))
         ) {
             AllAppsSheet(
                 installedApps = uiState.installedApps,
+                packageOwnerLabels = uiState.packageOwnerLabels,
+                defaultUnsortedLabel = uiState.defaultUnsortedLabel,
                 panelHotspots = uiState.panelHotspots,
-                ownerForPackage = { pkg -> uiState.ownerFor(pkg) },
                 onLaunchApp = { app ->
                     onCloseAllApps()
                     SystemIntentHelper.launchApp(context, app.packageName)
                 },
                 onMoveApp = onMoveAppToHotspot,
+                onOpenSettings = onOpenSettings,
                 onDismiss = onCloseAllApps
+            )
+        }
+
+        // Room Launcher Settings Screen
+        AnimatedVisibility(
+            visible = uiState.showSettingsSheet,
+            enter = slideInVertically(initialOffsetY = { it / 3 }) + fadeIn(tween(180)),
+            exit = slideOutVertically(targetOffsetY = { it / 3 }) + fadeOut(tween(150))
+        ) {
+            SettingsSheet(
+                uiState = uiState,
+                onSelectTheme = onSelectTheme,
+                onToggleQuickAnimations = onToggleQuickAnimations,
+                onToggleWeather = onToggleWeather,
+                onRefreshWeather = onRefreshWeather,
+                onToggleMirrorWallpaper = onToggleMirrorWallpaper,
+                onSyncWallpaperNow = onSyncWallpaperNow,
+                onPickFramePhoto = onPickFramePhoto,
+                onClearFramePhoto = onClearFramePhoto,
+                onEnterEditMode = onEnterEditMode,
+                onReopenOnboarding = onReopenOnboarding,
+                onResetRoom = {
+                    onCloseSettings()
+                    showResetConfirm = true
+                },
+                onDismiss = onCloseSettings
             )
         }
     }
 
-    // Edit Object Dialog (rename, change action, manage apps, delete)
+    // Edit Object Dialog
     val editingHotspot = uiState.editingHotspot
     if (editingHotspot != null) {
         val unsortedCount = uiState.config.hotspots.count { it.actionType == HotspotActionType.UNSORTED_PANEL }
@@ -411,7 +518,7 @@ fun RoomScreen(
         )
     }
 
-    // Add New Hotspot Dialog
+    // Add New Object Dialog
     if (uiState.showAddHotspotDialog) {
         AddHotspotDialog(
             onAdd = onAddHotspot,
@@ -425,7 +532,7 @@ fun RoomScreen(
             onDismissRequest = { showResetConfirm = false },
             title = { Text("Reset Room Layout?") },
             text = {
-                Text("This restores the 6 default room objects (TV, Shelf, Painting, Trash Can, Bed, Clock) and their default positions.")
+                Text("This restores all default room objects (Window, Painting, Clock, Sticky Note, TV, Game Console, Shelf, Bed, Trash Can) and their default positions.")
             },
             confirmButton = {
                 Button(
@@ -447,14 +554,10 @@ fun RoomScreen(
 }
 
 @Composable
-private fun AmbientDateTimePill() {
-    var now by remember { mutableStateOf(Date()) }
-    LaunchedEffect(Unit) {
-        while (true) {
-            now = Date()
-            delay(30_000L)
-        }
-    }
+private fun AmbientDateTimePill(
+    now: Date,
+    hudTextColor: Color
+) {
     val timeText = remember(now) {
         SimpleDateFormat("HH:mm", Locale.getDefault()).format(now)
     }
@@ -464,7 +567,7 @@ private fun AmbientDateTimePill() {
 
     Surface(
         shape = RoundedCornerShape(18.dp),
-        color = RoomInk.copy(alpha = 0.08f)
+        color = hudTextColor.copy(alpha = 0.09f)
     ) {
         Row(
             modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
@@ -475,12 +578,12 @@ private fun AmbientDateTimePill() {
                 text = timeText,
                 style = MaterialTheme.typography.titleMedium,
                 fontWeight = FontWeight.Bold,
-                color = RoomInk
+                color = hudTextColor
             )
             Text(
                 text = dateText,
                 style = MaterialTheme.typography.bodyMedium,
-                color = RoomInk.copy(alpha = 0.72f)
+                color = hudTextColor.copy(alpha = 0.72f)
             )
         }
     }
@@ -491,7 +594,7 @@ private fun EditModeTopBar(
     onDone: () -> Unit,
     onAddObject: () -> Unit,
     onResetClick: () -> Unit,
-    onOpenSetup: () -> Unit,
+    onOpenSettings: () -> Unit,
     modifier: Modifier = Modifier
 ) {
     Column(
@@ -538,10 +641,10 @@ private fun EditModeTopBar(
                             tint = Color.White
                         )
                     }
-                    IconButton(onClick = onOpenSetup, modifier = Modifier.size(36.dp)) {
+                    IconButton(onClick = onOpenSettings, modifier = Modifier.size(36.dp)) {
                         Icon(
                             imageVector = Icons.Rounded.Settings,
-                            contentDescription = "Launcher setup & permissions",
+                            contentDescription = "Room Launcher settings",
                             tint = Color.White
                         )
                     }
@@ -551,10 +654,7 @@ private fun EditModeTopBar(
                     onClick = onDone,
                     shape = RoundedCornerShape(14.dp),
                     colors = ButtonDefaults.buttonColors(containerColor = RoomSage),
-                    contentPadding = androidx.compose.foundation.layout.PaddingValues(
-                        horizontal = 14.dp,
-                        vertical = 6.dp
-                    )
+                    contentPadding = PaddingValues(horizontal = 14.dp, vertical = 6.dp)
                 ) {
                     Icon(
                         imageVector = Icons.Rounded.Check,
@@ -569,11 +669,11 @@ private fun EditModeTopBar(
 
         Surface(
             shape = RoundedCornerShape(12.dp),
-            color = RoomInk.copy(alpha = 0.72f),
+            color = RoomInk.copy(alpha = 0.76f),
             modifier = Modifier.align(Alignment.CenterHorizontally)
         ) {
             Text(
-                text = "Drag boxes to move • Drag corner to resize • Tap to rename or edit apps",
+                text = "Drag objects anywhere to rearrange • Corner handle resizes • Tap to edit",
                 style = MaterialTheme.typography.labelSmall,
                 color = Color.White.copy(alpha = 0.92f),
                 modifier = Modifier.padding(horizontal = 12.dp, vertical = 5.dp)
