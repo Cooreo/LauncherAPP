@@ -242,33 +242,37 @@ object SystemIntentHelper {
         }
     }
 
-    suspend fun saveFramePhoto(context: Context, sourceUri: Uri): String? = withContext(Dispatchers.IO) {
-        runCatching {
-            val rawStream = context.contentResolver.openInputStream(sourceUri) ?: return@withContext null
-            val decoded = rawStream.use { BitmapFactory.decodeStream(it) } ?: return@withContext null
-            val maxDim = 720
-            val scale = minOf(1f, maxDim.toFloat() / maxOf(decoded.width, decoded.height).toFloat())
-            val finalBmp = if (scale < 1f) {
-                Bitmap.createScaledBitmap(
-                    decoded,
-                    (decoded.width * scale).toInt().coerceAtLeast(1),
-                    (decoded.height * scale).toInt().coerceAtLeast(1),
-                    true
-                )
-            } else {
-                decoded
-            }
-            val outFile = File(context.filesDir, "frame_photo.jpg")
-            FileOutputStream(outFile).use { fos ->
-                finalBmp.compress(Bitmap.CompressFormat.JPEG, 88, fos)
-            }
-            if (finalBmp !== decoded) {
-                decoded.recycle()
-            }
-            finalBmp.recycle()
-            outFile.absolutePath
-        }.getOrNull()
-    }
+    suspend fun saveFramePhoto(context: Context, sourceUri: Uri): String? =
+        saveUserImage(context, sourceUri, "frame_photo.jpg")
+
+    suspend fun saveUserImage(context: Context, sourceUri: Uri, fileName: String): String? =
+        withContext(Dispatchers.IO) {
+            runCatching {
+                val rawStream = context.contentResolver.openInputStream(sourceUri) ?: return@withContext null
+                val decoded = rawStream.use { BitmapFactory.decodeStream(it) } ?: return@withContext null
+                val maxDim = 720
+                val scale = minOf(1f, maxDim.toFloat() / maxOf(decoded.width, decoded.height).toFloat())
+                val finalBmp = if (scale < 1f) {
+                    Bitmap.createScaledBitmap(
+                        decoded,
+                        (decoded.width * scale).toInt().coerceAtLeast(1),
+                        (decoded.height * scale).toInt().coerceAtLeast(1),
+                        true
+                    )
+                } else {
+                    decoded
+                }
+                val outFile = File(context.filesDir, fileName)
+                FileOutputStream(outFile).use { fos ->
+                    finalBmp.compress(Bitmap.CompressFormat.JPEG, 88, fos)
+                }
+                if (finalBmp !== decoded) {
+                    decoded.recycle()
+                }
+                finalBmp.recycle()
+                outFile.absolutePath
+            }.getOrNull()
+        }
 
     private fun startFirstAvailable(context: Context, intents: List<Intent>): Boolean {
         for (intent in intents) {

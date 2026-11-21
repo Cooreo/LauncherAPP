@@ -1,6 +1,7 @@
 package com.roomlauncher.app.data
 
 import androidx.compose.runtime.Immutable
+import com.roomlauncher.app.ui.theme.RoomStyleId
 import com.roomlauncher.app.ui.theme.RoomThemeId
 import kotlinx.serialization.Serializable
 
@@ -65,11 +66,14 @@ data class RoomConfig(
     val onboardingCompleted: Boolean = false,
     val onboardingStep: Int = 0,
     val autoPopulated: Boolean = false,
+    val roomStyleId: RoomStyleId = RoomStyleId.COZY_MINIMALIST,
     val themeId: RoomThemeId = RoomThemeId.WARM_LINEN,
     val useQuickAnimations: Boolean = false,
     val weatherEnabled: Boolean = true,
     val mirrorHomeWallpaper: Boolean = false,
     val framePhotoPath: String? = null,
+    val posterLeftPath: String? = null,
+    val posterRightPath: String? = null,
     val webShortcuts: List<WebShortcut> = emptyList(),
     val hotspots: List<RoomHotspot> = emptyList()
 )

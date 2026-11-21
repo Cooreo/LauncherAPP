@@ -8,6 +8,7 @@ import com.roomlauncher.app.data.RoomConfigRepository
 import com.roomlauncher.app.data.RoomHotspot
 import com.roomlauncher.app.data.RoomObjectVisual
 import com.roomlauncher.app.data.WebShortcut
+import com.roomlauncher.app.ui.theme.RoomStyleId
 import com.roomlauncher.app.ui.theme.RoomThemeId
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
@@ -50,10 +51,13 @@ class RoomConfigRepositoryTest {
             onboardingCompleted = true,
             onboardingStep = 3,
             autoPopulated = true,
+            roomStyleId = RoomStyleId.TEEN_ROOM,
             themeId = RoomThemeId.MIDNIGHT_COZY,
             useQuickAnimations = true,
             weatherEnabled = true,
             mirrorHomeWallpaper = true,
+            posterLeftPath = "/tmp/poster_left.jpg",
+            posterRightPath = "/tmp/poster_right.jpg",
             webShortcuts = listOf(WebShortcut("w1", "GitHub", "https://github.com"))
         )
         repo.saveConfig(initial)

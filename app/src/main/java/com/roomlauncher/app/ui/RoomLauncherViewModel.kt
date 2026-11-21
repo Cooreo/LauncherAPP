@@ -21,6 +21,7 @@ import com.roomlauncher.app.data.WeatherState
 import com.roomlauncher.app.data.WebShortcut
 import com.roomlauncher.app.system.RoomWallpaperRenderer
 import com.roomlauncher.app.system.SystemIntentHelper
+import com.roomlauncher.app.ui.theme.RoomStyleId
 import com.roomlauncher.app.ui.theme.RoomThemeId
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -41,6 +42,8 @@ data class RoomUiState(
     val defaultUnsortedLabel: String = "Trash Can",
     val weatherState: WeatherState = WeatherState(),
     val frameImageBitmap: ImageBitmap? = null,
+    val posterLeftBitmap: ImageBitmap? = null,
+    val posterRightBitmap: ImageBitmap? = null,
     val isEditMode: Boolean = false,
     val activeHotspotId: String? = null,
     val editingHotspotId: String? = null,
@@ -80,6 +83,8 @@ class RoomLauncherViewModel(application: Application) : AndroidViewModel(applica
         viewModelScope.launch {
             val loadedConfig = configRepository.loadConfig()
             val frameBmp = loadFrameBitmap(loadedConfig.framePhotoPath)
+            val posterLeftBmp = loadFrameBitmap(loadedConfig.posterLeftPath)
+            val posterRightBmp = loadFrameBitmap(loadedConfig.posterRightPath)
             val isDefault = SystemIntentHelper.isDefaultHomeLauncher(appContext)
             val isBatteryIgnored = SystemIntentHelper.isIgnoringBatteryOptimizations(appContext)
 
@@ -99,6 +104,8 @@ class RoomLauncherViewModel(application: Application) : AndroidViewModel(applica
                     packageOwnerLabels = RoomConfigRepository.buildPackageOwnerLabelMap(effectiveConfig),
                     defaultUnsortedLabel = RoomConfigRepository.defaultUnsortedLabel(effectiveConfig),
                     frameImageBitmap = frameBmp,
+                    posterLeftBitmap = posterLeftBmp,
+                    posterRightBitmap = posterRightBmp,
                     isBatteryOptimizationIgnored = isBatteryIgnored,
                     isDefaultLauncher = isDefault
                 )
@@ -306,10 +313,51 @@ class RoomLauncherViewModel(application: Application) : AndroidViewModel(applica
         }
     }
 
-    // ---- Theme, Animation, Weather, Wallpaper, Frame Photo Settings ----
+    // ---- Theme, Room Style, Animation, Weather, Wallpaper, Photos Settings ----
+
+    fun setRoomStyle(styleId: RoomStyleId) {
+        updateConfig { it.copy(roomStyleId = styleId) }
+        if (_uiState.value.config.mirrorHomeWallpaper) {
+            syncHomeWallpaperNow(showToast = false)
+        }
+    }
 
     fun setTheme(themeId: RoomThemeId) {
         updateConfig { it.copy(themeId = themeId) }
+        if (_uiState.value.config.mirrorHomeWallpaper) {
+            syncHomeWallpaperNow(showToast = false)
+        }
+    }
+
+    fun setTeenPoster(isLeft: Boolean, uri: Uri) {
+        viewModelScope.launch {
+            val fileName = if (isLeft) "poster_left.jpg" else "poster_right.jpg"
+            val savedPath = SystemIntentHelper.saveUserImage(appContext, uri, fileName)
+            if (savedPath != null) {
+                val bmp = loadFrameBitmap(savedPath)
+                _uiState.update { state ->
+                    if (isLeft) state.copy(posterLeftBitmap = bmp) else state.copy(posterRightBitmap = bmp)
+                }
+                updateConfig { cfg ->
+                    if (isLeft) cfg.copy(posterLeftPath = savedPath) else cfg.copy(posterRightPath = savedPath)
+                }
+                if (_uiState.value.config.mirrorHomeWallpaper) {
+                    syncHomeWallpaperNow(showToast = false)
+                }
+                Toast.makeText(appContext, "Poster updated!", Toast.LENGTH_SHORT).show()
+            }
+        }
+    }
+
+    fun clearTeenPoster(isLeft: Boolean) {
+        val path = if (isLeft) _uiState.value.config.posterLeftPath else _uiState.value.config.posterRightPath
+        path?.let { runCatching { File(it).delete() } }
+        _uiState.update { state ->
+            if (isLeft) state.copy(posterLeftBitmap = null) else state.copy(posterRightBitmap = null)
+        }
+        updateConfig { cfg ->
+            if (isLeft) cfg.copy(posterLeftPath = null) else cfg.copy(posterRightPath = null)
+        }
         if (_uiState.value.config.mirrorHomeWallpaper) {
             syncHomeWallpaperNow(showToast = false)
         }
@@ -562,11 +610,14 @@ class RoomLauncherViewModel(application: Application) : AndroidViewModel(applica
         val base = RoomConfigRepository.createDefaultRoomConfig().copy(
             onboardingCompleted = true,
             onboardingStep = 3,
+            roomStyleId = current.roomStyleId,
             themeId = current.themeId,
             useQuickAnimations = current.useQuickAnimations,
             weatherEnabled = current.weatherEnabled,
             mirrorHomeWallpaper = current.mirrorHomeWallpaper,
             framePhotoPath = current.framePhotoPath,
+            posterLeftPath = current.posterLeftPath,
+            posterRightPath = current.posterRightPath,
             webShortcuts = current.webShortcuts
         )
         val populated = RoomConfigRepository.autoPopulateIfNeeded(base, installed)

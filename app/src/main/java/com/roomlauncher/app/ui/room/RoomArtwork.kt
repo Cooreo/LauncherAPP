@@ -3,18 +3,24 @@ package com.roomlauncher.app.ui.room
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.Path
@@ -22,143 +28,438 @@ import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.roomlauncher.app.data.RoomObjectVisual
 import com.roomlauncher.app.data.WeatherCondition
 import com.roomlauncher.app.data.WeatherState
+import com.roomlauncher.app.ui.theme.RoomStyleId
 import com.roomlauncher.app.ui.theme.RoomVisualPalette
 import kotlin.math.cos
 import kotlin.math.min
+import kotlin.math.roundToInt
 import kotlin.math.sin
 
 /**
- * Renders the empty architectural shell of the room (walls, baseboard, wooden floor, area rug)
- * tinted dynamically by the active [RoomVisualPalette].
+ * Renders the architectural shell of the room according to the active [RoomStyleId]
+ * (Cozy Minimalist, Teen Room with LED strip & custom posters, Kids Room with bunting & stars,
+ * or Blocky/Voxel Minecraft Room with pixel oak planks, cobblestone & torches) combined with [palette].
  */
 @Composable
 fun RoomShellCanvas(
     palette: RoomVisualPalette,
+    roomStyle: RoomStyleId,
+    posterLeftBitmap: ImageBitmap? = null,
+    posterRightBitmap: ImageBitmap? = null,
     modifier: Modifier = Modifier
 ) {
-    Canvas(modifier = modifier) {
-        val w = size.width
-        val h = size.height
-        val floorY = h * 0.61f
+    BoxWithConstraints(modifier = modifier) {
+        val density = LocalDensity.current
+        val wPx = with(density) { maxWidth.toPx() }
+        val hPx = with(density) { maxHeight.toPx() }
 
-        // Back wall
-        drawRect(
-            color = palette.wallMain,
-            topLeft = Offset.Zero,
-            size = Size(w, floorY)
+        Canvas(modifier = Modifier.fillMaxSize()) {
+            when (roomStyle) {
+                RoomStyleId.COZY_MINIMALIST -> drawCozyShell(palette)
+                RoomStyleId.TEEN_ROOM -> drawTeenShell(palette)
+                RoomStyleId.KIDS_ROOM -> drawKidsShell(palette)
+                RoomStyleId.MINECRAFT -> drawMinecraftShell(palette)
+            }
+        }
+
+        // Teen Room features 2 customizable taped wall posters right on the bedroom wall!
+        if (roomStyle == RoomStyleId.TEEN_ROOM && wPx > 0f && hPx > 0f) {
+            TeenWallPoster(
+                bitmap = posterLeftBitmap,
+                isLeft = true,
+                modifier = Modifier
+                    .offset { IntOffset((wPx * 0.34f).roundToInt(), (hPx * 0.285f).roundToInt()) }
+                    .size(
+                        width = with(density) { (wPx * 0.19f).toDp() },
+                        height = with(density) { (hPx * 0.125f).toDp() }
+                    )
+                    .rotate(-3f)
+            )
+            TeenWallPoster(
+                bitmap = posterRightBitmap,
+                isLeft = false,
+                modifier = Modifier
+                    .offset { IntOffset((wPx * 0.56f).roundToInt(), (hPx * 0.205f).roundToInt()) }
+                    .size(
+                        width = with(density) { (wPx * 0.16f).toDp() },
+                        height = with(density) { (hPx * 0.115f).toDp() }
+                    )
+                    .rotate(3.5f)
+            )
+        }
+    }
+}
+
+@Composable
+private fun TeenWallPoster(
+    bitmap: ImageBitmap?,
+    isLeft: Boolean,
+    modifier: Modifier = Modifier
+) {
+    Box(modifier = modifier) {
+        if (bitmap != null) {
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .background(Color.White, RoundedCornerShape(3.dp))
+                    .padding(3.dp)
+            ) {
+                Image(
+                    bitmap = bitmap,
+                    contentDescription = "Custom teen room poster",
+                    contentScale = ContentScale.Crop,
+                    modifier = Modifier.fillMaxSize()
+                )
+            }
+        } else {
+            // Built-in stylized indie / synthwave poster art
+            Canvas(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .border(2.dp, Color.White.copy(alpha = 0.85f), RoundedCornerShape(3.dp))
+            ) {
+                val w = size.width
+                val h = size.height
+                if (isLeft) {
+                    // Retro sunset synthwave poster
+                    drawRect(
+                        brush = Brush.verticalGradient(
+                            listOf(Color(0xFF2B1055), Color(0xFF752F8A), Color(0xFFFF6B6B))
+                        )
+                    )
+                    drawCircle(
+                        color = Color(0xFFFFD166),
+                        radius = min(w, h) * 0.28f,
+                        center = Offset(w * 0.5f, h * 0.44f)
+                    )
+                    // Horizontal horizon grid lines
+                    for (i in 1..4) {
+                        val y = h * (0.62f + i * 0.085f)
+                        drawLine(Color(0xFF00F5D4).copy(alpha = 0.7f), Offset(0f, y), Offset(w, y), strokeWidth = 1.5f)
+                    }
+                } else {
+                    // Geometric indie music/vinyl poster
+                    drawRect(Color(0xFF1A2238))
+                    drawCircle(Color(0xFFFF6A3D), radius = min(w, h) * 0.34f, center = Offset(w * 0.5f, h * 0.45f))
+                    drawCircle(Color(0xFF1A2238), radius = min(w, h) * 0.14f, center = Offset(w * 0.5f, h * 0.45f))
+                    drawCircle(Color(0xFFF4DB7D), radius = min(w, h) * 0.06f, center = Offset(w * 0.5f, h * 0.45f))
+                    drawRect(Color(0xFF9DAAF2), Offset(w * 0.16f, h * 0.82f), Size(w * 0.68f, h * 0.07f))
+                }
+            }
+        }
+        // Tiny translucent tape strip at top center of poster
+        Box(
+            modifier = Modifier
+                .align(Alignment.TopCenter)
+                .offset(y = (-4).dp)
+                .size(width = 18.dp, height = 7.dp)
+                .background(Color(0xCCEEE8D5), RoundedCornerShape(1.dp))
         )
+    }
+}
 
-        // Subtle upper wall warmth band
-        drawRect(
-            color = palette.wallUpper,
-            topLeft = Offset.Zero,
-            size = Size(w, h * 0.115f)
-        )
+private fun DrawScope.drawCozyShell(palette: RoomVisualPalette) {
+    val w = size.width
+    val h = size.height
+    val floorY = h * 0.61f
 
-        // Soft ambient diagonal light wash
-        val lightPath = Path().apply {
-            moveTo(w * 0.05f, h * 0.115f)
-            lineTo(w * 0.30f, h * 0.115f)
-            lineTo(w * 0.52f, floorY)
-            lineTo(w * 0.10f, floorY)
+    drawRect(palette.wallMain, Offset.Zero, Size(w, floorY))
+    drawRect(palette.wallUpper, Offset.Zero, Size(w, h * 0.115f))
+
+    val lightPath = Path().apply {
+        moveTo(w * 0.05f, h * 0.115f)
+        lineTo(w * 0.30f, h * 0.115f)
+        lineTo(w * 0.52f, floorY)
+        lineTo(w * 0.10f, floorY)
+        close()
+    }
+    drawPath(lightPath, palette.ambientLightTint)
+
+    drawBaseboardAndWoodFloor(palette, floorY)
+
+    // Classic woven area rug
+    val rugTopLeft = Offset(w * 0.12f, h * 0.665f)
+    val rugSize = Size(w * 0.76f, h * 0.245f)
+    drawRoundRect(palette.rugFill, rugTopLeft, rugSize, CornerRadius(w * 0.035f, w * 0.035f))
+    drawRoundRect(
+        color = palette.rugBorder.copy(alpha = 0.6f),
+        topLeft = Offset(rugTopLeft.x + w * 0.03f, rugTopLeft.y + h * 0.015f),
+        size = Size(rugSize.width - w * 0.06f, rugSize.height - h * 0.03f),
+        cornerRadius = CornerRadius(w * 0.02f, w * 0.02f),
+        style = Stroke(width = w * 0.004f)
+    )
+}
+
+private fun DrawScope.drawTeenShell(palette: RoomVisualPalette) {
+    val w = size.width
+    val h = size.height
+    val floorY = h * 0.61f
+
+    drawRect(palette.wallMain, Offset.Zero, Size(w, floorY))
+    drawRect(palette.wallUpper, Offset.Zero, Size(w, h * 0.09f))
+
+    // RGB LED ceiling strip glow washing down upper wall!
+    drawRect(
+        brush = Brush.verticalGradient(
+            colors = listOf(
+                Color(0xFF9B5DE5).copy(alpha = if (palette.isDark) 0.45f else 0.24f),
+                Color(0xFF00BBF9).copy(alpha = if (palette.isDark) 0.20f else 0.10f),
+                Color.Transparent
+            ),
+            startY = h * 0.05f,
+            endY = h * 0.26f
+        ),
+        topLeft = Offset(0f, h * 0.05f),
+        size = Size(w, h * 0.21f)
+    )
+    // Crisp neon LED tube strip along upper wall
+    drawRect(
+        brush = Brush.horizontalGradient(
+            listOf(Color(0xFF00F5D4), Color(0xFF9B5DE5), Color(0xFFF15BB5), Color(0xFF00BBF9))
+        ),
+        topLeft = Offset(0f, h * 0.072f),
+        size = Size(w, h * 0.007f)
+    )
+
+    // Warm string fairy lights draped across top wall
+    val wirePath = Path().apply {
+        moveTo(0f, h * 0.08f)
+        quadraticTo(w * 0.25f, h * 0.125f, w * 0.50f, h * 0.088f)
+        quadraticTo(w * 0.75f, h * 0.125f, w, h * 0.08f)
+    }
+    drawPath(wirePath, Color(0xFF555B6E).copy(alpha = 0.55f), style = Stroke(width = 2f))
+    val bulbPoints = listOf(
+        0.10f to 0.096f, 0.22f to 0.105f, 0.35f to 0.101f,
+        0.50f to 0.088f, 0.65f to 0.101f, 0.78f to 0.105f, 0.90f to 0.096f
+    )
+    bulbPoints.forEach { (bx, by) ->
+        drawCircle(Color(0xFFFFD166).copy(alpha = 0.28f), radius = w * 0.025f, center = Offset(w * bx, h * by))
+        drawCircle(Color(0xFFFFF3B0), radius = w * 0.009f, center = Offset(w * bx, h * by))
+    }
+
+    drawBaseboardAndWoodFloor(palette, floorY)
+
+    // Modern geometric graphic rug
+    val rugTopLeft = Offset(w * 0.11f, h * 0.665f)
+    val rugSize = Size(w * 0.78f, h * 0.245f)
+    drawRoundRect(palette.rugFill, rugTopLeft, rugSize, CornerRadius(w * 0.03f, w * 0.03f))
+    // Bold diagonal stripe accents on teen rug
+    val stripeColor = Color(0xFF9B5DE5).copy(alpha = if (palette.isDark) 0.35f else 0.22f)
+    drawRect(stripeColor, Offset(rugTopLeft.x, rugTopLeft.y + rugSize.height * 0.18f), Size(rugSize.width, rugSize.height * 0.11f))
+    drawRect(Color(0xFF00BBF9).copy(alpha = if (palette.isDark) 0.30f else 0.18f), Offset(rugTopLeft.x, rugTopLeft.y + rugSize.height * 0.72f), Size(rugSize.width, rugSize.height * 0.11f))
+}
+
+private fun DrawScope.drawKidsShell(palette: RoomVisualPalette) {
+    val w = size.width
+    val h = size.height
+    val floorY = h * 0.61f
+
+    drawRect(palette.wallMain, Offset.Zero, Size(w, floorY))
+    drawRect(palette.wallUpper, Offset.Zero, Size(w, h * 0.10f))
+
+    // Painted playful wall stars & soft pastel dots
+    val starColor = Color(0xFFF4B942).copy(alpha = if (palette.isDark) 0.50f else 0.45f)
+    val stars = listOf(
+        0.16f to 0.29f, 0.34f to 0.27f, 0.64f to 0.26f, 0.89f to 0.33f,
+        0.53f to 0.38f, 0.24f to 0.56f, 0.79f to 0.57f
+    )
+    stars.forEach { (sx, sy) ->
+        drawCircle(starColor, radius = w * 0.015f, center = Offset(w * sx, h * sy))
+        drawCircle(Color.White.copy(alpha = 0.5f), radius = w * 0.006f, center = Offset(w * sx, h * sy))
+    }
+
+    // Colorful pennant bunting garland strung across upper wall!
+    val buntingColors = listOf(
+        Color(0xFFFF6B6B), Color(0xFFFFD166), Color(0xFF06D6A0),
+        Color(0xFF118AB2), Color(0xFFFF9F1C), Color(0xFF9B5DE5)
+    )
+    val flagCount = 9
+    val stringY = h * 0.075f
+    drawLine(Color(0xFF8C7A6B), Offset(0f, stringY), Offset(w, stringY), strokeWidth = 2.2f)
+    val flagW = w / flagCount
+    for (i in 0 until flagCount) {
+        val x1 = i * flagW + flagW * 0.08f
+        val x2 = (i + 1) * flagW - flagW * 0.08f
+        val flagPath = Path().apply {
+            moveTo(x1, stringY)
+            lineTo(x2, stringY)
+            lineTo((x1 + x2) / 2f, stringY + h * 0.036f)
             close()
         }
-        drawPath(path = lightPath, color = palette.ambientLightTint)
+        drawPath(flagPath, buntingColors[i % buntingColors.size].copy(alpha = 0.88f))
+    }
 
-        // Baseboard & shadow seam
-        drawRect(
-            color = palette.baseboard,
-            topLeft = Offset(0f, floorY - h * 0.018f),
-            size = Size(w, h * 0.018f)
-        )
-        drawRect(
-            color = palette.baseboardShadow,
-            topLeft = Offset(0f, floorY),
-            size = Size(w, h * 0.005f)
-        )
+    drawBaseboardAndWoodFloor(palette, floorY)
 
-        // Wooden floor
-        drawRect(
-            color = palette.floorMain,
-            topLeft = Offset(0f, floorY + h * 0.005f),
-            size = Size(w, h - floorY)
-        )
+    // Cheerful polka-dot playroom rug!
+    val rugTopLeft = Offset(w * 0.10f, h * 0.66f)
+    val rugSize = Size(w * 0.80f, h * 0.255f)
+    drawRoundRect(palette.rugFill, rugTopLeft, rugSize, CornerRadius(w * 0.08f, w * 0.08f))
+    drawRoundRect(
+        color = Color(0xFF06D6A0).copy(alpha = 0.55f),
+        topLeft = rugTopLeft,
+        size = rugSize,
+        cornerRadius = CornerRadius(w * 0.08f, w * 0.08f),
+        style = Stroke(width = w * 0.012f)
+    )
+    val dots = listOf(
+        Triple(0.22f, 0.72f, Color(0xFFFF6B6B)),
+        Triple(0.45f, 0.70f, Color(0xFFFFD166)),
+        Triple(0.74f, 0.73f, Color(0xFF118AB2)),
+        Triple(0.32f, 0.84f, Color(0xFF9B5DE5)),
+        Triple(0.62f, 0.85f, Color(0xFF06D6A0)),
+        Triple(0.81f, 0.82f, Color(0xFFFF9F1C))
+    )
+    dots.forEach { (dx, dy, c) ->
+        drawCircle(c.copy(alpha = 0.48f), radius = w * 0.024f, center = Offset(w * dx, h * dy))
+    }
+}
 
-        // Horizontal floor plank seams
-        val plankAlpha = if (palette.isDark) 0.5f else 0.35f
-        val seamColor = palette.floorPlankLine.copy(alpha = plankAlpha)
-        val seamStroke = w * 0.0032f
-        val rowYs = listOf(0.68f, 0.75f, 0.83f, 0.91f)
-        rowYs.forEach { fy ->
-            drawLine(
-                color = seamColor,
-                start = Offset(0f, h * fy),
-                end = Offset(w, h * fy),
-                strokeWidth = seamStroke
-            )
+private fun DrawScope.drawMinecraftShell(palette: RoomVisualPalette) {
+    val w = size.width
+    val h = size.height
+    val floorY = h * 0.61f
+
+    // Pixelated oak plank wall blocks (tinted darker in dark themes!)
+    val oakBase = if (palette.isDark) Color(0xFF4A3723) else Color(0xFFB8945F)
+    val oakAlt = if (palette.isDark) Color(0xFF3E2D1C) else Color(0xFFA6824F)
+    val oakSeam = if (palette.isDark) Color(0xFF2A1E12) else Color(0xFF7D5F35)
+
+    drawRect(oakBase, Offset.Zero, Size(w, floorY))
+    val brickCols = 9
+    val brickRows = 14
+    val cellW = w / brickCols
+    val cellH = floorY / brickRows
+    for (row in 0 until brickRows) {
+        val offset = if (row % 2 == 0) 0f else cellW * 0.5f
+        for (col in -1..brickCols) {
+            val shade = if ((row + col) % 3 == 0) oakAlt else oakBase
+            val left = col * cellW + offset
+            drawRect(shade, Offset(left, row * cellH), Size(cellW, cellH))
+            drawRect(oakSeam.copy(alpha = 0.45f), Offset(left, row * cellH), Size(cellW, cellH), style = Stroke(width = 1.5f))
         }
+    }
 
-        // Subtle vertical floorboard joins
-        val verticalJoins = listOf(
-            Triple(0.26f, 0.615f, 0.68f),
-            Triple(0.67f, 0.68f, 0.75f),
-            Triple(0.41f, 0.75f, 0.83f),
-            Triple(0.78f, 0.83f, 0.91f),
-            Triple(0.31f, 0.91f, 1.0f)
-        )
-        verticalJoins.forEach { (fx, y1, y2) ->
-            drawLine(
-                color = seamColor.copy(alpha = plankAlpha * 0.75f),
-                start = Offset(w * fx, h * y1),
-                end = Offset(w * fx, h * y2),
-                strokeWidth = seamStroke * 0.85f
-            )
+    // Cobblestone lower wainscoting strip right above floor!
+    val cobbleTop = floorY - h * 0.055f
+    val cobbleCols = 12
+    val cobbleW = w / cobbleCols
+    val cobbleH = h * 0.055f
+    val stoneShades = if (palette.isDark) {
+        listOf(Color(0xFF3A3D42), Color(0xFF4C5057), Color(0xFF2D3035))
+    } else {
+        listOf(Color(0xFF7D8084), Color(0xFF94989E), Color(0xFF63666B))
+    }
+    for (c in 0 until cobbleCols) {
+        drawRect(stoneShades[c % stoneShades.size], Offset(c * cobbleW, cobbleTop), Size(cobbleW, cobbleH))
+        drawRect(Color.Black.copy(alpha = 0.35f), Offset(c * cobbleW, cobbleTop), Size(cobbleW, cobbleH), style = Stroke(width = 2f))
+    }
+
+    // Glowing Pixel Wall Torches!
+    listOf(0.32f to 0.30f, 0.94f to 0.25f).forEach { (tx, ty) ->
+        val cx = w * tx
+        val cy = h * ty
+        // Warm pixel glow halo
+        drawCircle(Color(0xFFFFA726).copy(alpha = 0.24f), radius = w * 0.085f, center = Offset(cx, cy))
+        drawCircle(Color(0xFFFFD54F).copy(alpha = 0.32f), radius = w * 0.045f, center = Offset(cx, cy))
+        // Torch wooden stick
+        drawRect(Color(0xFF6D4C2F), Offset(cx - w * 0.01f, cy), Size(w * 0.02f, h * 0.042f))
+        // Pixel flame squares
+        drawRect(Color(0xFFFF7043), Offset(cx - w * 0.013f, cy - h * 0.016f), Size(w * 0.026f, h * 0.018f))
+        drawRect(Color(0xFFFFEE58), Offset(cx - w * 0.008f, cy - h * 0.012f), Size(w * 0.016f, h * 0.010f))
+    }
+
+    // Blocky spruce floor grid
+    val floorBase = if (palette.isDark) Color(0xFF2B2016) else Color(0xFF7A5A3A)
+    val floorAlt = if (palette.isDark) Color(0xFF231A11) else Color(0xFF6B4E31)
+    drawRect(floorBase, Offset(0f, floorY), Size(w, h - floorY))
+    val fCols = 8
+    val fRows = 8
+    val fW = w / fCols
+    val fH = (h - floorY) / fRows
+    for (r in 0 until fRows) {
+        for (c in 0 until fCols) {
+            if ((r + c) % 2 == 0) {
+                drawRect(floorAlt, Offset(c * fW, floorY + r * fH), Size(fW, fH))
+            }
+            drawRect(Color.Black.copy(alpha = 0.18f), Offset(c * fW, floorY + r * fH), Size(fW, fH), style = Stroke(width = 1.5f))
         }
+    }
 
-        // Cozy area rug
-        val rugTopLeft = Offset(w * 0.12f, h * 0.665f)
-        val rugSize = Size(w * 0.76f, h * 0.245f)
-        drawRoundRect(
-            color = palette.rugFill,
-            topLeft = rugTopLeft,
-            size = rugSize,
-            cornerRadius = CornerRadius(w * 0.035f, w * 0.035f)
-        )
-        drawRoundRect(
-            color = palette.rugBorder.copy(alpha = 0.6f),
-            topLeft = Offset(rugTopLeft.x + w * 0.03f, rugTopLeft.y + h * 0.015f),
-            size = Size(rugSize.width - w * 0.06f, rugSize.height - h * 0.03f),
-            cornerRadius = CornerRadius(w * 0.02f, w * 0.02f),
-            style = Stroke(width = w * 0.004f)
-        )
+    // Checkered blocky wool carpet rug!
+    val rugLeft = w * 0.12f
+    val rugTop = h * 0.67f
+    val rugW = w * 0.76f
+    val rugH = h * 0.24f
+    val wool1 = if (palette.isDark) Color(0xFF7A2828) else Color(0xFFC63D3D)
+    val wool2 = if (palette.isDark) Color(0xFF9C3434) else Color(0xFFDD5252)
+    val woolBorder = Color(0xFFEAE2D0)
+    drawRect(woolBorder, Offset(rugLeft - 4f, rugTop - 4f), Size(rugW + 8f, rugH + 8f))
+    val rCols = 6
+    val rRows = 4
+    val rcW = rugW / rCols
+    val rcH = rugH / rRows
+    for (r in 0 until rRows) {
+        for (c in 0 until rCols) {
+            drawRect(if ((r + c) % 2 == 0) wool1 else wool2, Offset(rugLeft + c * rcW, rugTop + r * rcH), Size(rcW, rcH))
+        }
+    }
+}
+
+private fun DrawScope.drawBaseboardAndWoodFloor(palette: RoomVisualPalette, floorY: Float) {
+    val w = size.width
+    val h = size.height
+    drawRect(palette.baseboard, Offset(0f, floorY - h * 0.018f), Size(w, h * 0.018f))
+    drawRect(palette.baseboardShadow, Offset(0f, floorY), Size(w, h * 0.005f))
+    drawRect(palette.floorMain, Offset(0f, floorY + h * 0.005f), Size(w, h - floorY))
+
+    val plankAlpha = if (palette.isDark) 0.5f else 0.35f
+    val seamColor = palette.floorPlankLine.copy(alpha = plankAlpha)
+    val seamStroke = w * 0.0032f
+    listOf(0.68f, 0.75f, 0.83f, 0.91f).forEach { fy ->
+        drawLine(seamColor, Offset(0f, h * fy), Offset(w, h * fy), strokeWidth = seamStroke)
+    }
+    listOf(
+        Triple(0.26f, 0.615f, 0.68f),
+        Triple(0.67f, 0.68f, 0.75f),
+        Triple(0.41f, 0.75f, 0.83f),
+        Triple(0.78f, 0.83f, 0.91f),
+        Triple(0.31f, 0.91f, 1.0f)
+    ).forEach { (fx, y1, y2) ->
+        drawLine(seamColor.copy(alpha = plankAlpha * 0.75f), Offset(w * fx, h * y1), Offset(w * fx, h * y2), strokeWidth = seamStroke * 0.85f)
     }
 }
 
 /**
  * Renders the visual furniture/object illustration directly inside its movable bounding box.
- * When the user drags or resizes an object in Edit Mode, its artwork moves and scales seamlessly!
+ * Adapts automatically to both [palette] and [roomStyle] (e.g., voxel/blocky furniture in Minecraft style!).
  */
 @Composable
 fun RoomObjectGraphic(
     visualType: RoomObjectVisual,
     palette: RoomVisualPalette,
+    roomStyle: RoomStyleId,
     weatherState: WeatherState,
     weatherEnabled: Boolean,
     frameImageBitmap: ImageBitmap?,
     currentMinutesOfDay: Int,
     modifier: Modifier = Modifier
 ) {
+    val isVoxel = roomStyle == RoomStyleId.MINECRAFT
     Box(modifier = modifier) {
         when (visualType) {
             RoomObjectVisual.PAINTING -> {
                 PaintingGraphic(
                     palette = palette,
+                    isVoxel = isVoxel,
                     frameImageBitmap = frameImageBitmap,
                     modifier = Modifier.fillMaxSize()
                 )
@@ -166,6 +467,7 @@ fun RoomObjectGraphic(
             RoomObjectVisual.WINDOW -> {
                 WindowGraphic(
                     palette = palette,
+                    isVoxel = isVoxel,
                     weatherState = weatherState,
                     weatherEnabled = weatherEnabled,
                     modifier = Modifier.fillMaxSize()
@@ -173,16 +475,30 @@ fun RoomObjectGraphic(
             }
             else -> {
                 Canvas(modifier = Modifier.fillMaxSize()) {
-                    when (visualType) {
-                        RoomObjectVisual.CLOCK -> drawClock(palette, currentMinutesOfDay)
-                        RoomObjectVisual.STICKY_NOTE -> drawStickyNote(palette)
-                        RoomObjectVisual.TV -> drawTv(palette)
-                        RoomObjectVisual.CONSOLE -> drawGameConsole(palette)
-                        RoomObjectVisual.SHELF -> drawShelf(palette)
-                        RoomObjectVisual.BED -> drawBed(palette)
-                        RoomObjectVisual.TRASH_CAN -> drawTrashCan(palette)
-                        RoomObjectVisual.CUSTOM -> drawCustomObject(palette)
-                        else -> Unit
+                    if (isVoxel) {
+                        when (visualType) {
+                            RoomObjectVisual.CLOCK -> drawVoxelClock(currentMinutesOfDay)
+                            RoomObjectVisual.STICKY_NOTE -> drawVoxelOakSign()
+                            RoomObjectVisual.TV -> drawVoxelTv()
+                            RoomObjectVisual.CONSOLE -> drawVoxelCraftingAndJukebox()
+                            RoomObjectVisual.SHELF -> drawVoxelBookshelf()
+                            RoomObjectVisual.BED -> drawVoxelRedBed()
+                            RoomObjectVisual.TRASH_CAN -> drawVoxelLavaCauldron()
+                            RoomObjectVisual.CUSTOM -> drawCustomObject(palette)
+                            else -> Unit
+                        }
+                    } else {
+                        when (visualType) {
+                            RoomObjectVisual.CLOCK -> drawClock(palette, currentMinutesOfDay)
+                            RoomObjectVisual.STICKY_NOTE -> drawStickyNote(palette)
+                            RoomObjectVisual.TV -> drawTv(palette)
+                            RoomObjectVisual.CONSOLE -> drawGameConsole(palette)
+                            RoomObjectVisual.SHELF -> drawShelf(palette, isKids = roomStyle == RoomStyleId.KIDS_ROOM)
+                            RoomObjectVisual.BED -> drawBed(palette, isKids = roomStyle == RoomStyleId.KIDS_ROOM)
+                            RoomObjectVisual.TRASH_CAN -> drawTrashCan(palette)
+                            RoomObjectVisual.CUSTOM -> drawCustomObject(palette)
+                            else -> Unit
+                        }
                     }
                 }
             }
@@ -193,6 +509,7 @@ fun RoomObjectGraphic(
 @Composable
 private fun WindowGraphic(
     palette: RoomVisualPalette,
+    isVoxel: Boolean,
     weatherState: WeatherState,
     weatherEnabled: Boolean,
     modifier: Modifier = Modifier
@@ -207,9 +524,8 @@ private fun WindowGraphic(
             val paneW = w - padX * 2f
             val paneH = h * 0.80f
 
-            // Sky backdrop based on real weather condition
             val skyColor = when (activeCondition) {
-                WeatherCondition.CLEAR_DAY -> Color(0xFF9ED4EC)
+                WeatherCondition.CLEAR_DAY -> if (isVoxel) Color(0xFF78B7FF) else Color(0xFF9ED4EC)
                 WeatherCondition.CLEAR_NIGHT -> Color(0xFF192445)
                 WeatherCondition.PARTLY_CLOUDY -> Color(0xFFABC9D9)
                 WeatherCondition.CLOUDY -> Color(0xFF8C9DA8)
@@ -217,52 +533,36 @@ private fun WindowGraphic(
                 WeatherCondition.SNOW -> Color(0xFFB5C7D4)
                 WeatherCondition.THUNDERSTORM -> Color(0xFF364256)
             }
-            drawRect(
-                color = skyColor,
-                topLeft = Offset(padX, padTop),
-                size = Size(paneW, paneH)
-            )
+            drawRect(skyColor, Offset(padX, padTop), Size(paneW, paneH))
 
-            // Weather sky details inside window glass
+            // Sun / Moon / Weather inside pane (square blocky sun/clouds in Minecraft mode!)
             when (activeCondition) {
                 WeatherCondition.CLEAR_DAY -> {
-                    drawCircle(
-                        color = Color(0xFFFFD86B),
-                        radius = min(paneW, paneH) * 0.16f,
-                        center = Offset(padX + paneW * 0.72f, padTop + paneH * 0.28f)
-                    )
-                    // Subtle glass reflection
-                    val sheen = Path().apply {
-                        moveTo(padX + paneW * 0.12f, padTop)
-                        lineTo(padX + paneW * 0.34f, padTop)
-                        lineTo(padX, padTop + paneH * 0.45f)
-                        lineTo(padX, padTop + paneH * 0.22f)
-                        close()
+                    if (isVoxel) {
+                        val s = min(paneW, paneH) * 0.26f
+                        drawRect(Color(0xFFFFEE58), Offset(padX + paneW * 0.58f, padTop + paneH * 0.14f), Size(s, s))
+                        drawRect(Color.White.copy(alpha = 0.85f), Offset(padX + paneW * 0.12f, padTop + paneH * 0.22f), Size(paneW * 0.34f, paneH * 0.12f))
+                    } else {
+                        drawCircle(Color(0xFFFFD86B), min(paneW, paneH) * 0.16f, Offset(padX + paneW * 0.72f, padTop + paneH * 0.28f))
                     }
-                    drawPath(sheen, Color.White.copy(alpha = 0.30f))
                 }
                 WeatherCondition.CLEAR_NIGHT -> {
-                    val moonCenter = Offset(padX + paneW * 0.70f, padTop + paneH * 0.28f)
-                    val moonR = min(paneW, paneH) * 0.14f
-                    drawCircle(Color(0xFFF6EBB7), radius = moonR, center = moonCenter)
-                    drawCircle(skyColor, radius = moonR * 0.85f, center = Offset(moonCenter.x + moonR * 0.4f, moonCenter.y - moonR * 0.15f))
-                    // Subtle stars
-                    listOf(0.22f to 0.24f, 0.44f to 0.18f, 0.28f to 0.62f, 0.76f to 0.68f, 0.56f to 0.76f).forEach { (sx, sy) ->
-                        drawCircle(
-                            color = Color.White.copy(alpha = 0.85f),
-                            radius = min(paneW, paneH) * 0.022f,
-                            center = Offset(padX + paneW * sx, padTop + paneH * sy)
-                        )
+                    if (isVoxel) {
+                        val s = min(paneW, paneH) * 0.24f
+                        drawRect(Color(0xFFF6EBB7), Offset(padX + paneW * 0.60f, padTop + paneH * 0.16f), Size(s, s))
+                    } else {
+                        val moonCenter = Offset(padX + paneW * 0.70f, padTop + paneH * 0.28f)
+                        val moonR = min(paneW, paneH) * 0.14f
+                        drawCircle(Color(0xFFF6EBB7), moonR, moonCenter)
+                        drawCircle(skyColor, moonR * 0.85f, Offset(moonCenter.x + moonR * 0.4f, moonCenter.y - moonR * 0.15f))
+                    }
+                    listOf(0.22f to 0.24f, 0.44f to 0.18f, 0.28f to 0.62f, 0.76f to 0.68f).forEach { (sx, sy) ->
+                        drawRect(Color.White.copy(alpha = 0.85f), Offset(padX + paneW * sx, padTop + paneH * sy), Size(4f, 4f))
                     }
                 }
                 WeatherCondition.PARTLY_CLOUDY -> {
-                    drawCircle(
-                        color = Color(0xFFFFD86B),
-                        radius = min(paneW, paneH) * 0.15f,
-                        center = Offset(padX + paneW * 0.72f, padTop + paneH * 0.26f)
-                    )
+                    drawCircle(Color(0xFFFFD86B), min(paneW, paneH) * 0.15f, Offset(padX + paneW * 0.72f, padTop + paneH * 0.26f))
                     drawCloud(padX + paneW * 0.24f, padTop + paneH * 0.46f, paneW * 0.46f, Color.White.copy(alpha = 0.88f))
-                    drawCloud(padX + paneW * 0.52f, padTop + paneH * 0.70f, paneW * 0.38f, Color.White.copy(alpha = 0.72f))
                 }
                 WeatherCondition.CLOUDY -> {
                     drawCloud(padX + paneW * 0.20f, padTop + paneH * 0.34f, paneW * 0.55f, Color(0xFFDDE5EB))
@@ -271,25 +571,15 @@ private fun WindowGraphic(
                 WeatherCondition.RAIN -> {
                     drawCloud(padX + paneW * 0.22f, padTop + paneH * 0.26f, paneW * 0.58f, Color(0xFF99AABB))
                     val rainColor = Color(0xFFCDE5F7).copy(alpha = 0.85f)
-                    listOf(0.24f to 0.44f, 0.44f to 0.52f, 0.64f to 0.42f, 0.32f to 0.68f, 0.56f to 0.72f, 0.76f to 0.64f).forEach { (rx, ry) ->
+                    listOf(0.24f to 0.44f, 0.44f to 0.52f, 0.64f to 0.42f, 0.32f to 0.68f, 0.56f to 0.72f).forEach { (rx, ry) ->
                         val start = Offset(padX + paneW * rx, padTop + paneH * ry)
-                        drawLine(
-                            color = rainColor,
-                            start = start,
-                            end = Offset(start.x - paneW * 0.06f, start.y + paneH * 0.13f),
-                            strokeWidth = min(paneW, paneH) * 0.025f,
-                            cap = StrokeCap.Round
-                        )
+                        drawLine(rainColor, start, Offset(start.x - paneW * 0.06f, start.y + paneH * 0.13f), strokeWidth = min(paneW, paneH) * 0.025f, cap = StrokeCap.Round)
                     }
                 }
                 WeatherCondition.SNOW -> {
                     drawCloud(padX + paneW * 0.22f, padTop + paneH * 0.24f, paneW * 0.56f, Color(0xFFE7EFF5))
-                    listOf(0.22f to 0.48f, 0.42f to 0.56f, 0.66f to 0.46f, 0.28f to 0.74f, 0.54f to 0.76f, 0.78f to 0.68f).forEach { (sx, sy) ->
-                        drawCircle(
-                            color = Color.White,
-                            radius = min(paneW, paneH) * 0.032f,
-                            center = Offset(padX + paneW * sx, padTop + paneH * sy)
-                        )
+                    listOf(0.22f to 0.48f, 0.42f to 0.56f, 0.66f to 0.46f, 0.28f to 0.74f, 0.54f to 0.76f).forEach { (sx, sy) ->
+                        drawCircle(Color.White, min(paneW, paneH) * 0.032f, Offset(padX + paneW * sx, padTop + paneH * sy))
                     }
                 }
                 WeatherCondition.THUNDERSTORM -> {
@@ -304,44 +594,33 @@ private fun WindowGraphic(
                 }
             }
 
-            // Wooden window frame & muntins
-            val frameStroke = min(w, h) * 0.055f
-            drawRect(
-                color = palette.woodLight,
-                topLeft = Offset(padX, padTop),
-                size = Size(paneW, paneH),
-                style = Stroke(width = frameStroke)
-            )
-            drawLine(
-                color = palette.woodLight,
-                start = Offset(padX + paneW / 2f, padTop),
-                end = Offset(padX + paneW / 2f, padTop + paneH),
-                strokeWidth = frameStroke * 0.8f
-            )
-            drawLine(
-                color = palette.woodLight,
-                start = Offset(padX, padTop + paneH / 2f),
-                end = Offset(padX + paneW, padTop + paneH / 2f),
-                strokeWidth = frameStroke * 0.8f
-            )
+            // Glass pixel glint lines in Minecraft mode
+            if (isVoxel) {
+                drawLine(Color.White.copy(alpha = 0.6f), Offset(padX + paneW * 0.16f, padTop + paneH * 0.18f), Offset(padX + paneW * 0.28f, padTop + paneH * 0.08f), strokeWidth = 3f)
+                drawLine(Color.White.copy(alpha = 0.6f), Offset(padX + paneW * 0.66f, padTop + paneH * 0.76f), Offset(padX + paneW * 0.78f, padTop + paneH * 0.66f), strokeWidth = 3f)
+            }
 
-            // Window sill
+            val frameColor = if (isVoxel) Color(0xFF5C3E24) else palette.woodLight
+            val frameStroke = min(w, h) * (if (isVoxel) 0.075f else 0.055f)
+            drawRect(frameColor, Offset(padX, padTop), Size(paneW, paneH), style = Stroke(width = frameStroke))
+            drawLine(frameColor, Offset(padX + paneW / 2f, padTop), Offset(padX + paneW / 2f, padTop + paneH), strokeWidth = frameStroke * 0.8f)
+            drawLine(frameColor, Offset(padX, padTop + paneH / 2f), Offset(padX + paneW, padTop + paneH / 2f), strokeWidth = frameStroke * 0.8f)
+
             drawRoundRect(
-                color = palette.woodMid,
+                color = if (isVoxel) Color(0xFF472F1A) else palette.woodMid,
                 topLeft = Offset(w * 0.02f, padTop + paneH - frameStroke * 0.2f),
                 size = Size(w * 0.96f, h * 0.09f),
-                cornerRadius = CornerRadius(4f, 4f)
+                cornerRadius = CornerRadius(if (isVoxel) 0f else 4f, if (isVoxel) 0f else 4f)
             )
         }
 
-        // Subtle live temperature badge when weather data is available
         if (weatherEnabled && weatherState.temperatureC != null) {
             Box(
                 modifier = Modifier
                     .align(Alignment.BottomEnd)
                     .padding(end = 10.dp, bottom = 14.dp)
-                    .clip(RoundedCornerShape(8.dp))
-                    .background(Color.Black.copy(alpha = 0.46f))
+                    .clip(RoundedCornerShape(if (isVoxel) 2.dp else 8.dp))
+                    .background(Color.Black.copy(alpha = 0.50f))
                     .padding(horizontal = 5.dp, vertical = 2.dp)
             ) {
                 Text(
@@ -357,20 +636,16 @@ private fun WindowGraphic(
 
 private fun DrawScope.drawCloud(left: Float, top: Float, width: Float, color: Color) {
     val r = width * 0.22f
-    drawCircle(color, radius = r * 0.85f, center = Offset(left + r * 0.9f, top + r * 0.9f))
-    drawCircle(color, radius = r * 1.1f, center = Offset(left + width * 0.46f, top + r * 0.65f))
-    drawCircle(color, radius = r * 0.85f, center = Offset(left + width - r * 0.9f, top + r * 0.95f))
-    drawRoundRect(
-        color = color,
-        topLeft = Offset(left + r * 0.4f, top + r * 0.75f),
-        size = Size(width - r * 0.8f, r * 1.0f),
-        cornerRadius = CornerRadius(r, r)
-    )
+    drawCircle(color, r * 0.85f, Offset(left + r * 0.9f, top + r * 0.9f))
+    drawCircle(color, r * 1.1f, Offset(left + width * 0.46f, top + r * 0.65f))
+    drawCircle(color, r * 0.85f, Offset(left + width - r * 0.9f, top + r * 0.95f))
+    drawRoundRect(color, Offset(left + r * 0.4f, top + r * 0.75f), Size(width - r * 0.8f, r * 1.0f), CornerRadius(r, r))
 }
 
 @Composable
 private fun PaintingGraphic(
     palette: RoomVisualPalette,
+    isVoxel: Boolean,
     frameImageBitmap: ImageBitmap?,
     modifier: Modifier = Modifier
 ) {
@@ -378,60 +653,53 @@ private fun PaintingGraphic(
         Canvas(modifier = Modifier.fillMaxSize()) {
             val w = size.width
             val h = size.height
-            // Soft shadow
+            val corner = if (isVoxel) 0f else 6f
             drawRoundRect(
-                color = Color.Black.copy(alpha = if (palette.isDark) 0.35f else 0.13f),
-                topLeft = Offset(w * 0.05f, h * 0.06f),
-                size = Size(w * 0.93f, h * 0.92f),
-                cornerRadius = CornerRadius(6f, 6f)
+                Color.Black.copy(alpha = if (palette.isDark) 0.35f else 0.13f),
+                Offset(w * 0.05f, h * 0.06f),
+                Size(w * 0.93f, h * 0.92f),
+                CornerRadius(corner, corner)
             )
-            // Outer wooden frame
             drawRoundRect(
-                color = palette.woodDark,
-                topLeft = Offset(w * 0.02f, h * 0.02f),
-                size = Size(w * 0.94f, h * 0.94f),
-                cornerRadius = CornerRadius(6f, 6f)
+                if (isVoxel) Color(0xFF6B4828) else palette.woodDark,
+                Offset(w * 0.02f, h * 0.02f),
+                Size(w * 0.94f, h * 0.94f),
+                CornerRadius(corner, corner)
             )
-            // Cream gallery mat
-            drawRect(
-                color = Color(0xFFFAF7F2),
-                topLeft = Offset(w * 0.09f, h * 0.09f),
-                size = Size(w * 0.80f, h * 0.80f)
-            )
+            drawRect(Color(0xFFFAF7F2), Offset(w * 0.09f, h * 0.09f), Size(w * 0.80f, h * 0.80f))
 
-            // Default landscape artwork when no custom photo is set
             if (frameImageBitmap == null) {
                 val artLeft = w * 0.15f
                 val artTop = h * 0.15f
                 val artW = w * 0.68f
                 val artH = h * 0.68f
-
-                drawRect(
-                    color = if (palette.isDark) Color(0xFF42384A) else Color(0xFFE9C7A6),
-                    topLeft = Offset(artLeft, artTop),
-                    size = Size(artW, artH)
-                )
-                drawCircle(
-                    color = if (palette.isDark) Color(0xFFE8A87C) else Color(0xFFD97D54),
-                    radius = min(artW, artH) * 0.17f,
-                    center = Offset(artLeft + artW * 0.66f, artTop + artH * 0.32f)
-                )
-                val farPeak = Path().apply {
-                    moveTo(artLeft, artTop + artH * 0.78f)
-                    lineTo(artLeft + artW * 0.38f, artTop + artH * 0.40f)
-                    lineTo(artLeft + artW * 0.76f, artTop + artH * 0.78f)
-                    close()
+                if (isVoxel) {
+                    // Iconic blocky pixel landscape painting
+                    drawRect(Color(0xFF5FA8D3), Offset(artLeft, artTop), Size(artW, artH * 0.6f))
+                    drawRect(Color(0xFF6A994E), Offset(artLeft, artTop + artH * 0.6f), Size(artW, artH * 0.4f))
+                    drawRect(Color(0xFFFFD166), Offset(artLeft + artW * 0.65f, artTop + artH * 0.12f), Size(artW * 0.2f, artH * 0.2f))
+                    drawRect(Color(0xFF386641), Offset(artLeft + artW * 0.14f, artTop + artH * 0.32f), Size(artW * 0.24f, artH * 0.28f))
+                    drawRect(Color(0xFF6F4E37), Offset(artLeft + artW * 0.22f, artTop + artH * 0.56f), Size(artW * 0.08f, artH * 0.22f))
+                } else {
+                    drawRect(if (palette.isDark) Color(0xFF42384A) else Color(0xFFE9C7A6), Offset(artLeft, artTop), Size(artW, artH))
+                    drawCircle(if (palette.isDark) Color(0xFFE8A87C) else Color(0xFFD97D54), min(artW, artH) * 0.17f, Offset(artLeft + artW * 0.66f, artTop + artH * 0.32f))
+                    val farPeak = Path().apply {
+                        moveTo(artLeft, artTop + artH * 0.78f)
+                        lineTo(artLeft + artW * 0.38f, artTop + artH * 0.40f)
+                        lineTo(artLeft + artW * 0.76f, artTop + artH * 0.78f)
+                        close()
+                    }
+                    drawPath(farPeak, Color(0xFF7B9382))
+                    val frontHill = Path().apply {
+                        moveTo(artLeft, artTop + artH)
+                        lineTo(artLeft, artTop + artH * 0.76f)
+                        lineTo(artLeft + artW * 0.52f, artTop + artH * 0.58f)
+                        lineTo(artLeft + artW, artTop + artH * 0.80f)
+                        lineTo(artLeft + artW, artTop + artH)
+                        close()
+                    }
+                    drawPath(frontHill, Color(0xFF4B5D52))
                 }
-                drawPath(farPeak, Color(0xFF7B9382))
-                val frontHill = Path().apply {
-                    moveTo(artLeft, artTop + artH)
-                    lineTo(artLeft, artTop + artH * 0.76f)
-                    lineTo(artLeft + artW * 0.52f, artTop + artH * 0.58f)
-                    lineTo(artLeft + artW, artTop + artH * 0.80f)
-                    lineTo(artLeft + artW, artTop + artH)
-                    close()
-                }
-                drawPath(frontHill, Color(0xFF4B5D52))
             }
         }
 
@@ -453,23 +721,17 @@ private fun PaintingGraphic(
     }
 }
 
+// ==================== CLASSIC FURNITURE ====================
+
 private fun DrawScope.drawClock(palette: RoomVisualPalette, minutesOfDay: Int) {
     val radius = min(size.width, size.height) * 0.43f
     val cx = size.width / 2f
     val cy = size.height / 2f
 
-    // Wall shadow
-    drawCircle(
-        color = Color.Black.copy(alpha = if (palette.isDark) 0.36f else 0.12f),
-        radius = radius,
-        center = Offset(cx + radius * 0.08f, cy + radius * 0.10f)
-    )
-    // Outer wood rim
-    drawCircle(color = palette.woodDark, radius = radius, center = Offset(cx, cy))
-    // Clock face
-    drawCircle(color = palette.clockFace, radius = radius * 0.85f, center = Offset(cx, cy))
+    drawCircle(Color.Black.copy(alpha = if (palette.isDark) 0.36f else 0.12f), radius, Offset(cx + radius * 0.08f, cy + radius * 0.10f))
+    drawCircle(palette.woodDark, radius, Offset(cx, cy))
+    drawCircle(palette.clockFace, radius * 0.85f, Offset(cx, cy))
 
-    // 4 cardinal hour ticks
     val tickStroke = radius * 0.065f
     for (i in 0 until 12) {
         val angle = Math.toRadians(i * 30.0)
@@ -484,27 +746,11 @@ private fun DrawScope.drawClock(palette: RoomVisualPalette, minutesOfDay: Int) {
         )
     }
 
-    // Live current time hands!
-    val hourFraction = (minutesOfDay % 720) / 720.0
-    val minuteFraction = (minutesOfDay % 60) / 60.0
-    val hourAngle = Math.toRadians(hourFraction * 360.0 - 90.0)
-    val minAngle = Math.toRadians(minuteFraction * 360.0 - 90.0)
-
-    drawLine(
-        color = palette.clockHands,
-        start = Offset(cx, cy),
-        end = Offset(cx + (cos(hourAngle) * radius * 0.45f).toFloat(), cy + (sin(hourAngle) * radius * 0.45f).toFloat()),
-        strokeWidth = radius * 0.095f,
-        cap = StrokeCap.Round
-    )
-    drawLine(
-        color = palette.clockHands,
-        start = Offset(cx, cy),
-        end = Offset(cx + (cos(minAngle) * radius * 0.65f).toFloat(), cy + (sin(minAngle) * radius * 0.65f).toFloat()),
-        strokeWidth = radius * 0.065f,
-        cap = StrokeCap.Round
-    )
-    drawCircle(color = palette.clockAccent, radius = radius * 0.09f, center = Offset(cx, cy))
+    val hourAngle = Math.toRadians(((minutesOfDay % 720) / 720.0) * 360.0 - 90.0)
+    val minAngle = Math.toRadians(((minutesOfDay % 60) / 60.0) * 360.0 - 90.0)
+    drawLine(palette.clockHands, Offset(cx, cy), Offset(cx + (cos(hourAngle) * radius * 0.45f).toFloat(), cy + (sin(hourAngle) * radius * 0.45f).toFloat()), radius * 0.095f, StrokeCap.Round)
+    drawLine(palette.clockHands, Offset(cx, cy), Offset(cx + (cos(minAngle) * radius * 0.65f).toFloat(), cy + (sin(minAngle) * radius * 0.65f).toFloat()), radius * 0.065f, StrokeCap.Round)
+    drawCircle(palette.clockAccent, radius * 0.09f, Offset(cx, cy))
 }
 
 private fun DrawScope.drawStickyNote(palette: RoomVisualPalette) {
@@ -516,15 +762,7 @@ private fun DrawScope.drawStickyNote(palette: RoomVisualPalette) {
     val noteH = h * 0.78f
     val fold = min(noteW, noteH) * 0.22f
 
-    // Subtle paper shadow
-    drawRoundRect(
-        color = Color.Black.copy(alpha = if (palette.isDark) 0.34f else 0.13f),
-        topLeft = Offset(left + w * 0.04f, top + h * 0.05f),
-        size = Size(noteW, noteH),
-        cornerRadius = CornerRadius(4f, 4f)
-    )
-
-    // Note paper shape with bottom-right folded corner
+    drawRoundRect(Color.Black.copy(alpha = if (palette.isDark) 0.34f else 0.13f), Offset(left + w * 0.04f, top + h * 0.05f), Size(noteW, noteH), CornerRadius(4f, 4f))
     val notePath = Path().apply {
         moveTo(left, top)
         lineTo(left + noteW, top)
@@ -534,8 +772,6 @@ private fun DrawScope.drawStickyNote(palette: RoomVisualPalette) {
         close()
     }
     drawPath(notePath, palette.stickyNoteFill)
-
-    // Folded corner triangle
     val foldPath = Path().apply {
         moveTo(left + noteW - fold, top + noteH)
         lineTo(left + noteW - fold, top + noteH - fold)
@@ -544,31 +780,15 @@ private fun DrawScope.drawStickyNote(palette: RoomVisualPalette) {
     }
     drawPath(foldPath, palette.stickyNoteFold)
 
-    // Neat handwritten lines on note
     val ink = Color(0xFF4A3D1F).copy(alpha = 0.55f)
     val lineStroke = maxOf(2f, h * 0.032f)
     listOf(0.38f to 0.72f, 0.56f to 0.80f, 0.74f to 0.54f).forEach { (ly, lw) ->
-        drawLine(
-            color = ink,
-            start = Offset(left + noteW * 0.14f, top + noteH * ly),
-            end = Offset(left + noteW * lw, top + noteH * ly),
-            strokeWidth = lineStroke,
-            cap = StrokeCap.Round
-        )
+        drawLine(ink, Offset(left + noteW * 0.14f, top + noteH * ly), Offset(left + noteW * lw, top + noteH * ly), lineStroke, StrokeCap.Round)
     }
 
-    // Tiny pushpin at top center
     val pinRadius = min(w, h) * 0.085f
-    drawCircle(
-        color = Color.Black.copy(alpha = 0.22f),
-        radius = pinRadius,
-        center = Offset(left + noteW * 0.52f, top + pinRadius * 0.85f)
-    )
-    drawCircle(
-        color = palette.clockAccent,
-        radius = pinRadius,
-        center = Offset(left + noteW * 0.50f, top + pinRadius * 0.65f)
-    )
+    drawCircle(Color.Black.copy(alpha = 0.22f), pinRadius, Offset(left + noteW * 0.52f, top + pinRadius * 0.85f))
+    drawCircle(palette.clockAccent, pinRadius, Offset(left + noteW * 0.50f, top + pinRadius * 0.65f))
 }
 
 private fun DrawScope.drawTv(palette: RoomVisualPalette) {
@@ -579,31 +799,14 @@ private fun DrawScope.drawTv(palette: RoomVisualPalette) {
     val bezelW = w * 0.94f
     val bezelH = h * 0.82f
 
-    // Shadow
-    drawRoundRect(
-        color = Color.Black.copy(alpha = if (palette.isDark) 0.4f else 0.13f),
-        topLeft = Offset(bezelLeft + w * 0.02f, bezelTop + h * 0.04f),
-        size = Size(bezelW, bezelH),
-        cornerRadius = CornerRadius(12f, 12f)
-    )
-    // Outer TV bezel
-    drawRoundRect(
-        color = palette.tvBezel,
-        topLeft = Offset(bezelLeft, bezelTop),
-        size = Size(bezelW, bezelH),
-        cornerRadius = CornerRadius(12f, 12f)
-    )
-    // Screen surface
+    drawRoundRect(Color.Black.copy(alpha = if (palette.isDark) 0.4f else 0.13f), Offset(bezelLeft + w * 0.02f, bezelTop + h * 0.04f), Size(bezelW, bezelH), CornerRadius(12f, 12f))
+    drawRoundRect(palette.tvBezel, Offset(bezelLeft, bezelTop), Size(bezelW, bezelH), CornerRadius(12f, 12f))
     val screenLeft = bezelLeft + bezelW * 0.038f
     val screenTop = bezelTop + bezelH * 0.06f
     val screenW = bezelW * 0.924f
     val screenH = bezelH * 0.84f
-    drawRect(
-        color = palette.tvScreen,
-        topLeft = Offset(screenLeft, screenTop),
-        size = Size(screenW, screenH)
-    )
-    // Diagonal screen sheen
+    drawRect(palette.tvScreen, Offset(screenLeft, screenTop), Size(screenW, screenH))
+
     val sheen = Path().apply {
         moveTo(screenLeft + screenW * 0.06f, screenTop)
         lineTo(screenLeft + screenW * 0.30f, screenTop)
@@ -613,26 +816,9 @@ private fun DrawScope.drawTv(palette: RoomVisualPalette) {
         close()
     }
     drawPath(sheen, Color.White.copy(alpha = if (palette.isDark) 0.07f else 0.12f))
-
-    // Standby LED
-    drawCircle(
-        color = Color(0xFF7CC49E),
-        radius = min(w, h) * 0.018f,
-        center = Offset(bezelLeft + bezelW * 0.93f, bezelTop + bezelH * 0.95f)
-    )
-
-    // Pedestal stand neck & base
-    drawRect(
-        color = palette.tvBezel,
-        topLeft = Offset(w * 0.45f, bezelTop + bezelH),
-        size = Size(w * 0.10f, h * 0.10f)
-    )
-    drawRoundRect(
-        color = palette.tvBezel,
-        topLeft = Offset(w * 0.34f, h * 0.93f),
-        size = Size(w * 0.32f, h * 0.06f),
-        cornerRadius = CornerRadius(4f, 4f)
-    )
+    drawCircle(Color(0xFF7CC49E), min(w, h) * 0.018f, Offset(bezelLeft + bezelW * 0.93f, bezelTop + bezelH * 0.95f))
+    drawRect(palette.tvBezel, Offset(w * 0.45f, bezelTop + bezelH), Size(w * 0.10f, h * 0.10f))
+    drawRoundRect(palette.tvBezel, Offset(w * 0.34f, h * 0.93f), Size(w * 0.32f, h * 0.06f), CornerRadius(4f, 4f))
 }
 
 private fun DrawScope.drawGameConsole(palette: RoomVisualPalette) {
@@ -641,267 +827,236 @@ private fun DrawScope.drawGameConsole(palette: RoomVisualPalette) {
     val cabTop = h * 0.06f
     val cabH = h * 0.68f
 
-    // Wooden media console cabinet
-    drawRoundRect(
-        color = palette.woodMid,
-        topLeft = Offset(w * 0.02f, cabTop),
-        size = Size(w * 0.96f, cabH),
-        cornerRadius = CornerRadius(10f, 10f)
-    )
-    // Left & right cabinet doors
-    drawRect(
-        color = palette.woodDark.copy(alpha = 0.72f),
-        topLeft = Offset(w * 0.06f, cabTop + cabH * 0.14f),
-        size = Size(w * 0.22f, cabH * 0.72f)
-    )
-    drawRect(
-        color = palette.woodDark.copy(alpha = 0.72f),
-        topLeft = Offset(w * 0.72f, cabTop + cabH * 0.14f),
-        size = Size(w * 0.22f, cabH * 0.72f)
-    )
-    // Door knobs
-    drawCircle(
-        color = palette.woodLight,
-        radius = min(w, h) * 0.03f,
-        center = Offset(w * 0.24f, cabTop + cabH * 0.50f)
-    )
-    drawCircle(
-        color = palette.woodLight,
-        radius = min(w, h) * 0.03f,
-        center = Offset(w * 0.76f, cabTop + cabH * 0.50f)
-    )
+    drawRoundRect(palette.woodMid, Offset(w * 0.02f, cabTop), Size(w * 0.96f, cabH), CornerRadius(10f, 10f))
+    drawRect(palette.woodDark.copy(alpha = 0.72f), Offset(w * 0.06f, cabTop + cabH * 0.14f), Size(w * 0.22f, cabH * 0.72f))
+    drawRect(palette.woodDark.copy(alpha = 0.72f), Offset(w * 0.72f, cabTop + cabH * 0.14f), Size(w * 0.22f, cabH * 0.72f))
+    drawCircle(palette.woodLight, min(w, h) * 0.03f, Offset(w * 0.24f, cabTop + cabH * 0.50f))
+    drawCircle(palette.woodLight, min(w, h) * 0.03f, Offset(w * 0.76f, cabTop + cabH * 0.50f))
 
-    // Center open bay holding the sleek Game Console!
     val bayLeft = w * 0.31f
     val bayW = w * 0.38f
-    drawRect(
-        color = Color(0xFF191512),
-        topLeft = Offset(bayLeft, cabTop + cabH * 0.14f),
-        size = Size(bayW, cabH * 0.72f)
-    )
-    // Sleek game console chassis
+    drawRect(Color(0xFF191512), Offset(bayLeft, cabTop + cabH * 0.14f), Size(bayW, cabH * 0.72f))
     val conLeft = bayLeft + bayW * 0.08f
     val conTop = cabTop + cabH * 0.26f
     val conW = bayW * 0.84f
     val conH = cabH * 0.44f
-    drawRoundRect(
-        color = palette.consoleBody,
-        topLeft = Offset(conLeft, conTop),
-        size = Size(conW, conH),
-        cornerRadius = CornerRadius(6f, 6f)
-    )
-    // Glowing console power strip
-    drawRoundRect(
-        color = palette.consoleAccent,
-        topLeft = Offset(conLeft + conW * 0.12f, conTop + conH * 0.38f),
-        size = Size(conW * 0.52f, conH * 0.18f),
-        cornerRadius = CornerRadius(3f, 3f)
-    )
-    // Controller indicator dot
-    drawCircle(
-        color = Color.White.copy(alpha = 0.85f),
-        radius = conH * 0.13f,
-        center = Offset(conLeft + conW * 0.82f, conTop + conH * 0.48f)
-    )
+    drawRoundRect(palette.consoleBody, Offset(conLeft, conTop), Size(conW, conH), CornerRadius(6f, 6f))
+    drawRoundRect(palette.consoleAccent, Offset(conLeft + conW * 0.12f, conTop + conH * 0.38f), Size(conW * 0.52f, conH * 0.18f), CornerRadius(3f, 3f))
+    drawCircle(Color.White.copy(alpha = 0.85f), conH * 0.13f, Offset(conLeft + conW * 0.82f, conTop + conH * 0.48f))
 
-    // Tapered mid-century cabinet legs
     val leftLeg = Path().apply {
-        moveTo(w * 0.09f, cabTop + cabH)
-        lineTo(w * 0.13f, cabTop + cabH)
-        lineTo(w * 0.10f, h * 0.96f)
-        lineTo(w * 0.06f, h * 0.96f)
-        close()
+        moveTo(w * 0.09f, cabTop + cabH); lineTo(w * 0.13f, cabTop + cabH)
+        lineTo(w * 0.10f, h * 0.96f); lineTo(w * 0.06f, h * 0.96f); close()
     }
     val rightLeg = Path().apply {
-        moveTo(w * 0.87f, cabTop + cabH)
-        lineTo(w * 0.91f, cabTop + cabH)
-        lineTo(w * 0.94f, h * 0.96f)
-        lineTo(w * 0.90f, h * 0.96f)
-        close()
+        moveTo(w * 0.87f, cabTop + cabH); lineTo(w * 0.91f, cabTop + cabH)
+        lineTo(w * 0.94f, h * 0.96f); lineTo(w * 0.90f, h * 0.96f); close()
     }
     drawPath(leftLeg, palette.woodDark)
     drawPath(rightLeg, palette.woodDark)
 }
 
-private fun DrawScope.drawShelf(palette: RoomVisualPalette) {
+private fun DrawScope.drawShelf(palette: RoomVisualPalette, isKids: Boolean) {
     val w = size.width
     val h = size.height
-
-    // Upper wooden shelf & shadow
     val upperY = h * 0.40f
     val shelfH = h * 0.065f
-    drawRect(Color.Black.copy(alpha = 0.16f), Offset(w * 0.06f, upperY + shelfH), Size(w * 0.90f, h * 0.03f))
-    drawRoundRect(palette.woodMid, Offset(w * 0.04f, upperY), Size(w * 0.92f, shelfH), CornerRadius(4f, 4f))
 
-    // Books on upper shelf
-    drawRect(palette.duvetPrimary, Offset(w * 0.09f, h * 0.13f), Size(w * 0.09f, upperY - h * 0.13f))
-    drawRect(palette.throwBlanket, Offset(w * 0.20f, h * 0.18f), Size(w * 0.08f, upperY - h * 0.18f))
-    drawRect(Color(0xFFE2B97B), Offset(w * 0.30f, h * 0.10f), Size(w * 0.09f, upperY - h * 0.10f))
-    // Leaning book
+    drawRect(Color.Black.copy(alpha = 0.16f), Offset(w * 0.06f, upperY + shelfH), Size(w * 0.90f, h * 0.03f))
+    drawRoundRect(if (isKids) Color(0xFFFFB703) else palette.woodMid, Offset(w * 0.04f, upperY), Size(w * 0.92f, shelfH), CornerRadius(4f, 4f))
+
+    drawRect(if (isKids) Color(0xFFFF6B6B) else palette.duvetPrimary, Offset(w * 0.09f, h * 0.13f), Size(w * 0.09f, upperY - h * 0.13f))
+    drawRect(if (isKids) Color(0xFF06D6A0) else palette.throwBlanket, Offset(w * 0.20f, h * 0.18f), Size(w * 0.08f, upperY - h * 0.18f))
+    drawRect(if (isKids) Color(0xFF118AB2) else Color(0xFFE2B97B), Offset(w * 0.30f, h * 0.10f), Size(w * 0.09f, upperY - h * 0.10f))
     val leaning = Path().apply {
-        moveTo(w * 0.41f, upperY)
-        lineTo(w * 0.48f, h * 0.16f)
-        lineTo(w * 0.55f, h * 0.18f)
-        lineTo(w * 0.48f, upperY)
-        close()
+        moveTo(w * 0.41f, upperY); lineTo(w * 0.48f, h * 0.16f); lineTo(w * 0.55f, h * 0.18f); lineTo(w * 0.48f, upperY); close()
     }
-    drawPath(leaning, Color(0xFF596E79))
-    // Potted succulent
+    drawPath(leaning, if (isKids) Color(0xFF9B5DE5) else Color(0xFF596E79))
     val pot = Path().apply {
-        moveTo(w * 0.72f, h * 0.28f)
-        lineTo(w * 0.88f, h * 0.28f)
-        lineTo(w * 0.85f, upperY)
-        lineTo(w * 0.75f, upperY)
-        close()
+        moveTo(w * 0.72f, h * 0.28f); lineTo(w * 0.88f, h * 0.28f); lineTo(w * 0.85f, upperY); lineTo(w * 0.75f, upperY); close()
     }
     drawPath(pot, Color(0xFFC66E4E))
-    drawCircle(Color(0xFF5D8768), radius = w * 0.065f, center = Offset(w * 0.80f, h * 0.22f))
+    drawCircle(Color(0xFF5D8768), w * 0.065f, Offset(w * 0.80f, h * 0.22f))
 
-    // Lower wooden shelf & shadow
     val lowerY = h * 0.86f
     drawRect(Color.Black.copy(alpha = 0.16f), Offset(w * 0.06f, lowerY + shelfH), Size(w * 0.90f, h * 0.03f))
-    drawRoundRect(palette.woodMid, Offset(w * 0.04f, lowerY), Size(w * 0.92f, shelfH), CornerRadius(4f, 4f))
+    drawRoundRect(if (isKids) Color(0xFFFFB703) else palette.woodMid, Offset(w * 0.04f, lowerY), Size(w * 0.92f, shelfH), CornerRadius(4f, 4f))
 
-    // Organizer box
-    drawRect(Color(0xFF3E4E56), Offset(w * 0.09f, h * 0.60f), Size(w * 0.24f, lowerY - h * 0.60f))
+    drawRect(if (isKids) Color(0xFF118AB2) else Color(0xFF3E4E56), Offset(w * 0.09f, h * 0.60f), Size(w * 0.24f, lowerY - h * 0.60f))
     drawRect(Color(0xFFFAF7F2), Offset(w * 0.14f, h * 0.69f), Size(w * 0.14f, h * 0.04f))
-
-    // Stacked notebooks
     drawRect(Color(0xFFD9A76A), Offset(w * 0.38f, h * 0.79f), Size(w * 0.34f, lowerY - h * 0.79f))
-    drawRect(palette.duvetPrimary, Offset(w * 0.41f, h * 0.72f), Size(w * 0.28f, h * 0.07f))
-
-    // Pen cup
+    drawRect(if (isKids) Color(0xFFFF6B6B) else palette.duvetPrimary, Offset(w * 0.41f, h * 0.72f), Size(w * 0.28f, h * 0.07f))
     drawRect(Color(0xFFF0E5D6), Offset(w * 0.78f, h * 0.71f), Size(w * 0.12f, lowerY - h * 0.71f))
     drawRect(palette.throwBlanket, Offset(w * 0.81f, h * 0.63f), Size(w * 0.025f, h * 0.08f))
     drawRect(palette.duvetPrimary, Offset(w * 0.855f, h * 0.65f), Size(w * 0.02f, h * 0.06f))
 }
 
-private fun DrawScope.drawBed(palette: RoomVisualPalette) {
+private fun DrawScope.drawBed(palette: RoomVisualPalette, isKids: Boolean) {
     val w = size.width
     val h = size.height
 
-    // Soft floor shadow
-    drawRoundRect(
-        color = Color.Black.copy(alpha = if (palette.isDark) 0.40f else 0.16f),
-        topLeft = Offset(w * 0.04f, h * 0.90f),
-        size = Size(w * 0.92f, h * 0.09f),
-        cornerRadius = CornerRadius(10f, 10f)
-    )
-    // Wooden headboard
-    drawRoundRect(
-        color = palette.woodDark,
-        topLeft = Offset(w * 0.03f, h * 0.03f),
-        size = Size(w * 0.86f, h * 0.34f),
-        cornerRadius = CornerRadius(14f, 14f)
-    )
-    // Slatted headboard lines
+    drawRoundRect(Color.Black.copy(alpha = if (palette.isDark) 0.40f else 0.16f), Offset(w * 0.04f, h * 0.90f), Size(w * 0.92f, h * 0.09f), CornerRadius(10f, 10f))
+    drawRoundRect(if (isKids) Color(0xFF118AB2) else palette.woodDark, Offset(w * 0.03f, h * 0.03f), Size(w * 0.86f, h * 0.34f), CornerRadius(14f, 14f))
     drawRect(Color.Black.copy(alpha = 0.14f), Offset(w * 0.07f, h * 0.11f), Size(w * 0.78f, h * 0.022f))
     drawRect(Color.Black.copy(alpha = 0.14f), Offset(w * 0.07f, h * 0.19f), Size(w * 0.78f, h * 0.022f))
 
-    // Crisp mattress base
-    drawRoundRect(
-        color = palette.pillowColor.copy(alpha = 0.94f),
-        topLeft = Offset(w * 0.03f, h * 0.30f),
-        size = Size(w * 0.94f, h * 0.50f),
-        cornerRadius = CornerRadius(10f, 10f)
-    )
-    // Pillows
-    drawRoundRect(
-        color = palette.pillowColor,
-        topLeft = Offset(w * 0.07f, h * 0.21f),
-        size = Size(w * 0.38f, h * 0.18f),
-        cornerRadius = CornerRadius(14f, 14f)
-    )
-    drawRoundRect(
-        color = palette.pillowColor.copy(alpha = 0.90f),
-        topLeft = Offset(w * 0.48f, h * 0.21f),
-        size = Size(w * 0.38f, h * 0.18f),
-        cornerRadius = CornerRadius(14f, 14f)
-    )
-    // Folded sheet lip
-    drawRect(
-        color = palette.pillowColor.copy(alpha = 0.82f),
-        topLeft = Offset(w * 0.03f, h * 0.39f),
-        size = Size(w * 0.94f, h * 0.05f)
-    )
-    // Duvet cover
-    drawRect(
-        color = palette.duvetPrimary,
-        topLeft = Offset(w * 0.03f, h * 0.43f),
-        size = Size(w * 0.94f, h * 0.37f)
-    )
-    // Folded throw blanket at foot of bed
-    drawRect(
-        color = palette.throwBlanket,
-        topLeft = Offset(w * 0.03f, h * 0.64f),
-        size = Size(w * 0.94f, h * 0.16f)
-    )
-    // Wooden bed frame rails & feet
-    drawRect(
-        color = palette.woodDark,
-        topLeft = Offset(w * 0.02f, h * 0.79f),
-        size = Size(w * 0.96f, h * 0.085f)
-    )
-    drawRect(palette.woodDark, Offset(w * 0.06f, h * 0.875f), Size(w * 0.055f, h * 0.10f))
-    drawRect(palette.woodDark, Offset(w * 0.885f, h * 0.875f), Size(w * 0.055f, h * 0.10f))
+    drawRoundRect(palette.pillowColor.copy(alpha = 0.94f), Offset(w * 0.03f, h * 0.30f), Size(w * 0.94f, h * 0.50f), CornerRadius(10f, 10f))
+    drawRoundRect(palette.pillowColor, Offset(w * 0.07f, h * 0.21f), Size(w * 0.38f, h * 0.18f), CornerRadius(14f, 14f))
+    drawRoundRect(palette.pillowColor.copy(alpha = 0.90f), Offset(w * 0.48f, h * 0.21f), Size(w * 0.38f, h * 0.18f), CornerRadius(14f, 14f))
+    drawRect(palette.pillowColor.copy(alpha = 0.82f), Offset(w * 0.03f, h * 0.39f), Size(w * 0.94f, h * 0.05f))
+
+    drawRect(if (isKids) Color(0xFF2EC4B6) else palette.duvetPrimary, Offset(w * 0.03f, h * 0.43f), Size(w * 0.94f, h * 0.37f))
+    if (isKids) {
+        // Cheerful stars on kids duvet
+        listOf(0.22f to 0.52f, 0.50f to 0.55f, 0.78f to 0.51f).forEach { (sx, sy) ->
+            drawCircle(Color(0xFFFFD166), w * 0.032f, Offset(w * sx, h * sy))
+        }
+    }
+    drawRect(if (isKids) Color(0xFFFF6B6B) else palette.throwBlanket, Offset(w * 0.03f, h * 0.64f), Size(w * 0.94f, h * 0.16f))
+    drawRect(if (isKids) Color(0xFF118AB2) else palette.woodDark, Offset(w * 0.02f, h * 0.79f), Size(w * 0.96f, h * 0.085f))
+    drawRect(if (isKids) Color(0xFF0B6887) else palette.woodDark, Offset(w * 0.06f, h * 0.875f), Size(w * 0.055f, h * 0.10f))
+    drawRect(if (isKids) Color(0xFF0B6887) else palette.woodDark, Offset(w * 0.885f, h * 0.875f), Size(w * 0.055f, h * 0.10f))
 }
 
 private fun DrawScope.drawTrashCan(palette: RoomVisualPalette) {
     val w = size.width
     val h = size.height
-
-    // Floor shadow
-    drawOval(
-        color = Color.Black.copy(alpha = if (palette.isDark) 0.42f else 0.18f),
-        topLeft = Offset(w * 0.14f, h * 0.84f),
-        size = Size(w * 0.72f, h * 0.13f)
-    )
-    // Tapered bin body
+    drawOval(Color.Black.copy(alpha = if (palette.isDark) 0.42f else 0.18f), Offset(w * 0.14f, h * 0.84f), Size(w * 0.72f, h * 0.13f))
     val body = Path().apply {
-        moveTo(w * 0.14f, h * 0.18f)
-        lineTo(w * 0.86f, h * 0.18f)
-        lineTo(w * 0.77f, h * 0.89f)
-        lineTo(w * 0.23f, h * 0.89f)
-        close()
+        moveTo(w * 0.14f, h * 0.18f); lineTo(w * 0.86f, h * 0.18f)
+        lineTo(w * 0.77f, h * 0.89f); lineTo(w * 0.23f, h * 0.89f); close()
     }
     drawPath(body, palette.trashBody)
-
-    // Subtle vertical rib highlights
     val rib = Color.White.copy(alpha = 0.16f)
     val ribW = maxOf(2f, w * 0.025f)
-    drawLine(rib, Offset(w * 0.31f, h * 0.28f), Offset(w * 0.35f, h * 0.82f), strokeWidth = ribW, cap = StrokeCap.Round)
-    drawLine(rib, Offset(w * 0.50f, h * 0.28f), Offset(w * 0.50f, h * 0.83f), strokeWidth = ribW, cap = StrokeCap.Round)
-    drawLine(rib, Offset(w * 0.69f, h * 0.28f), Offset(w * 0.65f, h * 0.82f), strokeWidth = ribW, cap = StrokeCap.Round)
+    drawLine(rib, Offset(w * 0.31f, h * 0.28f), Offset(w * 0.35f, h * 0.82f), ribW, StrokeCap.Round)
+    drawLine(rib, Offset(w * 0.50f, h * 0.28f), Offset(w * 0.50f, h * 0.83f), ribW, StrokeCap.Round)
+    drawLine(rib, Offset(w * 0.69f, h * 0.28f), Offset(w * 0.65f, h * 0.82f), ribW, StrokeCap.Round)
+    drawOval(Color(0xFF1F2426), Offset(w * 0.14f, h * 0.11f), Size(w * 0.72f, h * 0.15f))
+    drawOval(palette.trashRim, Offset(w * 0.14f, h * 0.11f), Size(w * 0.72f, h * 0.15f), style = Stroke(width = min(w, h) * 0.038f))
+}
 
-    // Dark top interior
-    drawOval(
-        color = Color(0xFF1F2426),
-        topLeft = Offset(w * 0.14f, h * 0.11f),
-        size = Size(w * 0.72f, h * 0.15f)
-    )
-    // Warm wood/brass rim
-    drawOval(
-        color = palette.trashRim,
-        topLeft = Offset(w * 0.14f, h * 0.11f),
-        size = Size(w * 0.72f, h * 0.15f),
-        style = Stroke(width = min(w, h) * 0.038f)
-    )
+// ==================== MINECRAFT / VOXEL FURNITURE ====================
+
+private fun DrawScope.drawVoxelClock(minutesOfDay: Int) {
+    val s = min(size.width, size.height) * 0.84f
+    val left = (size.width - s) / 2f
+    val top = (size.height - s) / 2f
+    // Chunky gold rimmed square pixel clock
+    drawRect(Color(0xFFD4A017), Offset(left, top), Size(s, s))
+    drawRect(Color(0xFF8A6508), Offset(left, top), Size(s, s), style = Stroke(width = 4f))
+    val inner = s * 0.74f
+    val iLeft = (size.width - inner) / 2f
+    val iTop = (size.height - inner) / 2f
+    drawRect(Color(0xFF284B7A), Offset(iLeft, iTop), Size(inner, inner / 2f))
+    drawRect(Color(0xFF5FA8D3), Offset(iLeft, iTop + inner / 2f), Size(inner, inner / 2f))
+    val cx = size.width / 2f
+    val cy = size.height / 2f
+    val hourAngle = Math.toRadians(((minutesOfDay % 720) / 720.0) * 360.0 - 90.0)
+    val minAngle = Math.toRadians(((minutesOfDay % 60) / 60.0) * 360.0 - 90.0)
+    drawLine(Color(0xFFFFEE58), Offset(cx, cy), Offset(cx + (cos(hourAngle) * inner * 0.34f).toFloat(), cy + (sin(hourAngle) * inner * 0.34f).toFloat()), 5f)
+    drawLine(Color.White, Offset(cx, cy), Offset(cx + (cos(minAngle) * inner * 0.42f).toFloat(), cy + (sin(minAngle) * inner * 0.42f).toFloat()), 3.5f)
+    drawRect(Color(0xFFE53935), Offset(cx - 3f, cy - 3f), Size(6f, 6f))
+}
+
+private fun DrawScope.drawVoxelOakSign() {
+    val w = size.width
+    val h = size.height
+    drawRect(Color(0xFF9C7B49), Offset(w * 0.06f, h * 0.14f), Size(w * 0.88f, h * 0.72f))
+    drawRect(Color(0xFF5C4422), Offset(w * 0.06f, h * 0.14f), Size(w * 0.88f, h * 0.72f), style = Stroke(width = 3.5f))
+    listOf(0.35f, 0.52f, 0.69f).forEach { y ->
+        drawRect(Color(0xFF2B2115), Offset(w * 0.16f, h * y), Size(w * 0.68f, h * 0.06f))
+    }
+}
+
+private fun DrawScope.drawVoxelTv() {
+    val w = size.width
+    val h = size.height
+    // Chunky obsidian monitor
+    drawRect(Color(0xFF1A1426), Offset(w * 0.03f, h * 0.04f), Size(w * 0.94f, h * 0.84f))
+    drawRect(Color(0xFF3E2C59), Offset(w * 0.03f, h * 0.04f), Size(w * 0.94f, h * 0.84f), style = Stroke(width = 4f))
+    drawRect(Color(0xFF242B36), Offset(w * 0.08f, h * 0.10f), Size(w * 0.84f, h * 0.70f))
+    // Pixel sheen squares
+    drawRect(Color.White.copy(alpha = 0.12f), Offset(w * 0.12f, h * 0.16f), Size(w * 0.14f, h * 0.14f))
+    drawRect(Color.White.copy(alpha = 0.08f), Offset(w * 0.22f, h * 0.28f), Size(w * 0.10f, h * 0.10f))
+    // Redstone power LED
+    drawRect(Color(0xFFFF3D00), Offset(w * 0.86f, h * 0.81f), Size(w * 0.05f, h * 0.05f))
+    // Blocky base
+    drawRect(Color(0xFF2B223B), Offset(w * 0.36f, h * 0.88f), Size(w * 0.28f, h * 0.10f))
+}
+
+private fun DrawScope.drawVoxelCraftingAndJukebox() {
+    val w = size.width
+    val h = size.height
+    // Left half: Crafting Table block
+    drawRect(Color(0xFF9E7342), Offset(w * 0.04f, h * 0.08f), Size(w * 0.44f, h * 0.84f))
+    drawRect(Color(0xFF5A3D1E), Offset(w * 0.04f, h * 0.08f), Size(w * 0.44f, h * 0.84f), style = Stroke(width = 3.5f))
+    // Crafting grid lines
+    drawRect(Color(0xFF6B4C2A), Offset(w * 0.10f, h * 0.18f), Size(w * 0.32f, h * 0.44f))
+    // Right half: Jukebox block with glowing diamond disc slot!
+    drawRect(Color(0xFF6E3B28), Offset(w * 0.52f, h * 0.08f), Size(w * 0.44f, h * 0.84f))
+    drawRect(Color(0xFF422115), Offset(w * 0.52f, h * 0.08f), Size(w * 0.44f, h * 0.84f), style = Stroke(width = 3.5f))
+    drawRect(Color(0xFF1A1412), Offset(w * 0.60f, h * 0.34f), Size(w * 0.28f, h * 0.14f))
+    drawRect(Color(0xFF4DD0E1), Offset(w * 0.64f, h * 0.38f), Size(w * 0.20f, h * 0.06f))
+}
+
+private fun DrawScope.drawVoxelBookshelf() {
+    val w = size.width
+    val h = size.height
+    // Iconic Minecraft Bookshelf Block (two rows of chunky pixel books in oak frame)
+    drawRect(Color(0xFFB58E58), Offset(w * 0.04f, h * 0.04f), Size(w * 0.92f, h * 0.92f))
+    drawRect(Color(0xFF5E4524), Offset(w * 0.04f, h * 0.04f), Size(w * 0.92f, h * 0.92f), style = Stroke(width = 4f))
+
+    val bookColors = listOf(Color(0xFFC62828), Color(0xFF2E7D32), Color(0xFF1565C0), Color(0xFFF9A825), Color(0xFF6A1B9A), Color(0xFFE65100))
+    val rows = listOf(h * 0.14f to h * 0.32f, h * 0.54f to h * 0.32f)
+    rows.forEachIndexed { rIdx, (topY, rowH) ->
+        drawRect(Color(0xFF3E2D1A), Offset(w * 0.09f, topY), Size(w * 0.82f, rowH))
+        val bookCount = 6
+        val bw = (w * 0.82f) / bookCount
+        for (i in 0 until bookCount) {
+            val c = bookColors[(i + rIdx * 2) % bookColors.size]
+            drawRect(c, Offset(w * 0.09f + i * bw + 2f, topY + 3f), Size(bw - 4f, rowH - 6f))
+            drawRect(Color.White.copy(alpha = 0.55f), Offset(w * 0.09f + i * bw + 4f, topY + rowH * 0.3f), Size(bw - 8f, 3f))
+        }
+    }
+}
+
+private fun DrawScope.drawVoxelRedBed() {
+    val w = size.width
+    val h = size.height
+    // Classic iconic Red & White Minecraft Bed!
+    // Oak wooden frame base & legs
+    drawRect(Color(0xFF7D5632), Offset(w * 0.03f, h * 0.72f), Size(w * 0.94f, h * 0.14f))
+    drawRect(Color(0xFF5C3E22), Offset(w * 0.05f, h * 0.86f), Size(w * 0.10f, h * 0.12f))
+    drawRect(Color(0xFF5C3E22), Offset(w * 0.85f, h * 0.86f), Size(w * 0.10f, h * 0.12f))
+    // White blocky pillow top section
+    drawRect(Color(0xFFF5F5F5), Offset(w * 0.04f, h * 0.16f), Size(w * 0.92f, h * 0.24f))
+    drawRect(Color(0xFFDCDCDC), Offset(w * 0.08f, h * 0.22f), Size(w * 0.84f, h * 0.12f))
+    // Iconic vibrant red wool blanket block
+    drawRect(Color(0xFFC62828), Offset(w * 0.04f, h * 0.38f), Size(w * 0.92f, h * 0.35f))
+    drawRect(Color(0xFFE53935), Offset(w * 0.08f, h * 0.42f), Size(w * 0.84f, h * 0.24f))
+    // Crisp dark pixel border
+    drawRect(Color(0xFF3A1A1A), Offset(w * 0.04f, h * 0.16f), Size(w * 0.92f, h * 0.57f), style = Stroke(width = 3.5f))
+}
+
+private fun DrawScope.drawVoxelLavaCauldron() {
+    val w = size.width
+    val h = size.height
+    // Chunky dark iron cauldron filled with glowing pixel lava!
+    drawRect(Color(0xFF3E4247), Offset(w * 0.10f, h * 0.14f), Size(w * 0.80f, h * 0.72f))
+    drawRect(Color(0xFF232629), Offset(w * 0.10f, h * 0.14f), Size(w * 0.80f, h * 0.72f), style = Stroke(width = 4f))
+    // Glowing pixel lava inside top rim
+    drawRect(Color(0xFFFF5722), Offset(w * 0.18f, h * 0.18f), Size(w * 0.64f, h * 0.16f))
+    drawRect(Color(0xFFFFC107), Offset(w * 0.26f, h * 0.22f), Size(w * 0.22f, h * 0.08f))
+    drawRect(Color(0xFFFFC107), Offset(w * 0.58f, h * 0.20f), Size(w * 0.16f, h * 0.08f))
+    // Blocky cauldron feet
+    drawRect(Color(0xFF2B2E33), Offset(w * 0.14f, h * 0.86f), Size(w * 0.20f, h * 0.10f))
+    drawRect(Color(0xFF2B2E33), Offset(w * 0.66f, h * 0.86f), Size(w * 0.20f, h * 0.10f))
 }
 
 private fun DrawScope.drawCustomObject(palette: RoomVisualPalette) {
     val w = size.width
     val h = size.height
-    drawRoundRect(
-        color = palette.woodMid.copy(alpha = 0.88f),
-        topLeft = Offset(w * 0.06f, h * 0.10f),
-        size = Size(w * 0.88f, h * 0.80f),
-        cornerRadius = CornerRadius(14f, 14f)
-    )
-    drawRoundRect(
-        color = palette.woodLight,
-        topLeft = Offset(w * 0.06f, h * 0.10f),
-        size = Size(w * 0.88f, h * 0.80f),
-        cornerRadius = CornerRadius(14f, 14f),
-        style = Stroke(width = 3f)
-    )
+    drawRoundRect(palette.woodMid.copy(alpha = 0.88f), Offset(w * 0.06f, h * 0.10f), Size(w * 0.88f, h * 0.80f), CornerRadius(14f, 14f))
+    drawRoundRect(palette.woodLight, Offset(w * 0.06f, h * 0.10f), Size(w * 0.88f, h * 0.80f), CornerRadius(14f, 14f), style = Stroke(width = 3f))
 }

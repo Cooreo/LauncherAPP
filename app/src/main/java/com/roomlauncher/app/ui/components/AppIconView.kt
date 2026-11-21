@@ -10,7 +10,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.FilterQuality
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.Dp
@@ -23,23 +23,21 @@ fun AppIconView(
     size: Dp = 48.dp,
     modifier: Modifier = Modifier
 ) {
-    val shape = RoundedCornerShape(14.dp)
     if (app.icon != null) {
+        // Icon bitmap is pre-rounded in AppRepository to avoid per-frame GPU clip masks during scroll
         Image(
             bitmap = app.icon,
             contentDescription = app.label,
-            contentScale = ContentScale.Crop,
-            modifier = modifier
-                .size(size)
-                .clip(shape)
+            contentScale = ContentScale.Fit,
+            filterQuality = FilterQuality.Low,
+            modifier = modifier.size(size)
         )
     } else {
         Box(
             contentAlignment = Alignment.Center,
             modifier = modifier
                 .size(size)
-                .clip(shape)
-                .background(MaterialTheme.colorScheme.primaryContainer)
+                .background(MaterialTheme.colorScheme.primaryContainer, RoundedCornerShape(12.dp))
         ) {
             Text(
                 text = app.label.take(1).uppercase(),

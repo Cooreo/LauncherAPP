@@ -5,15 +5,21 @@ import android.content.Context
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.graphics.Canvas
+import android.graphics.LinearGradient
 import android.graphics.Paint
 import android.graphics.Path
 import android.graphics.RectF
+import android.graphics.Shader
+import android.os.Build
+import android.util.DisplayMetrics
+import android.view.WindowManager
 import androidx.compose.ui.graphics.toArgb
 import com.roomlauncher.app.data.RoomConfig
 import com.roomlauncher.app.data.RoomHotspot
 import com.roomlauncher.app.data.RoomObjectVisual
 import com.roomlauncher.app.data.WeatherCondition
 import com.roomlauncher.app.data.WeatherState
+import com.roomlauncher.app.ui.theme.RoomStyleId
 import com.roomlauncher.app.ui.theme.RoomThemes
 import com.roomlauncher.app.ui.theme.RoomVisualPalette
 import kotlinx.coroutines.Dispatchers
@@ -27,9 +33,10 @@ import kotlin.math.sin
 object RoomWallpaperRenderer {
 
     /**
-     * Renders the current Room layout (theme + every object at its live normalized coordinates)
-     * into a screen-sized Bitmap and applies it strictly to the Home screen wallpaper
-     * via WallpaperManager.FLAG_SYSTEM (leaving the Lock screen untouched).
+     * Renders the current Room layout (Room Style + Color Palette + every movable object + custom photos)
+     * using the true physical screen aspect ratio and Android SystemUI's ~10% wallpaper overscan zoom
+     * compensation so the mirrored Home wallpaper matches the launcher's exact scale 1:1 (never zoomed in!).
+     * Applies strictly via WallpaperManager.FLAG_SYSTEM so the Lock screen stays untouched.
      */
     suspend fun applyHomeScreenWallpaper(
         context: Context,
@@ -37,87 +44,203 @@ object RoomWallpaperRenderer {
         weather: WeatherState
     ): Boolean = withContext(Dispatchers.IO) {
         runCatching {
-            val metrics = context.resources.displayMetrics
-            val width = metrics.widthPixels.coerceIn(720, 1440)
-            val height = metrics.heightPixels.coerceIn(1280, 3120)
+            val (realW, realH) = getRealDisplaySize(context)
+            val width = realW.coerceIn(720, 1440)
+            val height = realH.coerceIn(1280, 3200)
             val palette = RoomThemes.paletteFor(config.themeId)
 
-            val frameBitmap = config.framePhotoPath?.let { path ->
-                val f = File(path)
-                if (f.exists()) BitmapFactory.decodeFile(path) else null
-            }
+            val frameBitmap = decodeOptionalBitmap(config.framePhotoPath)
+            val posterLeftBitmap = decodeOptionalBitmap(config.posterLeftPath)
+            val posterRightBitmap = decodeOptionalBitmap(config.posterRightPath)
+
+            // Android 11+ SystemUI applies ~10% overscan zoom to home wallpapers at rest.
+            // By rendering the room furniture inside the central 1/1.10 safe viewport and seamlessly
+            // extending the wall/floor into the 5% bleed margin, the displayed Home wallpaper matches 1:1!
+            val overscanFactor = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) 1.10f else 1.0f
+            val viewW = width / overscanFactor
+            val viewH = height / overscanFactor
+            val offsetX = (width - viewW) / 2f
+            val offsetY = (height - viewH) / 2f
 
             val bitmap = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888)
             val canvas = Canvas(bitmap)
-            drawRoomShell(canvas, width.toFloat(), height.toFloat(), palette)
+
+            // Draw full-bleed background shell aligned to the inner viewport floor line
+            val floorY = offsetY + viewH * 0.61f
+            drawFullBleedShell(
+                canvas = canvas,
+                fullW = width.toFloat(),
+                fullH = height.toFloat(),
+                viewLeft = offsetX,
+                viewTop = offsetY,
+                viewW = viewW,
+                viewH = viewH,
+                floorY = floorY,
+                palette = palette,
+                style = config.roomStyleId,
+                posterLeft = posterLeftBitmap,
+                posterRight = posterRightBitmap
+            )
 
             val cal = Calendar.getInstance()
             val minutesOfDay = cal.get(Calendar.HOUR_OF_DAY) * 60 + cal.get(Calendar.MINUTE)
+            val isVoxel = config.roomStyleId == RoomStyleId.MINECRAFT
 
             config.hotspots.forEach { hotspot ->
                 val rect = RectF(
-                    hotspot.x * width,
-                    hotspot.y * height,
-                    (hotspot.x + hotspot.width) * width,
-                    (hotspot.y + hotspot.height) * height
+                    offsetX + hotspot.x * viewW,
+                    offsetY + hotspot.y * viewH,
+                    offsetX + (hotspot.x + hotspot.width) * viewW,
+                    offsetY + (hotspot.y + hotspot.height) * viewH
                 )
-                drawObject(canvas, hotspot, rect, palette, weather, frameBitmap, minutesOfDay)
+                drawObject(canvas, hotspot, rect, palette, isVoxel, weather, frameBitmap, minutesOfDay)
             }
 
             val wm = WallpaperManager.getInstance(context)
+            runCatching { wm.suggestDesiredDimensions(width, height) }
             wm.setBitmap(bitmap, null, true, WallpaperManager.FLAG_SYSTEM)
 
             frameBitmap?.recycle()
+            posterLeftBitmap?.recycle()
+            posterRightBitmap?.recycle()
             bitmap.recycle()
             true
         }.getOrDefault(false)
     }
 
-    private fun drawRoomShell(canvas: Canvas, w: Float, h: Float, p: RoomVisualPalette) {
+    private fun getRealDisplaySize(context: Context): Pair<Int, Int> {
+        val windowManager = context.getSystemService(Context.WINDOW_SERVICE) as? WindowManager
+        if (windowManager != null) {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+                val bounds = windowManager.currentWindowMetrics.bounds
+                if (bounds.width() > 0 && bounds.height() > 0) {
+                    return bounds.width() to bounds.height()
+                }
+            } else {
+                val metrics = DisplayMetrics()
+                @Suppress("DEPRECATION")
+                windowManager.defaultDisplay?.getRealMetrics(metrics)
+                if (metrics.widthPixels > 0 && metrics.heightPixels > 0) {
+                    return metrics.widthPixels to metrics.heightPixels
+                }
+            }
+        }
+        val fallback = context.resources.displayMetrics
+        return fallback.widthPixels to fallback.heightPixels
+    }
+
+    private fun decodeOptionalBitmap(path: String?): Bitmap? {
+        if (path.isNullOrBlank()) return null
+        val f = File(path)
+        return if (f.exists()) runCatching { BitmapFactory.decodeFile(path) }.getOrNull() else null
+    }
+
+    private fun drawFullBleedShell(
+        canvas: Canvas,
+        fullW: Float,
+        fullH: Float,
+        viewLeft: Float,
+        viewTop: Float,
+        viewW: Float,
+        viewH: Float,
+        floorY: Float,
+        palette: RoomVisualPalette,
+        style: RoomStyleId,
+        posterLeft: Bitmap?,
+        posterRight: Bitmap?
+    ) {
         val paint = Paint(Paint.ANTI_ALIAS_FLAG)
-        val floorY = h * 0.61f
 
-        // Wall
-        paint.color = p.wallMain.toArgb()
-        canvas.drawRect(0f, 0f, w, floorY, paint)
-
-        // Upper wall band
-        paint.color = p.wallUpper.toArgb()
-        canvas.drawRect(0f, 0f, w, h * 0.115f, paint)
-
-        // Baseboard
-        paint.color = p.baseboard.toArgb()
-        canvas.drawRect(0f, floorY - h * 0.018f, w, floorY, paint)
-        paint.color = p.baseboardShadow.toArgb()
-        canvas.drawRect(0f, floorY, w, floorY + h * 0.005f, paint)
-
-        // Floor
-        paint.color = p.floorMain.toArgb()
-        canvas.drawRect(0f, floorY + h * 0.005f, w, h, paint)
-
-        // Floor plank seams
-        paint.color = p.floorPlankLine.toArgb()
-        paint.alpha = 95
-        paint.strokeWidth = w * 0.003f
-        listOf(0.68f, 0.75f, 0.83f, 0.91f).forEach { fy ->
-            canvas.drawLine(0f, h * fy, w, h * fy, paint)
+        if (style == RoomStyleId.MINECRAFT) {
+            val oakBase = if (palette.isDark) 0xFF4A3723.toInt() else 0xFFB8945F.toInt()
+            val oakAlt = if (palette.isDark) 0xFF3E2D1C.toInt() else 0xFFA6824F.toInt()
+            paint.color = oakBase
+            canvas.drawRect(0f, 0f, fullW, floorY, paint)
+            val cols = 10
+            val rows = 15
+            val cw = fullW / cols
+            val ch = floorY / rows
+            for (r in 0 until rows) {
+                for (c in 0 until cols) {
+                    if ((r + c) % 3 == 0) {
+                        paint.color = oakAlt
+                        canvas.drawRect(c * cw, r * ch, (c + 1) * cw, (r + 1) * ch, paint)
+                    }
+                }
+            }
+            // Cobblestone strip
+            paint.color = if (palette.isDark) 0xFF3A3D42.toInt() else 0xFF7D8084.toInt()
+            canvas.drawRect(0f, floorY - viewH * 0.055f, fullW, floorY, paint)
+            // Floor
+            paint.color = if (palette.isDark) 0xFF2B2016.toInt() else 0xFF7A5A3A.toInt()
+            canvas.drawRect(0f, floorY, fullW, fullH, paint)
+            // Red wool rug
+            paint.color = if (palette.isDark) 0xFF7A2828.toInt() else 0xFFC63D3D.toInt()
+            canvas.drawRect(viewLeft + viewW * 0.12f, viewTop + viewH * 0.67f, viewLeft + viewW * 0.88f, viewTop + viewH * 0.91f, paint)
+            return
         }
 
-        // Rug
-        paint.alpha = 255
-        paint.color = p.rugFill.toArgb()
-        val rugRect = RectF(w * 0.12f, h * 0.665f, w * 0.88f, h * 0.91f)
-        canvas.drawRoundRect(rugRect, w * 0.035f, w * 0.035f, paint)
+        // Standard / Teen / Kids wall & floor
+        paint.color = palette.wallMain.toArgb()
+        canvas.drawRect(0f, 0f, fullW, floorY, paint)
+        paint.color = palette.wallUpper.toArgb()
+        canvas.drawRect(0f, 0f, fullW, viewTop + viewH * 0.115f, paint)
 
-        paint.style = Paint.Style.STROKE
-        paint.color = p.rugBorder.toArgb()
-        paint.strokeWidth = w * 0.004f
-        canvas.drawRoundRect(
-            RectF(rugRect.left + w * 0.03f, rugRect.top + h * 0.015f, rugRect.right - w * 0.03f, rugRect.bottom - h * 0.015f),
-            w * 0.02f,
-            w * 0.02f,
-            paint
-        )
+        if (style == RoomStyleId.TEEN_ROOM) {
+            // LED strip glow
+            paint.shader = LinearGradient(
+                0f, viewTop + viewH * 0.072f, fullW, viewTop + viewH * 0.072f,
+                intArrayOf(0xFF00F5D4.toInt(), 0xFF9B5DE5.toInt(), 0xFFF15BB5.toInt(), 0xFF00BBF9.toInt()),
+                null,
+                Shader.TileMode.CLAMP
+            )
+            canvas.drawRect(0f, viewTop + viewH * 0.072f, fullW, viewTop + viewH * 0.079f, paint)
+            paint.shader = null
+
+            // Teen posters
+            val leftRect = RectF(viewLeft + viewW * 0.34f, viewTop + viewH * 0.285f, viewLeft + viewW * 0.53f, viewTop + viewH * 0.41f)
+            val rightRect = RectF(viewLeft + viewW * 0.56f, viewTop + viewH * 0.205f, viewLeft + viewW * 0.72f, viewTop + viewH * 0.32f)
+            if (posterLeft != null) {
+                canvas.drawBitmap(posterLeft, null, leftRect, paint)
+            } else {
+                paint.color = 0xFF752F8A.toInt()
+                canvas.drawRect(leftRect, paint)
+            }
+            if (posterRight != null) {
+                canvas.drawBitmap(posterRight, null, rightRect, paint)
+            } else {
+                paint.color = 0xFF1A2238.toInt()
+                canvas.drawRect(rightRect, paint)
+            }
+        } else if (style == RoomStyleId.KIDS_ROOM) {
+            val colors = intArrayOf(0xFFFF6B6B.toInt(), 0xFFFFD166.toInt(), 0xFF06D6A0.toInt(), 0xFF118AB2.toInt(), 0xFFFF9F1C.toInt())
+            val flagCount = 9
+            val flagW = viewW / flagCount
+            val sy = viewTop + viewH * 0.075f
+            for (i in 0 until flagCount) {
+                paint.color = colors[i % colors.size]
+                val p = Path().apply {
+                    moveTo(viewLeft + i * flagW + flagW * 0.08f, sy)
+                    lineTo(viewLeft + (i + 1) * flagW - flagW * 0.08f, sy)
+                    lineTo(viewLeft + (i + 0.5f) * flagW, sy + viewH * 0.036f)
+                    close()
+                }
+                canvas.drawPath(p, paint)
+            }
+        }
+
+        // Baseboard & floor
+        paint.color = palette.baseboard.toArgb()
+        canvas.drawRect(0f, floorY - viewH * 0.018f, fullW, floorY, paint)
+        paint.color = palette.baseboardShadow.toArgb()
+        canvas.drawRect(0f, floorY, fullW, floorY + viewH * 0.005f, paint)
+        paint.color = palette.floorMain.toArgb()
+        canvas.drawRect(0f, floorY + viewH * 0.005f, fullW, fullH, paint)
+
+        // Rug inside inner viewport
+        paint.color = palette.rugFill.toArgb()
+        val rugRect = RectF(viewLeft + viewW * 0.12f, viewTop + viewH * 0.665f, viewLeft + viewW * 0.88f, viewTop + viewH * 0.91f)
+        canvas.drawRoundRect(rugRect, viewW * 0.035f, viewW * 0.035f, paint)
     }
 
     private fun drawObject(
@@ -125,6 +248,7 @@ object RoomWallpaperRenderer {
         hotspot: RoomHotspot,
         r: RectF,
         p: RoomVisualPalette,
+        isVoxel: Boolean,
         weather: WeatherState,
         frameBitmap: Bitmap?,
         minutesOfDay: Int
@@ -145,37 +269,21 @@ object RoomWallpaperRenderer {
                 }
                 paint.color = skyColor
                 canvas.drawRect(r.left + w * 0.08f, r.top + h * 0.06f, r.right - w * 0.08f, r.bottom - h * 0.12f, paint)
-
-                // Sun or Moon
-                if (weather.condition == WeatherCondition.CLEAR_DAY || weather.condition == WeatherCondition.PARTLY_CLOUDY) {
-                    paint.color = 0xFFFFD166.toInt()
-                    canvas.drawCircle(r.left + w * 0.7f, r.top + h * 0.28f, min(w, h) * 0.13f, paint)
-                } else if (weather.condition == WeatherCondition.CLEAR_NIGHT) {
-                    paint.color = 0xFFF3E9B8.toInt()
-                    canvas.drawCircle(r.left + w * 0.7f, r.top + h * 0.28f, min(w, h) * 0.11f, paint)
-                }
-
-                // Frame
                 paint.style = Paint.Style.STROKE
-                paint.color = p.woodLight.toArgb()
+                paint.color = if (isVoxel) 0xFF5C3E24.toInt() else p.woodLight.toArgb()
                 paint.strokeWidth = min(w, h) * 0.055f
                 val pane = RectF(r.left + w * 0.08f, r.top + h * 0.06f, r.right - w * 0.08f, r.bottom - h * 0.12f)
                 canvas.drawRect(pane, paint)
                 canvas.drawLine(pane.centerX(), pane.top, pane.centerX(), pane.bottom, paint)
                 canvas.drawLine(pane.left, pane.centerY(), pane.right, pane.centerY(), paint)
-
-                // Sill
                 paint.style = Paint.Style.FILL
                 paint.color = p.woodMid.toArgb()
-                canvas.drawRoundRect(
-                    RectF(r.left + w * 0.02f, r.bottom - h * 0.13f, r.right - w * 0.02f, r.bottom - h * 0.04f),
-                    4f, 4f, paint
-                )
+                canvas.drawRoundRect(RectF(r.left + w * 0.02f, r.bottom - h * 0.13f, r.right - w * 0.02f, r.bottom - h * 0.04f), 4f, 4f, paint)
             }
 
             RoomObjectVisual.PAINTING -> {
                 paint.color = p.woodDark.toArgb()
-                canvas.drawRoundRect(r, 8f, 8f, paint)
+                canvas.drawRoundRect(r, if (isVoxel) 0f else 8f, if (isVoxel) 0f else 8f, paint)
                 val inner = RectF(r.left + w * 0.09f, r.top + h * 0.09f, r.right - w * 0.09f, r.bottom - h * 0.09f)
                 if (frameBitmap != null && !frameBitmap.isRecycled) {
                     canvas.drawBitmap(frameBitmap, null, inner, paint)
@@ -184,16 +292,6 @@ object RoomWallpaperRenderer {
                     canvas.drawRect(inner, paint)
                     paint.color = 0xFFD97D54.toInt()
                     canvas.drawCircle(inner.left + inner.width() * 0.66f, inner.top + inner.height() * 0.3f, inner.width() * 0.16f, paint)
-                    paint.color = 0xFF4B5D52.toInt()
-                    val hill = Path().apply {
-                        moveTo(inner.left, inner.bottom)
-                        lineTo(inner.left, inner.bottom - inner.height() * 0.28f)
-                        lineTo(inner.centerX(), inner.bottom - inner.height() * 0.45f)
-                        lineTo(inner.right, inner.bottom - inner.height() * 0.22f)
-                        lineTo(inner.right, inner.bottom)
-                        close()
-                    }
-                    canvas.drawPath(hill, paint)
                 }
             }
 
@@ -201,124 +299,98 @@ object RoomWallpaperRenderer {
                 val radius = min(w, h) * 0.44f
                 val cx = r.centerX()
                 val cy = r.centerY()
-                paint.color = p.woodDark.toArgb()
+                paint.color = if (isVoxel) 0xFFD4A017.toInt() else p.woodDark.toArgb()
                 canvas.drawCircle(cx, cy, radius, paint)
                 paint.color = p.clockFace.toArgb()
                 canvas.drawCircle(cx, cy, radius * 0.85f, paint)
-
                 val hourAngle = Math.toRadians(((minutesOfDay % 720) / 720.0) * 360.0 - 90.0)
                 val minAngle = Math.toRadians(((minutesOfDay % 60) / 60.0) * 360.0 - 90.0)
                 paint.color = p.clockHands.toArgb()
                 paint.strokeCap = Paint.Cap.ROUND
                 paint.strokeWidth = radius * 0.09f
-                canvas.drawLine(
-                    cx, cy,
-                    cx + (cos(hourAngle) * radius * 0.46f).toFloat(),
-                    cy + (sin(hourAngle) * radius * 0.46f).toFloat(),
-                    paint
-                )
+                canvas.drawLine(cx, cy, cx + (cos(hourAngle) * radius * 0.46f).toFloat(), cy + (sin(hourAngle) * radius * 0.46f).toFloat(), paint)
                 paint.strokeWidth = radius * 0.06f
-                canvas.drawLine(
-                    cx, cy,
-                    cx + (cos(minAngle) * radius * 0.66f).toFloat(),
-                    cy + (sin(minAngle) * radius * 0.66f).toFloat(),
-                    paint
-                )
-                paint.color = p.clockAccent.toArgb()
-                canvas.drawCircle(cx, cy, radius * 0.09f, paint)
+                canvas.drawLine(cx, cy, cx + (cos(minAngle) * radius * 0.66f).toFloat(), cy + (sin(minAngle) * radius * 0.66f).toFloat(), paint)
             }
 
             RoomObjectVisual.STICKY_NOTE -> {
-                paint.color = p.stickyNoteFill.toArgb()
-                canvas.drawRoundRect(
-                    RectF(r.left + w * 0.08f, r.top + h * 0.12f, r.right - w * 0.08f, r.bottom - h * 0.08f),
-                    6f, 6f, paint
-                )
-                paint.color = p.clockAccent.toArgb()
-                canvas.drawCircle(r.centerX(), r.top + h * 0.16f, min(w, h) * 0.09f, paint)
+                paint.color = if (isVoxel) 0xFF9C7B49.toInt() else p.stickyNoteFill.toArgb()
+                canvas.drawRoundRect(RectF(r.left + w * 0.08f, r.top + h * 0.12f, r.right - w * 0.08f, r.bottom - h * 0.08f), 4f, 4f, paint)
             }
 
             RoomObjectVisual.TV -> {
                 paint.color = p.tvBezel.toArgb()
-                canvas.drawRoundRect(
-                    RectF(r.left + w * 0.03f, r.top + h * 0.04f, r.right - w * 0.03f, r.bottom - h * 0.14f),
-                    12f, 12f, paint
-                )
+                canvas.drawRoundRect(RectF(r.left + w * 0.03f, r.top + h * 0.04f, r.right - w * 0.03f, r.bottom - h * 0.14f), 10f, 10f, paint)
                 paint.color = p.tvScreen.toArgb()
                 canvas.drawRect(r.left + w * 0.07f, r.top + h * 0.11f, r.right - w * 0.07f, r.bottom - h * 0.21f, paint)
-                paint.color = p.tvBezel.toArgb()
-                canvas.drawRect(r.centerX() - w * 0.06f, r.bottom - h * 0.14f, r.centerX() + w * 0.06f, r.bottom - h * 0.04f, paint)
-                canvas.drawRoundRect(
-                    RectF(r.centerX() - w * 0.18f, r.bottom - h * 0.07f, r.centerX() + w * 0.18f, r.bottom - h * 0.02f),
-                    4f, 4f, paint
-                )
             }
 
             RoomObjectVisual.CONSOLE -> {
-                paint.color = p.woodMid.toArgb()
-                canvas.drawRoundRect(
-                    RectF(r.left + w * 0.02f, r.top + h * 0.06f, r.right - w * 0.02f, r.bottom - h * 0.24f),
-                    10f, 10f, paint
-                )
+                paint.color = if (isVoxel) 0xFF9E7342.toInt() else p.woodMid.toArgb()
+                canvas.drawRoundRect(RectF(r.left + w * 0.02f, r.top + h * 0.06f, r.right - w * 0.02f, r.bottom - h * 0.24f), 8f, 8f, paint)
                 paint.color = p.consoleBody.toArgb()
-                canvas.drawRoundRect(
-                    RectF(r.left + w * 0.24f, r.top + h * 0.22f, r.right - w * 0.24f, r.bottom - h * 0.34f),
-                    8f, 8f, paint
-                )
+                canvas.drawRoundRect(RectF(r.left + w * 0.24f, r.top + h * 0.22f, r.right - w * 0.24f, r.bottom - h * 0.34f), 6f, 6f, paint)
                 paint.color = p.consoleAccent.toArgb()
                 canvas.drawRect(r.left + w * 0.30f, r.top + h * 0.36f, r.right - w * 0.30f, r.top + h * 0.43f, paint)
-                paint.color = p.woodDark.toArgb()
-                canvas.drawRect(r.left + w * 0.10f, r.bottom - h * 0.24f, r.left + w * 0.14f, r.bottom - h * 0.02f, paint)
-                canvas.drawRect(r.right - w * 0.14f, r.bottom - h * 0.24f, r.right - w * 0.10f, r.bottom - h * 0.02f, paint)
             }
 
             RoomObjectVisual.SHELF -> {
-                paint.color = p.woodMid.toArgb()
-                canvas.drawRoundRect(RectF(r.left + w * 0.04f, r.top + h * 0.38f, r.right - w * 0.04f, r.top + h * 0.45f), 4f, 4f, paint)
-                canvas.drawRoundRect(RectF(r.left + w * 0.04f, r.top + h * 0.84f, r.right - w * 0.04f, r.top + h * 0.91f), 4f, 4f, paint)
-                paint.color = p.duvetPrimary.toArgb()
-                canvas.drawRect(r.left + w * 0.10f, r.top + h * 0.10f, r.left + w * 0.20f, r.top + h * 0.38f, paint)
-                paint.color = p.throwBlanket.toArgb()
-                canvas.drawRect(r.left + w * 0.22f, r.top + h * 0.16f, r.left + w * 0.31f, r.top + h * 0.38f, paint)
-                paint.color = p.woodLight.toArgb()
-                canvas.drawRect(r.left + w * 0.33f, r.top + h * 0.08f, r.left + w * 0.42f, r.top + h * 0.38f, paint)
+                if (isVoxel) {
+                    paint.color = 0xFFB58E58.toInt()
+                    canvas.drawRect(r, paint)
+                    paint.color = 0xFF3E2D1A.toInt()
+                    canvas.drawRect(r.left + w * 0.09f, r.top + h * 0.14f, r.right - w * 0.09f, r.top + h * 0.46f, paint)
+                    canvas.drawRect(r.left + w * 0.09f, r.top + h * 0.54f, r.right - w * 0.09f, r.top + h * 0.86f, paint)
+                } else {
+                    paint.color = p.woodMid.toArgb()
+                    canvas.drawRoundRect(RectF(r.left + w * 0.04f, r.top + h * 0.38f, r.right - w * 0.04f, r.top + h * 0.45f), 4f, 4f, paint)
+                    canvas.drawRoundRect(RectF(r.left + w * 0.04f, r.top + h * 0.84f, r.right - w * 0.04f, r.top + h * 0.91f), 4f, 4f, paint)
+                }
             }
 
             RoomObjectVisual.BED -> {
-                paint.color = p.woodDark.toArgb()
-                canvas.drawRoundRect(RectF(r.left + w * 0.03f, r.top + h * 0.04f, r.right - w * 0.06f, r.top + h * 0.38f), 14f, 14f, paint)
-                paint.color = p.pillowColor.toArgb()
-                canvas.drawRoundRect(RectF(r.left + w * 0.08f, r.top + h * 0.19f, r.left + w * 0.46f, r.top + h * 0.39f), 14f, 14f, paint)
-                canvas.drawRoundRect(RectF(r.left + w * 0.50f, r.top + h * 0.19f, r.right - w * 0.11f, r.top + h * 0.39f), 14f, 14f, paint)
-                paint.color = p.duvetPrimary.toArgb()
-                canvas.drawRect(r.left + w * 0.03f, r.top + h * 0.39f, r.right - w * 0.03f, r.bottom - h * 0.19f, paint)
-                paint.color = p.throwBlanket.toArgb()
-                canvas.drawRect(r.left + w * 0.03f, r.top + h * 0.62f, r.right - w * 0.03f, r.bottom - h * 0.19f, paint)
-                paint.color = p.woodDark.toArgb()
-                canvas.drawRect(r.left + w * 0.02f, r.bottom - h * 0.20f, r.right - w * 0.02f, r.bottom - h * 0.11f, paint)
-                canvas.drawRect(r.left + w * 0.07f, r.bottom - h * 0.11f, r.left + w * 0.13f, r.bottom - h * 0.02f, paint)
-                canvas.drawRect(r.right - w * 0.13f, r.bottom - h * 0.11f, r.right - w * 0.07f, r.bottom - h * 0.02f, paint)
+                if (isVoxel) {
+                    paint.color = 0xFFF5F5F5.toInt()
+                    canvas.drawRect(r.left + w * 0.04f, r.top + h * 0.16f, r.right - w * 0.04f, r.top + h * 0.40f, paint)
+                    paint.color = 0xFFC62828.toInt()
+                    canvas.drawRect(r.left + w * 0.04f, r.top + h * 0.38f, r.right - w * 0.04f, r.top + h * 0.74f, paint)
+                    paint.color = 0xFF7D5632.toInt()
+                    canvas.drawRect(r.left + w * 0.03f, r.top + h * 0.72f, r.right - w * 0.03f, r.top + h * 0.86f, paint)
+                } else {
+                    paint.color = p.woodDark.toArgb()
+                    canvas.drawRoundRect(RectF(r.left + w * 0.03f, r.top + h * 0.04f, r.right - w * 0.06f, r.top + h * 0.38f), 14f, 14f, paint)
+                    paint.color = p.pillowColor.toArgb()
+                    canvas.drawRoundRect(RectF(r.left + w * 0.08f, r.top + h * 0.19f, r.left + w * 0.46f, r.top + h * 0.39f), 14f, 14f, paint)
+                    canvas.drawRoundRect(RectF(r.left + w * 0.50f, r.top + h * 0.19f, r.right - w * 0.11f, r.top + h * 0.39f), 14f, 14f, paint)
+                    paint.color = p.duvetPrimary.toArgb()
+                    canvas.drawRect(r.left + w * 0.03f, r.top + h * 0.39f, r.right - w * 0.03f, r.bottom - h * 0.19f, paint)
+                    paint.color = p.throwBlanket.toArgb()
+                    canvas.drawRect(r.left + w * 0.03f, r.top + h * 0.62f, r.right - w * 0.03f, r.bottom - h * 0.19f, paint)
+                }
             }
 
             RoomObjectVisual.TRASH_CAN -> {
-                val body = Path().apply {
-                    moveTo(r.left + w * 0.14f, r.top + h * 0.18f)
-                    lineTo(r.right - w * 0.14f, r.top + h * 0.18f)
-                    lineTo(r.right - w * 0.22f, r.bottom - h * 0.08f)
-                    lineTo(r.left + w * 0.22f, r.bottom - h * 0.08f)
-                    close()
+                if (isVoxel) {
+                    paint.color = 0xFF3E4247.toInt()
+                    canvas.drawRect(r.left + w * 0.10f, r.top + h * 0.14f, r.right - w * 0.10f, r.bottom - h * 0.14f, paint)
+                    paint.color = 0xFFFF5722.toInt()
+                    canvas.drawRect(r.left + w * 0.18f, r.top + h * 0.18f, r.right - w * 0.18f, r.top + h * 0.34f, paint)
+                } else {
+                    val body = Path().apply {
+                        moveTo(r.left + w * 0.14f, r.top + h * 0.18f)
+                        lineTo(r.right - w * 0.14f, r.top + h * 0.18f)
+                        lineTo(r.right - w * 0.22f, r.bottom - h * 0.08f)
+                        lineTo(r.left + w * 0.22f, r.bottom - h * 0.08f)
+                        close()
+                    }
+                    paint.color = p.trashBody.toArgb()
+                    canvas.drawPath(body, paint)
                 }
-                paint.color = p.trashBody.toArgb()
-                canvas.drawPath(body, paint)
-                paint.color = p.trashRim.toArgb()
-                paint.style = Paint.Style.STROKE
-                paint.strokeWidth = min(w, h) * 0.04f
-                canvas.drawOval(RectF(r.left + w * 0.14f, r.top + h * 0.10f, r.right - w * 0.14f, r.top + h * 0.26f), paint)
             }
 
             RoomObjectVisual.CUSTOM -> {
                 paint.color = p.woodMid.toArgb()
-                canvas.drawRoundRect(r, 16f, 16f, paint)
+                canvas.drawRoundRect(r, 14f, 14f, paint)
             }
         }
     }
