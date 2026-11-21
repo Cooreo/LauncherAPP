@@ -375,7 +375,7 @@ fun RoomScreen(
                     RoomShellCanvas(
                         palette = palette,
                         roomStyle = uiState.config.roomStyleId,
-                        roomType = roomPage.roomType,
+                        roomType = roomPage.type,
                         gdSubTheme = uiState.config.geometryDashSubTheme,
                         posterLeftBitmap = uiState.posterLeftBitmap,
                         posterRightBitmap = uiState.posterRightBitmap,

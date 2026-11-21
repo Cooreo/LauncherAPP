@@ -353,7 +353,7 @@ fun SettingsSheet(
                                             }
                                         }
                                         Text(
-                                            text = "${room.roomType.defaultTitle} • ${room.hotspots.size} objects",
+                                            text = "${room.type.displayName} • ${room.hotspots.size} objects",
                                             style = MaterialTheme.typography.bodySmall,
                                             color = MaterialTheme.colorScheme.onSurfaceVariant
                                         )
@@ -1365,7 +1365,7 @@ fun SettingsSheet(
                                     onClick = { selectedType = type },
                                     label = {
                                         Text(
-                                            text = type.defaultTitle,
+                                            text = type.displayName,
                                             fontWeight = if (selectedType == type) FontWeight.SemiBold else FontWeight.Normal
                                         )
                                     },
@@ -1383,7 +1383,7 @@ fun SettingsSheet(
                         value = customName,
                         onValueChange = { customName = it },
                         label = { Text("Custom Room Name (optional)") },
-                        placeholder = { Text(selectedType.defaultTitle) },
+                        placeholder = { Text(selectedType.displayName) },
                         singleLine = true,
                         shape = RoundedCornerShape(12.dp),
                         modifier = Modifier.fillMaxWidth()

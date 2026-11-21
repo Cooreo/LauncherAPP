@@ -11,6 +11,8 @@ data class ChangelogEntry(
 )
 
 object ChangelogData {
+    const val CURRENT_VERSION = "3.0"
+
     val entries: List<ChangelogEntry> = listOf(
         ChangelogEntry(
             version = "3.0",

@@ -473,14 +473,14 @@ class RoomLauncherViewModel(application: Application) : AndroidViewModel(applica
 
     fun addRoom(roomType: RoomType, customName: String = "") {
         val existingRooms = _uiState.value.rooms
-        val baseName = customName.trim().ifEmpty { roomType.defaultTitle }
+        val baseName = customName.trim().ifEmpty { roomType.displayName }
         val sameCount = existingRooms.count { it.name.equals(baseName, ignoreCase = true) }
         val finalName = if (sameCount > 0) "$baseName ${sameCount + 1}" else baseName
 
         val created = RoomConfigRepository.createPresetRoom(
-            roomType = roomType,
-            customName = finalName,
-            uniqueSuffix = UUID.randomUUID().toString().take(6)
+            type = roomType,
+            id = "room_${UUID.randomUUID().toString().take(8)}",
+            name = finalName
         )
         val installed = _uiState.value.installedApps
         val targetIndex = existingRooms.size

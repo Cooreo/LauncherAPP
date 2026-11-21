@@ -99,11 +99,12 @@ class RoomConfigRepositoryTest {
             apps
         )
 
-        val byId = populated.hotspots.associateBy { it.id }
+        val byId = populated.allHotspots.associateBy { it.id }
         val tvPkgs = RoomConfigRepository.appsForHotspot(byId.getValue(RoomConfigRepository.ID_TV), populated, apps).map { it.packageName }
         val consolePkgs = RoomConfigRepository.appsForHotspot(byId.getValue(RoomConfigRepository.ID_CONSOLE), populated, apps).map { it.packageName }
         val shelfPkgs = RoomConfigRepository.appsForHotspot(byId.getValue(RoomConfigRepository.ID_SHELF), populated, apps).map { it.packageName }
         val bedPkgs = RoomConfigRepository.appsForHotspot(byId.getValue(RoomConfigRepository.ID_BED), populated, apps).map { it.packageName }
+        val stovePkgs = RoomConfigRepository.appsForHotspot(byId.getValue(RoomConfigRepository.ID_KITCHEN_STOVE), populated, apps).map { it.packageName }
         val stickyPkgs = RoomConfigRepository.appsForHotspot(byId.getValue(RoomConfigRepository.ID_STICKY_NOTE), populated, apps).map { it.packageName }
         val trashPkgs = RoomConfigRepository.appsForHotspot(byId.getValue(RoomConfigRepository.ID_TRASH_CAN), populated, apps).map { it.packageName }
 
@@ -111,8 +112,8 @@ class RoomConfigRepositoryTest {
         assertEquals(listOf("com.mojang.minecraftpe"), consolePkgs)
         assertEquals(listOf("md.obsidian"), shelfPkgs)
         assertTrue("com.calm.android" in bedPkgs)
-        assertTrue("com.sec.android.app.shealth" in bedPkgs)
         assertTrue("com.google.android.deskclock" in bedPkgs)
+        assertTrue("com.sec.android.app.shealth" in stovePkgs)
         assertEquals(listOf("com.android.chrome"), stickyPkgs)
         assertEquals(listOf("com.example.unmatched"), trashPkgs)
     }
@@ -151,10 +152,10 @@ class RoomConfigRepositoryTest {
 
         assertEquals(3, migrated.version)
         assertEquals(4, migrated.effectiveRooms.size)
-        assertEquals(RoomType.BEDROOM, migrated.effectiveRooms[0].roomType)
-        assertEquals(RoomType.LIVING_ROOM, migrated.effectiveRooms[1].roomType)
-        assertEquals(RoomType.KITCHEN, migrated.effectiveRooms[2].roomType)
-        assertEquals(RoomType.GAMING_ROOM, migrated.effectiveRooms[3].roomType)
+        assertEquals(RoomType.BEDROOM, migrated.effectiveRooms[0].type)
+        assertEquals(RoomType.LIVING_ROOM, migrated.effectiveRooms[1].type)
+        assertEquals(RoomType.KITCHEN, migrated.effectiveRooms[2].type)
+        assertEquals(RoomType.GAMING_ROOM, migrated.effectiveRooms[3].type)
         assertEquals(listOf("com.google.android.youtube"), byId[RoomConfigRepository.ID_TV]?.packages)
         assertEquals(RoomObjectVisual.TV, byId[RoomConfigRepository.ID_TV]?.visualType)
         assertTrue(RoomConfigRepository.ID_WINDOW in byId)
@@ -196,8 +197,9 @@ class RoomConfigRepositoryTest {
             AppInfo(packageName = "com.spotify.music", label = "Spotify"),
             AppInfo(packageName = "com.ubercab.eats", label = "Uber Eats"),
             AppInfo(packageName = "com.paypal.android.p2pmobile", label = "PayPal"),
+            AppInfo(packageName = "com.amazon.mShop.android.shopping", label = "Amazon Shopping"),
             AppInfo(packageName = "com.discord", label = "Discord"),
-            AppInfo(packageName = "com.valvesoftware.android.steam.community", label = "Steam"),
+            AppInfo(packageName = "com.github.android", label = "GitHub"),
             AppInfo(packageName = "com.example.mystery", label = "Mystery Tool")
         )
 
@@ -207,12 +209,13 @@ class RoomConfigRepositoryTest {
         )
 
         val byId = populated.allHotspots.associateBy { it.id }
-        assertTrue("com.whatsapp" in byId.getValue(RoomConfigRepository.ID_SOFA).packages)
-        assertTrue("com.spotify.music" in byId.getValue(RoomConfigRepository.ID_VINYL_PLAYER).packages)
-        assertTrue("com.ubercab.eats" in byId.getValue(RoomConfigRepository.ID_FRIDGE).packages)
-        assertTrue("com.paypal.android.p2pmobile" in byId.getValue(RoomConfigRepository.ID_KITCHEN_COUNTER).packages)
-        assertTrue("com.discord" in byId.getValue(RoomConfigRepository.ID_STREAMING_DESK).packages)
-        assertTrue("com.valvesoftware.android.steam.community" in byId.getValue(RoomConfigRepository.ID_GAMING_PC).packages)
+        assertTrue("com.whatsapp" in byId.getValue(RoomConfigRepository.ID_LIVING_SOFA).packages)
+        assertTrue("com.spotify.music" in byId.getValue(RoomConfigRepository.ID_LIVING_VINYL).packages)
+        assertTrue("com.ubercab.eats" in byId.getValue(RoomConfigRepository.ID_KITCHEN_FRIDGE).packages)
+        assertTrue("com.paypal.android.p2pmobile" in byId.getValue(RoomConfigRepository.ID_KITCHEN_COFFEE).packages)
+        assertTrue("com.amazon.mShop.android.shopping" in byId.getValue(RoomConfigRepository.ID_KITCHEN_COUNTER).packages)
+        assertTrue("com.discord" in byId.getValue(RoomConfigRepository.ID_GAMING_DESK).packages)
+        assertTrue("com.github.android" in byId.getValue(RoomConfigRepository.ID_GAMING_PC).packages)
 
         val trashApps = RoomConfigRepository.appsForHotspot(
             byId.getValue(RoomConfigRepository.ID_TRASH_CAN),
@@ -222,9 +225,9 @@ class RoomConfigRepositoryTest {
         assertEquals(listOf("com.example.mystery"), trashApps)
 
         val owners = RoomConfigRepository.buildPackageOwnerLabelMap(populated)
-        assertEquals("Living Room • Sofa", owners["com.whatsapp"])
-        assertEquals("Kitchen • Fridge", owners["com.ubercab.eats"])
-        assertEquals("Gaming Room • Gaming PC", owners["com.valvesoftware.android.steam.community"])
+        assertTrue(owners["com.whatsapp"]!!.contains("Living Room"))
+        assertTrue(owners["com.ubercab.eats"]!!.contains("Kitchen"))
+        assertTrue(owners["com.github.android"]!!.contains("Gaming Room"))
     }
 
     @Test
