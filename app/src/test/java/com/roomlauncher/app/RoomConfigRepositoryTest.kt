@@ -164,4 +164,51 @@ class RoomConfigRepositoryTest {
         assertEquals(RoomThemeId.OLED_PITCH, RoomThemes.dynamicThemeForHour(21))
         assertEquals(RoomThemeId.OLED_PITCH, RoomThemes.dynamicThemeForHour(3))
     }
+
+    @Test
+    fun corruptedPrimaryConfigRecoversFromBackupWithoutLosingUserData() = runTest {
+        val file = File(tempFolder.root, "room_config.json")
+        val repo = RoomConfigRepository(file)
+
+        val saved = RoomConfigRepository.createDefaultRoomConfig().copy(
+            onboardingCompleted = true,
+            onboardingStep = 3,
+            roomStyleId = RoomStyleId.MINECRAFT,
+            themeId = RoomThemeId.OLED_PITCH,
+            webShortcuts = listOf(WebShortcut("w9", "Docs", "https://example.com"))
+        )
+        repo.saveConfig(saved)
+
+        // Simulate abrupt truncation / corruption of the primary file during an OS update or crash
+        file.writeText("{ truncated json ", Charsets.UTF_8)
+
+        val recovered = repo.loadConfig()
+        assertEquals(saved, recovered)
+    }
+
+    @Test
+    fun unknownEnumValuesCoerceToDefaultsInsteadOfWipingConfig() = runTest {
+        val file = File(tempFolder.root, "room_config.json")
+        val repo = RoomConfigRepository(file)
+
+        file.writeText(
+            """
+            {
+              "version": 2,
+              "onboardingCompleted": true,
+              "onboardingStep": 3,
+              "roomStyleId": "FUTURE_UNKNOWN_STYLE",
+              "themeId": "OLED_PITCH",
+              "webShortcuts": [{"id": "s1", "title": "News", "url": "https://news.ycombinator.com"}]
+            }
+            """.trimIndent(),
+            Charsets.UTF_8
+        )
+
+        val loaded = repo.loadConfig()
+        assertTrue(loaded.onboardingCompleted)
+        assertEquals(RoomStyleId.COZY_MINIMALIST, loaded.roomStyleId)
+        assertEquals(RoomThemeId.OLED_PITCH, loaded.themeId)
+        assertEquals(1, loaded.webShortcuts.size)
+    }
 }

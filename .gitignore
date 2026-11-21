@@ -45,6 +45,8 @@ captures/
 # Keystore files
 *.jks
 *.keystore
+# Keep deterministic project signing keystore so CI updates upgrade in-place without wiping data
+!app/roomlauncher-debug.keystore
 
 # OS files
 .DS_Store

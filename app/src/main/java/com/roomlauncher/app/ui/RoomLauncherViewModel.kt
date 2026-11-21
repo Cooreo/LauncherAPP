@@ -284,7 +284,8 @@ class RoomLauncherViewModel(application: Application) : AndroidViewModel(applica
         val state = _uiState.value
 
         val shouldAutoCompleteOnboarding =
-            !state.config.onboardingCompleted &&
+            state.isLoaded &&
+                !state.config.onboardingCompleted &&
                 state.config.onboardingStep >= 3 &&
                 isDefault
 
@@ -1227,6 +1228,68 @@ class RoomLauncherViewModel(application: Application) : AndroidViewModel(applica
         }
     }
 
+    fun exportRoomBackup(targetUri: Uri) {
+        viewModelScope.launch {
+            val serialized = configRepository.encodeConfig(_uiState.value.config)
+            val saved = withContext(Dispatchers.IO) {
+                runCatching {
+                    appContext.contentResolver.openOutputStream(targetUri)?.use { os ->
+                        os.write(serialized.toByteArray(Charsets.UTF_8))
+                        os.flush()
+                        true
+                    } ?: false
+                }.getOrDefault(false)
+            }
+            Toast.makeText(
+                appContext,
+                if (saved) "Room backup exported!" else "Could not export backup",
+                Toast.LENGTH_SHORT
+            ).show()
+        }
+    }
+
+    fun importRoomBackup(sourceUri: Uri) {
+        viewModelScope.launch {
+            val imported = withContext(Dispatchers.IO) {
+                runCatching {
+                    val raw = appContext.contentResolver.openInputStream(sourceUri)
+                        ?.bufferedReader(Charsets.UTF_8)
+                        ?.use { it.readText() }
+                        ?: return@runCatching null
+                    configRepository.decodeConfig(raw)
+                }.getOrNull()
+            }
+            if (imported == null) {
+                Toast.makeText(appContext, "Invalid Room Launcher backup file", Toast.LENGTH_LONG).show()
+                return@launch
+            }
+            val current = _uiState.value.config
+            val sanitized = imported.copy(
+                onboardingCompleted = true,
+                onboardingStep = 3,
+                autoPopulated = true,
+                framePhotoPath = imported.framePhotoPath?.takeIf { File(it).exists() } ?: current.framePhotoPath,
+                posterLeftPath = imported.posterLeftPath?.takeIf { File(it).exists() } ?: current.posterLeftPath,
+                posterRightPath = imported.posterRightPath?.takeIf { File(it).exists() } ?: current.posterRightPath
+            )
+            configRepository.saveConfig(sanitized)
+            _uiState.update { state ->
+                state.copy(
+                    config = sanitized,
+                    musicDisplayMode = sanitized.musicDefaultMode,
+                    packageOwnerLabels = RoomConfigRepository.buildPackageOwnerLabelMap(sanitized),
+                    defaultUnsortedLabel = RoomConfigRepository.defaultUnsortedLabel(sanitized),
+                    editingHotspotId = null,
+                    activeHotspotId = null
+                )
+            }
+            if (sanitized.mirrorHomeWallpaper) {
+                syncHomeWallpaperNow(showToast = false)
+            }
+            Toast.makeText(appContext, "Room backup restored!", Toast.LENGTH_SHORT).show()
+        }
+    }
+
     private suspend fun loadFrameBitmap(path: String?): ImageBitmap? = withContext(Dispatchers.IO) {
         if (path.isNullOrBlank()) return@withContext null
         val f = File(path)
@@ -1237,6 +1300,7 @@ class RoomLauncherViewModel(application: Application) : AndroidViewModel(applica
     private fun updateConfig(transform: (RoomConfig) -> RoomConfig) {
         var updatedConfig: RoomConfig? = null
         _uiState.update { state ->
+            if (!state.isLoaded) return@update state
             val next = transform(state.config)
             updatedConfig = next
             state.copy(

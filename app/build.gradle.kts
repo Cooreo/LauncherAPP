@@ -13,8 +13,8 @@ android {
         applicationId = "com.roomlauncher.app"
         minSdk = 26
         targetSdk = 35
-        versionCode = 8
-        versionName = "2.5"
+        versionCode = 9
+        versionName = "2.5.1"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         vectorDrawables {
@@ -22,11 +22,23 @@ android {
         }
     }
 
+    signingConfigs {
+        create("roomLauncher") {
+            storeFile = file("roomlauncher-debug.keystore")
+            storePassword = "android"
+            keyAlias = "androiddebugkey"
+            keyPassword = "android"
+        }
+    }
+
     buildTypes {
+        debug {
+            signingConfig = signingConfigs.getByName("roomLauncher")
+        }
         release {
             isMinifyEnabled = false
             isDebuggable = false
-            signingConfig = signingConfigs.getByName("debug")
+            signingConfig = signingConfigs.getByName("roomLauncher")
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
