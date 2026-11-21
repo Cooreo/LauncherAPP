@@ -8,6 +8,8 @@ import android.graphics.Canvas
 import android.graphics.LinearGradient
 import android.graphics.Paint
 import android.graphics.Path
+import android.graphics.RadialGradient
+import android.graphics.Rect
 import android.graphics.RectF
 import android.graphics.Shader
 import android.os.Build
@@ -217,17 +219,17 @@ object RoomWallpaperRenderer {
             canvas.drawRect(0f, ledY, fullW, ledY + viewH * 0.0065f, paint)
             paint.shader = null
 
-            // Teen posters
+            // Teen posters (properly center-cropped, never stretched!)
             val leftRect = RectF(viewLeft + viewW * 0.34f, viewTop + viewH * 0.285f, viewLeft + viewW * 0.53f, viewTop + viewH * 0.41f)
             val rightRect = RectF(viewLeft + viewW * 0.56f, viewTop + viewH * 0.205f, viewLeft + viewW * 0.72f, viewTop + viewH * 0.32f)
             if (posterLeft != null) {
-                canvas.drawBitmap(posterLeft, null, leftRect, paint)
+                drawBitmapCenterCrop(canvas, posterLeft, leftRect, paint)
             } else {
                 paint.color = 0xFF752F8A.toInt()
                 canvas.drawRect(leftRect, paint)
             }
             if (posterRight != null) {
-                canvas.drawBitmap(posterRight, null, rightRect, paint)
+                drawBitmapCenterCrop(canvas, posterRight, rightRect, paint)
             } else {
                 paint.color = 0xFF1A2238.toInt()
                 canvas.drawRect(rightRect, paint)
@@ -287,12 +289,26 @@ object RoomWallpaperRenderer {
                     WeatherCondition.SNOW -> 0xFFBCCBD6.toInt()
                     WeatherCondition.THUNDERSTORM -> 0xFF394659.toInt()
                 }
+                val pane = RectF(r.left + w * 0.08f, r.top + h * 0.06f, r.right - w * 0.08f, r.bottom - h * 0.12f)
                 paint.color = skyColor
-                canvas.drawRect(r.left + w * 0.08f, r.top + h * 0.06f, r.right - w * 0.08f, r.bottom - h * 0.12f, paint)
+                canvas.drawRect(pane, paint)
+                // Mirror temperature frost (< 0°C) or fogged condensation (< 10°C) on wallpaper window!
+                val tempC = weather.temperatureC
+                if (tempC != null && tempC < 10) {
+                    paint.shader = RadialGradient(
+                        pane.centerX(), pane.centerY(),
+                        min(pane.width(), pane.height()) * 0.85f,
+                        if (tempC < 0) intArrayOf(0x22DDF3FF, 0x66C7EBFF, 0xB8E6F7FF.toInt())
+                        else intArrayOf(0x18FFFFFF, 0x55EBF4FA, 0x9CE2EEF7.toInt()),
+                        floatArrayOf(0f, 0.55f, 1f),
+                        Shader.TileMode.CLAMP
+                    )
+                    canvas.drawRect(pane, paint)
+                    paint.shader = null
+                }
                 paint.style = Paint.Style.STROKE
                 paint.color = if (isVoxel) 0xFF5C3E24.toInt() else p.woodLight.toArgb()
                 paint.strokeWidth = min(w, h) * 0.055f
-                val pane = RectF(r.left + w * 0.08f, r.top + h * 0.06f, r.right - w * 0.08f, r.bottom - h * 0.12f)
                 canvas.drawRect(pane, paint)
                 canvas.drawLine(pane.centerX(), pane.top, pane.centerX(), pane.bottom, paint)
                 canvas.drawLine(pane.left, pane.centerY(), pane.right, pane.centerY(), paint)
@@ -302,11 +318,17 @@ object RoomWallpaperRenderer {
             }
 
             RoomObjectVisual.PAINTING -> {
-                paint.color = p.woodDark.toArgb()
-                canvas.drawRoundRect(r, if (isVoxel) 0f else 8f, if (isVoxel) 0f else 8f, paint)
-                val inner = RectF(r.left + w * 0.09f, r.top + h * 0.09f, r.right - w * 0.09f, r.bottom - h * 0.09f)
+                val frameRect = RectF(r.left + w * 0.03f, r.top + h * 0.03f, r.right - w * 0.03f, r.bottom - h * 0.03f)
+                paint.color = if (isVoxel) 0xFF6B4828.toInt() else p.woodDark.toArgb()
+                canvas.drawRoundRect(frameRect, if (isVoxel) 0f else 8f, if (isVoxel) 0f else 8f, paint)
+                // Warm cream gallery mat
+                val matRect = RectF(r.left + w * 0.10f, r.top + h * 0.10f, r.right - w * 0.10f, r.bottom - h * 0.10f)
+                paint.color = 0xFFFAF6EE.toInt()
+                canvas.drawRect(matRect, paint)
+                // Symmetrical recessed photo aperture
+                val inner = RectF(r.left + w * 0.155f, r.top + h * 0.155f, r.right - w * 0.155f, r.bottom - h * 0.155f)
                 if (frameBitmap != null && !frameBitmap.isRecycled) {
-                    canvas.drawBitmap(frameBitmap, null, inner, paint)
+                    drawBitmapCenterCrop(canvas, frameBitmap, inner, paint)
                 } else {
                     paint.color = 0xFFE9C7A6.toInt()
                     canvas.drawRect(inner, paint)
@@ -413,5 +435,26 @@ object RoomWallpaperRenderer {
                 canvas.drawRoundRect(r, 14f, 14f, paint)
             }
         }
+    }
+
+    private fun drawBitmapCenterCrop(canvas: Canvas, bitmap: Bitmap, dst: RectF, paint: Paint) {
+        if (bitmap.isRecycled || bitmap.width <= 0 || bitmap.height <= 0 || dst.width() <= 0f || dst.height() <= 0f) {
+            return
+        }
+        val bmpAspect = bitmap.width.toFloat() / bitmap.height.toFloat()
+        val dstAspect = dst.width() / dst.height()
+        val src = if (bmpAspect > dstAspect) {
+            // Bitmap is wider than destination -> crop left & right symmetrically
+            val targetW = (bitmap.height * dstAspect).toInt().coerceIn(1, bitmap.width)
+            val left = (bitmap.width - targetW) / 2
+            Rect(left, 0, left + targetW, bitmap.height)
+        } else {
+            // Bitmap is taller than destination -> crop top & bottom symmetrically
+            val targetH = (bitmap.width / dstAspect).toInt().coerceIn(1, bitmap.height)
+            val top = (bitmap.height - targetH) / 2
+            Rect(0, top, bitmap.width, top + targetH)
+        }
+        val bmpPaint = Paint(Paint.ANTI_ALIAS_FLAG or Paint.FILTER_BITMAP_FLAG)
+        canvas.drawBitmap(bitmap, src, dst, bmpPaint)
     }
 }

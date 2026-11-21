@@ -1,6 +1,7 @@
 package com.roomlauncher.app.data
 
 import androidx.compose.runtime.Immutable
+import com.roomlauncher.app.ui.theme.ChargingAnimationStyle
 import com.roomlauncher.app.ui.theme.RoomStyleId
 import com.roomlauncher.app.ui.theme.RoomThemeId
 import kotlinx.serialization.Serializable
@@ -68,8 +69,10 @@ data class RoomConfig(
     val autoPopulated: Boolean = false,
     val roomStyleId: RoomStyleId = RoomStyleId.COZY_MINIMALIST,
     val themeId: RoomThemeId = RoomThemeId.WARM_LINEN,
+    val dynamicThemeEnabled: Boolean = false,
     val useQuickAnimations: Boolean = false,
     val chargingAnimationEnabled: Boolean = true,
+    val chargingAnimationStyle: ChargingAnimationStyle = ChargingAnimationStyle.MATCH_ROOM,
     val weatherEnabled: Boolean = true,
     val mirrorHomeWallpaper: Boolean = false,
     val framePhotoPath: String? = null,

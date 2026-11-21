@@ -60,6 +60,7 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.roomlauncher.app.ui.RoomUiState
+import com.roomlauncher.app.ui.theme.ChargingAnimationStyle
 import com.roomlauncher.app.ui.theme.RoomStyleId
 import com.roomlauncher.app.ui.theme.RoomThemeId
 import com.roomlauncher.app.ui.theme.RoomThemes
@@ -69,10 +70,12 @@ fun SettingsSheet(
     uiState: RoomUiState,
     onSelectRoomStyle: (RoomStyleId) -> Unit,
     onSelectTheme: (RoomThemeId) -> Unit,
+    onToggleDynamicTheme: (Boolean) -> Unit,
     onPickTeenPoster: (isLeft: Boolean, uri: Uri) -> Unit,
     onClearTeenPoster: (isLeft: Boolean) -> Unit,
     onToggleQuickAnimations: (Boolean) -> Unit,
     onToggleChargingAnimation: (Boolean) -> Unit,
+    onSelectChargingAnimationStyle: (ChargingAnimationStyle) -> Unit,
     onPreviewChargingAnimation: () -> Unit,
     onToggleWeather: (Boolean) -> Unit,
     onRefreshWeather: () -> Unit,
@@ -142,7 +145,7 @@ fun SettingsSheet(
                         color = MaterialTheme.colorScheme.onBackground
                     )
                     Text(
-                        text = "Room Launcher v2.2",
+                        text = "Room Launcher v2.3",
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
@@ -275,7 +278,7 @@ fun SettingsSheet(
                     }
                 }
 
-                // 2. Color Palettes (Light + Multiple Dark Themes)
+                // 2. Color Palettes (Dynamic Time-of-Day + Light & Dark Themes)
                 SettingsSectionCard(
                     icon = Icons.Rounded.Palette,
                     title = "Color Palettes",
@@ -283,6 +286,57 @@ fun SettingsSheet(
                 ) {
                     val themes = RoomThemeId.entries
                     Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                        // Dynamic Time-of-Day Theme toggle
+                        Surface(
+                            shape = RoundedCornerShape(14.dp),
+                            color = if (uiState.config.dynamicThemeEnabled) {
+                                MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.5f)
+                            } else {
+                                MaterialTheme.colorScheme.surface
+                            },
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .border(
+                                    width = if (uiState.config.dynamicThemeEnabled) 1.5.dp else 1.dp,
+                                    color = if (uiState.config.dynamicThemeEnabled) {
+                                        MaterialTheme.colorScheme.primary
+                                    } else {
+                                        MaterialTheme.colorScheme.outlineVariant
+                                    },
+                                    shape = RoundedCornerShape(14.dp)
+                                )
+                        ) {
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(horizontal = 12.dp, vertical = 10.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.SpaceBetween
+                            ) {
+                                Column(modifier = Modifier.weight(1f).padding(end = 10.dp)) {
+                                    Text(
+                                        text = "Dynamic Time-of-Day Theme",
+                                        style = MaterialTheme.typography.titleSmall,
+                                        fontWeight = FontWeight.SemiBold,
+                                        color = MaterialTheme.colorScheme.onSurface
+                                    )
+                                    Text(
+                                        text = if (uiState.config.dynamicThemeEnabled) {
+                                            "Active now: ${uiState.effectiveThemeId.displayName} (6 AM Warm Linen • 3 PM Midnight Cozy • 9 PM OLED Pitch)"
+                                        } else {
+                                            "Day: Warm Linen • 3 PM: Midnight Cozy • Night: OLED Pitch"
+                                        },
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
+                                }
+                                Switch(
+                                    checked = uiState.config.dynamicThemeEnabled,
+                                    onCheckedChange = onToggleDynamicTheme
+                                )
+                            }
+                        }
+
                         themes.chunked(2).forEach { rowItems ->
                             Row(
                                 modifier = Modifier.fillMaxWidth(),
@@ -291,7 +345,7 @@ fun SettingsSheet(
                                 rowItems.forEach { themeId ->
                                     ThemeSwatchTile(
                                         themeId = themeId,
-                                        selected = uiState.config.themeId == themeId,
+                                        selected = uiState.effectiveThemeId == themeId,
                                         onClick = { onSelectTheme(themeId) },
                                         modifier = Modifier.weight(1f)
                                     )
@@ -339,7 +393,7 @@ fun SettingsSheet(
                 SettingsSectionCard(
                     icon = Icons.Rounded.Bolt,
                     title = "Charging Animation",
-                    subtitle = "Room-themed plug-in animation & ambient glow while screen is on"
+                    subtitle = "6 custom plug-in animations while screen is on (~5.5s hold, tap to dismiss)"
                 ) {
                     Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                         Row(
@@ -355,7 +409,7 @@ fun SettingsSheet(
                                 )
                                 Text(
                                     text = if (uiState.config.chargingAnimationEnabled) {
-                                        "Matches your active Room Style (${uiState.config.roomStyleId.displayName})"
+                                        "Style: ${uiState.config.chargingAnimationStyle.displayName}"
                                     } else {
                                         "Disabled"
                                     },
@@ -367,6 +421,59 @@ fun SettingsSheet(
                                 checked = uiState.config.chargingAnimationEnabled,
                                 onCheckedChange = onToggleChargingAnimation
                             )
+                        }
+
+                        if (uiState.config.chargingAnimationEnabled) {
+                            Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                                ChargingAnimationStyle.entries.chunked(2).forEach { pair ->
+                                    Row(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                    ) {
+                                        pair.forEach { style ->
+                                            val isSelected = uiState.config.chargingAnimationStyle == style
+                                            Surface(
+                                                shape = RoundedCornerShape(12.dp),
+                                                color = if (isSelected) {
+                                                    MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.6f)
+                                                } else {
+                                                    MaterialTheme.colorScheme.surface
+                                                },
+                                                modifier = Modifier
+                                                    .weight(1f)
+                                                    .border(
+                                                        width = if (isSelected) 2.dp else 1.dp,
+                                                        color = if (isSelected) {
+                                                            MaterialTheme.colorScheme.primary
+                                                        } else {
+                                                            MaterialTheme.colorScheme.outlineVariant
+                                                        },
+                                                        shape = RoundedCornerShape(12.dp)
+                                                    )
+                                                    .clip(RoundedCornerShape(12.dp))
+                                                    .clickable { onSelectChargingAnimationStyle(style) }
+                                            ) {
+                                                Column(
+                                                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 8.dp)
+                                                ) {
+                                                    Text(
+                                                        text = style.displayName,
+                                                        style = MaterialTheme.typography.labelLarge,
+                                                        fontWeight = FontWeight.SemiBold,
+                                                        color = MaterialTheme.colorScheme.onSurface
+                                                    )
+                                                    Text(
+                                                        text = style.description,
+                                                        style = MaterialTheme.typography.labelSmall,
+                                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                                        maxLines = 2
+                                                    )
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
                         }
 
                         OutlinedButton(

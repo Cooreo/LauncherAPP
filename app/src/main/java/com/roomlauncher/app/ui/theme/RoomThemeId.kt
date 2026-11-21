@@ -8,6 +8,19 @@ import androidx.compose.ui.graphics.Color
 import kotlinx.serialization.Serializable
 
 @Serializable
+enum class ChargingAnimationStyle(
+    val displayName: String,
+    val description: String
+) {
+    MATCH_ROOM("Match Room Style", "Adapts automatically to your active Room Style"),
+    LIQUID_GLASS("Liquid Orb", "Glowing animated liquid & bubbles filling to your battery %"),
+    AURORA_WAVE("Aurora Ribbons", "Flowing northern-lights waves around a glass energy core"),
+    CYBER_PULSE("Cyber Plasma", "Dual rotating neon energy rings & electric scan pulses"),
+    COSMIC_ORBIT("Cosmic Orbit", "Glowing golden eclipse core with orbiting stars & comets"),
+    VOXEL_REDSTONE("Redstone Voxel", "Minecraft Redstone sparks & emerald XP charge bar")
+}
+
+@Serializable
 enum class RoomStyleId(
     val displayName: String,
     val description: String
@@ -67,6 +80,18 @@ data class RoomVisualPalette(
 )
 
 object RoomThemes {
+
+    /**
+     * Dynamic Time-of-Day theme schedule:
+     *  - Daytime (06:00 - 14:59): Warm Linen
+     *  - Afternoon / Evening (15:00 - 20:59, starting at 3 PM): Midnight Cozy
+     *  - Night (21:00 - 05:59): OLED Pitch
+     */
+    fun dynamicThemeForHour(hourOfDay: Int): RoomThemeId = when (hourOfDay) {
+        in 6..14 -> RoomThemeId.WARM_LINEN
+        in 15..20 -> RoomThemeId.MIDNIGHT_COZY
+        else -> RoomThemeId.OLED_PITCH
+    }
 
     fun paletteFor(id: RoomThemeId): RoomVisualPalette = when (id) {
         RoomThemeId.WARM_LINEN -> RoomVisualPalette(
