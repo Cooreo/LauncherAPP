@@ -600,7 +600,7 @@ class RoomConfigRepository(
 
         private val NEWS_KEYWORDS = listOf("news", "kindle", "book", "reader", "medium", "wikipedia", "feedly", "nytimes", "bbc", "pocket")
 
-        private val FOOD_KEYWORDS = listOf("ubereats", "doordash", "glovo", "wolt", "pyszne", "deliveroo", "grubhub", "starbucks", "mcdonald", "recipe", "food", "yelp", "zomato", "justeat")
+        private val FOOD_KEYWORDS = listOf("ubereats", "ubercab.eats", "uber eats", "doordash", "glovo", "wolt", "pyszne", "deliveroo", "grubhub", "starbucks", "mcdonald", "recipe", "food", "yelp", "zomato", "justeat")
 
         private val SHOPPING_KEYWORDS = listOf("amazon.mshop", "allegro", "ebay", "aliexpress", "ikea", "etsy", "vinted", "temu", "shein", "target", "walmart", "shop", "store", "lidl", "zabka", "biedronka")
 
@@ -614,7 +614,7 @@ class RoomConfigRepository(
             "com.kick.mobile",
             "com.teamspeak.ts3client"
         )
-        private val STREAMING_KEYWORDS = listOf("discord", "twitch", "kick", "stream", "obs", "teamspeak")
+        private val STREAMING_KEYWORDS = listOf("discord", "twitch", "kick", "stream", "streamlabs", "obsblade", "obs.studio", "teamspeak")
 
         private val GAMING_PC_KEYWORDS = listOf("termux", "github", "steam", "geforcenow", "parsec", "moonlight", "vpn", "wireguard", "tailscale", "code", "terminal", "ssh", "files")
 
