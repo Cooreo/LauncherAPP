@@ -20,13 +20,14 @@ class AppUpdateVersionTest {
 
     @Test
     fun comparesSemanticVersionsNumerically() {
+        assertTrue(AppVersionComparator.isNewerVersion("2.6.1", "2.6"))
         assertTrue(AppVersionComparator.isNewerVersion("2.6", "2.5.1"))
         assertTrue(AppVersionComparator.isNewerVersion("2.5.1", "2.5"))
-        assertTrue(AppVersionComparator.isNewerVersion("v2.10", "2.6"))
+        assertTrue(AppVersionComparator.isNewerVersion("v2.10", "2.6.1"))
         assertTrue(AppVersionComparator.isNewerVersion("3.0", "2.9.9"))
-        assertFalse(AppVersionComparator.isNewerVersion("2.6", "2.6"))
+        assertFalse(AppVersionComparator.isNewerVersion("2.6.1", "2.6.1"))
         assertFalse(AppVersionComparator.isNewerVersion("2.6.0", "2.6"))
-        assertFalse(AppVersionComparator.isNewerVersion("2.5.1", "2.6"))
+        assertFalse(AppVersionComparator.isNewerVersion("2.5.1", "2.6.1"))
     }
 
     @Test

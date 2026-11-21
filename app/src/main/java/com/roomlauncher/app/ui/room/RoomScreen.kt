@@ -220,17 +220,6 @@ fun RoomScreen(
     )
 
     val isFullScreenSheetOpen = uiState.showAllAppsSheet || uiState.showSettingsSheet
-    // Keep the Room mounted during the 240ms slide-up/down transition so opening feels silky smooth,
-    // then unmount it once covered so All Apps scrolling has 0% background GPU overdraw!
-    var isFullScreenSheetSettled by remember { mutableStateOf(false) }
-    LaunchedEffect(isFullScreenSheetOpen) {
-        if (isFullScreenSheetOpen) {
-            delay(250L)
-            isFullScreenSheetSettled = true
-        } else {
-            isFullScreenSheetSettled = false
-        }
-    }
 
     val handleHotspotTap: (RoomHotspot) -> Unit = { hotspot ->
         when (hotspot.actionType) {
@@ -246,34 +235,33 @@ fun RoomScreen(
     }
 
     Box(modifier = Modifier.fillMaxSize()) {
-        // Keep Room visible during sheet transition, unmount once sheet fully covers screen!
-        if (!isFullScreenSheetSettled) {
-            // Main interactive room canvas with movable themed objects
-            BoxWithConstraints(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .pointerInput(uiState.isEditMode) {
-                        if (!uiState.isEditMode) {
-                            detectTapGestures(
-                                onLongPress = {
-                                    haptic.performHapticFeedback(HapticFeedbackType.LongPress)
-                                    onEnterEditMode()
-                                },
-                                onDoubleTap = {
-                                    zoomScale = 1f
-                                    panOffset = Offset.Zero
-                                }
-                            )
-                        }
+        // Keep the Room mounted cleanly underneath Settings & All Apps so Back gestures and
+        // Predictive Back reveals are 100% glitch-free with zero cold-recomposition flash!
+        BoxWithConstraints(
+            modifier = Modifier
+                .fillMaxSize()
+                .pointerInput(uiState.isEditMode, isFullScreenSheetOpen) {
+                    if (!uiState.isEditMode && !isFullScreenSheetOpen) {
+                        detectTapGestures(
+                            onLongPress = {
+                                haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                                onEnterEditMode()
+                            },
+                            onDoubleTap = {
+                                zoomScale = 1f
+                                panOffset = Offset.Zero
+                            }
+                        )
                     }
-                    .pointerInput(uiState.isEditMode) {
-                        if (!uiState.isEditMode) {
-                            detectTransformGestures { _, pan, zoom, _ ->
-                                val newScale = (zoomScale * zoom).coerceIn(1f, 2.2f)
-                                if (newScale > 1.01f) {
-                                    val maxPanX = (size.width * (newScale - 1f)) / 2f
-                                    val maxPanY = (size.height * (newScale - 1f)) / 2f
-                                    val nextPan = panOffset + pan
+                }
+                .pointerInput(uiState.isEditMode, isFullScreenSheetOpen) {
+                    if (!uiState.isEditMode && !isFullScreenSheetOpen) {
+                        detectTransformGestures { _, pan, zoom, _ ->
+                            val newScale = (zoomScale * zoom).coerceIn(1f, 2.2f)
+                            if (newScale > 1.01f) {
+                                val maxPanX = (size.width * (newScale - 1f)) / 2f
+                                val maxPanY = (size.height * (newScale - 1f)) / 2f
+                                val nextPan = panOffset + pan
                                     zoomScale = newScale
                                     panOffset = Offset(
                                         x = nextPan.x.coerceIn(-maxPanX, maxPanX),
@@ -583,21 +571,22 @@ fun RoomScreen(
                     onDismiss = onHotspotPanelClose
                 )
             }
-        }
 
-        // Smooth slide-up A–Z Searchable All Apps Drawer + Settings Card (0% overdraw once settled!)
+        // Smooth slide-up A–Z Searchable All Apps Drawer + Settings Card (instant Back reveal!)
+        val isAllAppsVisible = uiState.showAllAppsSheet && !uiState.showSettingsSheet
         AnimatedVisibility(
-            visible = uiState.showAllAppsSheet && !uiState.showSettingsSheet,
+            visible = isAllAppsVisible,
             enter = slideInVertically(
-                animationSpec = tween(durationMillis = 230, easing = FastOutSlowInEasing),
-                initialOffsetY = { it / 5 }
-            ) + fadeIn(tween(190)),
+                animationSpec = tween(durationMillis = 220, easing = FastOutSlowInEasing),
+                initialOffsetY = { it / 6 }
+            ) + fadeIn(tween(180)),
             exit = slideOutVertically(
-                animationSpec = tween(durationMillis = 190, easing = FastOutSlowInEasing),
-                targetOffsetY = { it / 5 }
-            ) + fadeOut(tween(150))
+                animationSpec = tween(durationMillis = 170, easing = FastOutSlowInEasing),
+                targetOffsetY = { it / 6 }
+            ) + fadeOut(tween(140))
         ) {
             AllAppsSheet(
+                isVisible = isAllAppsVisible,
                 installedApps = uiState.installedApps,
                 packageOwnerLabels = uiState.packageOwnerLabels,
                 defaultUnsortedLabel = uiState.defaultUnsortedLabel,

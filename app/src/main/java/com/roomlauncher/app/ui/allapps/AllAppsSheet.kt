@@ -1,8 +1,11 @@
 package com.roomlauncher.app.ui.allapps
 
+import androidx.activity.BackEventCompat
+import androidx.activity.compose.PredictiveBackHandler
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.spring
@@ -68,6 +71,7 @@ import androidx.compose.runtime.Immutable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -82,7 +86,10 @@ import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.platform.LocalHapticFeedback
+import androidx.compose.ui.platform.LocalSoftwareKeyboardController
+import kotlin.coroutines.cancellation.CancellationException
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontWeight
@@ -113,6 +120,7 @@ private sealed interface AllAppsEntry {
 
 @Composable
 fun AllAppsSheet(
+    isVisible: Boolean = true,
     installedApps: List<AppInfo>,
     packageOwnerLabels: Map<String, String>,
     defaultUnsortedLabel: String,
@@ -125,8 +133,41 @@ fun AllAppsSheet(
     val context = LocalContext.current
     val haptic = LocalHapticFeedback.current
     val density = LocalDensity.current
+    val focusManager = LocalFocusManager.current
+    val keyboardController = LocalSoftwareKeyboardController.current
     var searchQuery by remember { mutableStateOf("") }
     var selectedAppForMenu by remember { mutableStateOf<AppInfo?>(null) }
+
+    val dismissCleanly: () -> Unit = {
+        focusManager.clearFocus(force = true)
+        keyboardController?.hide()
+        onDismiss()
+    }
+
+    // Silky live Predictive Back gesture + hardware Back button handler for All Apps
+    val backProgress = remember { Animatable(0f) }
+    var backSwipeEdge by remember { mutableIntStateOf(BackEventCompat.EDGE_LEFT) }
+
+    PredictiveBackHandler(enabled = isVisible) { progressFlow ->
+        try {
+            progressFlow.collect { event ->
+                backSwipeEdge = event.swipeEdge
+                backProgress.snapTo(event.progress.coerceIn(0f, 1f))
+            }
+            when {
+                selectedAppForMenu != null -> {
+                    backProgress.snapTo(0f)
+                    selectedAppForMenu = null
+                }
+                else -> {
+                    dismissCleanly()
+                }
+            }
+        } catch (e: CancellationException) {
+            backProgress.animateTo(0f, tween(160))
+            throw e
+        }
+    }
 
     // A–Z scrubber animation states
     var activeScrubLetter by remember { mutableStateOf<String?>(null) }
@@ -190,8 +231,22 @@ fun AllAppsSheet(
     val letterCounts = listModel.third
     val sectionLetters = remember(letterIndexMap) { letterIndexMap.keys.toList() }
 
+    val p = backProgress.value
+    val cornerDp = (p * 26f).dp
+
     Surface(
-        modifier = Modifier.fillMaxSize(),
+        shape = RoundedCornerShape(cornerDp),
+        shadowElevation = if (p > 0.01f) 14.dp else 0.dp,
+        modifier = Modifier
+            .fillMaxSize()
+            .graphicsLayer {
+                val scale = 1f - (p * 0.085f)
+                scaleX = scale
+                scaleY = scale
+                val dir = if (backSwipeEdge == BackEventCompat.EDGE_RIGHT) -1f else 1f
+                translationX = dir * p * size.width * 0.06f
+                alpha = 1f - (p * 0.14f)
+            },
         color = MaterialTheme.colorScheme.background
     ) {
         Column(
@@ -213,7 +268,7 @@ fun AllAppsSheet(
                                 headerDragSum += dragAmount
                                 if (headerDragSum > 75f) {
                                     headerDragSum = 0f
-                                    onDismiss()
+                                    dismissCleanly()
                                 }
                             }
                         )
@@ -253,14 +308,20 @@ fun AllAppsSheet(
                         )
                     }
                     Row(verticalAlignment = Alignment.CenterVertically) {
-                        IconButton(onClick = onOpenSettings) {
+                        IconButton(
+                            onClick = {
+                                focusManager.clearFocus(force = true)
+                                keyboardController?.hide()
+                                onOpenSettings()
+                            }
+                        ) {
                             Icon(
                                 imageVector = Icons.Rounded.Settings,
                                 contentDescription = "Room Launcher Settings",
                                 tint = MaterialTheme.colorScheme.primary
                             )
                         }
-                        IconButton(onClick = onDismiss) {
+                        IconButton(onClick = dismissCleanly) {
                             Icon(
                                 imageVector = Icons.Rounded.Close,
                                 contentDescription = "Close all apps"
@@ -405,7 +466,7 @@ fun AllAppsSheet(
                             modifier = Modifier
                                 .align(Alignment.CenterEnd)
                                 .fillMaxHeight()
-                                .padding(end = 3.dp, top = 8.dp, bottom = 12.dp)
+                                .padding(end = 6.dp, top = 8.dp, bottom = 12.dp)
                         )
                     }
 

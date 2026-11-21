@@ -87,7 +87,10 @@ class MainActivity : ComponentActivity() {
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
         setIntent(intent)
-        // Pressing Home or accepting ROLE_HOME delivers a new HOME intent; refresh status cleanly
+        // Pressing Home / swiping up to Home cleanly closes Settings, All Apps, or open panels
+        if (intent.hasCategory(Intent.CATEGORY_HOME)) {
+            launcherViewModel.returnToHomeRoom()
+        }
         launcherViewModel.refreshSystemStatus()
     }
 }
