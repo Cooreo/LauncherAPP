@@ -22,6 +22,7 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.FilterQuality
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.StrokeCap
@@ -639,6 +640,114 @@ private fun WindowGraphic(
                 drawLine(Color.White.copy(alpha = 0.6f), Offset(padX + paneW * 0.66f, padTop + paneH * 0.76f), Offset(padX + paneW * 0.78f, padTop + paneH * 0.66f), strokeWidth = 3f)
             }
 
+            // Visual Temperature Glass Effects:
+            //   < 0°C  -> Frozen glass with icy frost crystals creeping inward from all corners!
+            //   0..9°C -> Fogged-up condensation mist & tiny water droplets on the chilly panes!
+            //   >= 28°C -> Subtle warm sunlit shimmer on the glass!
+            val tempC = if (weatherEnabled) weatherState.temperatureC else null
+            if (tempC != null) {
+                val centerGlass = Offset(padX + paneW / 2f, padTop + paneH / 2f)
+                val maxR = min(paneW, paneH) * 0.85f
+                when {
+                    tempC < 0 -> {
+                        // Icy frozen radial frost glaze thicker at edges
+                        drawRect(
+                            brush = Brush.radialGradient(
+                                colors = listOf(
+                                    Color(0x22DDF3FF),
+                                    Color(0x66C7EBFF),
+                                    Color(0xB8E6F7FF)
+                                ),
+                                center = centerGlass,
+                                radius = maxR
+                            ),
+                            topLeft = Offset(padX, padTop),
+                            size = Size(paneW, paneH)
+                        )
+                        // Crystalline frost fern branches creeping from all 4 corners!
+                        val frostColor = Color(0xFFEAF8FF)
+                        val frostShadow = Color(0xFF9AD4F5).copy(alpha = 0.7f)
+                        val cornerPts = listOf(
+                            Offset(padX, padTop) to Offset(1f, 1f),
+                            Offset(padX + paneW, padTop) to Offset(-1f, 1f),
+                            Offset(padX, padTop + paneH) to Offset(1f, -1f),
+                            Offset(padX + paneW, padTop + paneH) to Offset(-1f, -1f)
+                        )
+                        val branchLen = min(paneW, paneH) * 0.28f
+                        cornerPts.forEach { (origin, dir) ->
+                            val tip = Offset(origin.x + dir.x * branchLen, origin.y + dir.y * branchLen)
+                            drawLine(frostShadow, origin, tip, strokeWidth = 3.2f, cap = StrokeCap.Round)
+                            drawLine(frostColor, origin, tip, strokeWidth = 1.6f, cap = StrokeCap.Round)
+                            // Side crystalline twigs
+                            val mid1 = Offset(origin.x + dir.x * branchLen * 0.45f, origin.y + dir.y * branchLen * 0.45f)
+                            val mid2 = Offset(origin.x + dir.x * branchLen * 0.72f, origin.y + dir.y * branchLen * 0.72f)
+                            drawLine(frostColor, mid1, Offset(mid1.x + dir.x * branchLen * 0.28f, mid1.y), strokeWidth = 1.3f)
+                            drawLine(frostColor, mid1, Offset(mid1.x, mid1.y + dir.y * branchLen * 0.28f), strokeWidth = 1.3f)
+                            drawLine(frostColor, mid2, Offset(mid2.x + dir.x * branchLen * 0.18f, mid2.y), strokeWidth = 1.1f)
+                            drawLine(frostColor, mid2, Offset(mid2.x, mid2.y + dir.y * branchLen * 0.18f), strokeWidth = 1.1f)
+                            // Edge icicle crystal rim
+                            drawCircle(frostColor.copy(alpha = 0.72f), radius = branchLen * 0.22f, center = origin)
+                        }
+                        // Shimmering ice glints on glass
+                        listOf(0.20f to 0.18f, 0.80f to 0.24f, 0.24f to 0.82f, 0.76f to 0.78f).forEach { (gx, gy) ->
+                            val cx = padX + paneW * gx
+                            val cy = padTop + paneH * gy
+                            drawLine(Color.White.copy(alpha = 0.9f), Offset(cx - 4f, cy), Offset(cx + 4f, cy), strokeWidth = 1.4f)
+                            drawLine(Color.White.copy(alpha = 0.9f), Offset(cx, cy - 4f), Offset(cx, cy + 4f), strokeWidth = 1.4f)
+                        }
+                    }
+                    tempC < 10 -> {
+                        // Fogged-up chilly glass condensation mist!
+                        drawRect(
+                            brush = Brush.radialGradient(
+                                colors = listOf(
+                                    Color(0x18FFFFFF),
+                                    Color(0x55EBF4FA),
+                                    Color(0x9CE2EEF7)
+                                ),
+                                center = centerGlass,
+                                radius = maxR
+                            ),
+                            topLeft = Offset(padX, padTop),
+                            size = Size(paneW, paneH)
+                        )
+                        // Extra condensation mist pooling gently along bottom pane sill
+                        drawRect(
+                            brush = Brush.verticalGradient(
+                                colors = listOf(Color.Transparent, Color(0x8CEAF4FC)),
+                                startY = padTop + paneH * 0.56f,
+                                endY = padTop + paneH
+                            ),
+                            topLeft = Offset(padX, padTop + paneH * 0.56f),
+                            size = Size(paneW, paneH * 0.44f)
+                        )
+                        // Subtle condensation droplets on the foggy glass
+                        val droplets = listOf(
+                            Triple(0.18f, 0.74f, 2.3f), Triple(0.32f, 0.84f, 1.8f),
+                            Triple(0.68f, 0.78f, 2.4f), Triple(0.82f, 0.68f, 1.9f),
+                            Triple(0.24f, 0.30f, 1.6f), Triple(0.75f, 0.28f, 1.7f)
+                        )
+                        droplets.forEach { (dx, dy, r) ->
+                            val pt = Offset(padX + paneW * dx, padTop + paneH * dy)
+                            drawCircle(Color(0x668AAEC9), radius = r, center = Offset(pt.x, pt.y + 0.8f))
+                            drawCircle(Color.White.copy(alpha = 0.78f), radius = r * 0.82f, center = pt)
+                        }
+                    }
+                    tempC >= 28 -> {
+                        // Warm golden sunlit glow on hot days
+                        drawRect(
+                            brush = Brush.verticalGradient(
+                                colors = listOf(Color(0x38FFD479), Color.Transparent),
+                                startY = padTop,
+                                endY = padTop + paneH * 0.65f
+                            ),
+                            topLeft = Offset(padX, padTop),
+                            size = Size(paneW, paneH * 0.65f)
+                        )
+                    }
+                }
+            }
+
             val frameColor = if (isVoxel) Color(0xFF5C3E24) else palette.woodLight
             val frameStroke = min(w, h) * (if (isVoxel) 0.075f else 0.055f)
             drawRect(frameColor, Offset(padX, padTop), Size(paneW, paneH), style = Stroke(width = frameStroke))
@@ -654,18 +763,25 @@ private fun WindowGraphic(
         }
 
         if (weatherEnabled && weatherState.temperatureC != null) {
+            val t = weatherState.temperatureC
+            val badgeBg = when {
+                t < 0 -> Color(0xBF1E4B6E)
+                t < 10 -> Color(0xB33B5368)
+                else -> Color(0x8814171D)
+            }
+            val label = if (t < 0) "❄ $t°" else "$t°"
             Box(
                 modifier = Modifier
                     .align(Alignment.BottomEnd)
-                    .padding(end = 10.dp, bottom = 14.dp)
+                    .padding(end = 9.dp, bottom = 13.dp)
                     .clip(RoundedCornerShape(if (isVoxel) 2.dp else 8.dp))
-                    .background(Color.Black.copy(alpha = 0.50f))
-                    .padding(horizontal = 5.dp, vertical = 2.dp)
+                    .background(badgeBg)
+                    .padding(horizontal = 5.dp, vertical = 1.5.dp)
             ) {
                 Text(
-                    text = "${weatherState.temperatureC}°",
+                    text = label,
                     color = Color.White,
-                    fontSize = 10.sp,
+                    fontSize = 9.5.sp,
                     fontWeight = FontWeight.SemiBold
                 )
             }
@@ -688,30 +804,62 @@ private fun PaintingGraphic(
     frameImageBitmap: ImageBitmap?,
     modifier: Modifier = Modifier
 ) {
-    Box(modifier = modifier) {
+    BoxWithConstraints(modifier = modifier) {
+        val density = LocalDensity.current
+        val wPx = with(density) { maxWidth.toPx() }
+        val hPx = with(density) { maxHeight.toPx() }
+
+        // 1. Back layer: realistic drop shadow, beveled wooden outer frame & warm cream gallery mat
         Canvas(modifier = Modifier.fillMaxSize()) {
             val w = size.width
             val h = size.height
             val corner = if (isVoxel) 0f else 6f
+
+            // Soft gallery wall shadow
             drawRoundRect(
-                Color.Black.copy(alpha = if (palette.isDark) 0.35f else 0.13f),
-                Offset(w * 0.05f, h * 0.06f),
-                Size(w * 0.93f, h * 0.92f),
-                CornerRadius(corner, corner)
+                color = Color.Black.copy(alpha = if (palette.isDark) 0.44f else 0.16f),
+                topLeft = Offset(w * 0.055f, h * 0.065f),
+                size = Size(w * 0.92f, h * 0.91f),
+                cornerRadius = CornerRadius(corner, corner)
             )
+            // Symmetrical outer wooden frame
+            val frameLeft = w * 0.03f
+            val frameTop = h * 0.03f
+            val frameW = w * 0.94f
+            val frameH = h * 0.94f
             drawRoundRect(
-                if (isVoxel) Color(0xFF6B4828) else palette.woodDark,
-                Offset(w * 0.02f, h * 0.02f),
-                Size(w * 0.94f, h * 0.94f),
-                CornerRadius(corner, corner)
+                color = if (isVoxel) Color(0xFF6B4828) else palette.woodDark,
+                topLeft = Offset(frameLeft, frameTop),
+                size = Size(frameW, frameH),
+                cornerRadius = CornerRadius(corner, corner)
             )
-            drawRect(Color(0xFFFAF7F2), Offset(w * 0.09f, h * 0.09f), Size(w * 0.80f, h * 0.80f))
+            // Subtle inner wood bevel highlight so frame has real depth
+            drawRoundRect(
+                color = (if (isVoxel) Color(0xFF91673F) else palette.woodLight).copy(alpha = 0.55f),
+                topLeft = Offset(frameLeft + w * 0.015f, frameTop + h * 0.015f),
+                size = Size(frameW - w * 0.03f, frameH - h * 0.03f),
+                cornerRadius = CornerRadius((corner - 1f).coerceAtLeast(0f), (corner - 1f).coerceAtLeast(0f)),
+                style = Stroke(width = 2f)
+            )
+            // Symmetrical cream gallery mat
+            val matLeft = w * 0.10f
+            val matTop = h * 0.10f
+            val matW = w * 0.80f
+            val matH = h * 0.80f
+            drawRect(Color(0xFFFAF6EE), Offset(matLeft, matTop), Size(matW, matH))
+
+            // Recessed inner aperture border around the artwork/photo
+            val artLeft = w * 0.155f
+            val artTop = h * 0.155f
+            val artW = w * 0.69f
+            val artH = h * 0.69f
+            drawRect(
+                color = Color(0xFFD5CCB9),
+                topLeft = Offset(artLeft - 1.5f, artTop - 1.5f),
+                size = Size(artW + 3f, artH + 3f)
+            )
 
             if (frameImageBitmap == null) {
-                val artLeft = w * 0.15f
-                val artTop = h * 0.15f
-                val artW = w * 0.68f
-                val artH = h * 0.68f
                 if (isVoxel) {
                     // Iconic blocky pixel landscape painting
                     drawRect(Color(0xFF5FA8D3), Offset(artLeft, artTop), Size(artW, artH * 0.6f))
@@ -742,19 +890,47 @@ private fun PaintingGraphic(
             }
         }
 
-        if (frameImageBitmap != null) {
+        // 2. Perfectly centered custom photo seated directly inside the recessed museum mat aperture!
+        if (frameImageBitmap != null && wPx > 0f && hPx > 0f) {
             Box(
                 modifier = Modifier
-                    .fillMaxSize()
-                    .padding(11.dp)
-                    .clip(RoundedCornerShape(2.dp))
+                    .offset {
+                        IntOffset(
+                            x = (wPx * 0.155f).roundToInt(),
+                            y = (hPx * 0.155f).roundToInt()
+                        )
+                    }
+                    .size(
+                        width = with(density) { (wPx * 0.69f).toDp() },
+                        height = with(density) { (hPx * 0.69f).toDp() }
+                    )
+                    .clip(RoundedCornerShape(1.5.dp))
             ) {
                 Image(
                     bitmap = frameImageBitmap,
                     contentDescription = "Picture frame artwork",
                     contentScale = ContentScale.Crop,
+                    filterQuality = FilterQuality.High,
                     modifier = Modifier.fillMaxSize()
                 )
+                // Delicate gallery glass reflection & top inner-mat shadow so the photo blends naturally into the frame!
+                Canvas(modifier = Modifier.fillMaxSize()) {
+                    drawRect(
+                        brush = Brush.verticalGradient(
+                            colors = listOf(Color(0x28000000), Color.Transparent),
+                            startY = 0f,
+                            endY = size.height * 0.12f
+                        ),
+                        size = Size(size.width, size.height * 0.12f)
+                    )
+                    val sheen = Path().apply {
+                        moveTo(0f, 0f)
+                        lineTo(size.width * 0.48f, 0f)
+                        lineTo(0f, size.height * 0.42f)
+                        close()
+                    }
+                    drawPath(sheen, Color.White.copy(alpha = 0.09f))
+                }
             }
         }
     }

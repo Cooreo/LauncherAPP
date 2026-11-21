@@ -43,7 +43,7 @@ class MainActivity : ComponentActivity() {
         setContent {
             val uiState by launcherViewModel.uiState.collectAsStateWithLifecycle()
 
-            RoomLauncherTheme(themeId = uiState.config.themeId) {
+            RoomLauncherTheme(themeId = uiState.effectiveThemeId) {
                 val palette = LocalRoomPalette.current
                 LaunchedEffect(palette.isDark) {
                     val barStyle = if (palette.isDark) {
@@ -159,10 +159,12 @@ private fun RoomLauncherRoot(
                 onCloseSettings = viewModel::closeSettings,
                 onSelectRoomStyle = viewModel::setRoomStyle,
                 onSelectTheme = viewModel::setTheme,
+                onToggleDynamicTheme = viewModel::setDynamicThemeEnabled,
                 onPickTeenPoster = viewModel::setTeenPoster,
                 onClearTeenPoster = viewModel::clearTeenPoster,
                 onToggleQuickAnimations = viewModel::setUseQuickAnimations,
                 onToggleChargingAnimation = viewModel::setChargingAnimationEnabled,
+                onSelectChargingAnimationStyle = viewModel::setChargingAnimationStyle,
                 onPreviewChargingAnimation = viewModel::triggerChargingAnimationPreview,
                 onDismissChargingAnimation = viewModel::dismissChargingAnimation,
                 onToggleWeather = viewModel::setWeatherEnabled,

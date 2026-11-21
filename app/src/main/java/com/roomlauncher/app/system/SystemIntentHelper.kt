@@ -8,6 +8,8 @@ import android.content.Intent
 import android.content.pm.PackageManager
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
+import android.graphics.Matrix
+import android.media.ExifInterface
 import android.net.Uri
 import android.os.Build
 import android.os.PowerManager
@@ -248,23 +250,65 @@ object SystemIntentHelper {
     suspend fun saveUserImage(context: Context, sourceUri: Uri, fileName: String): String? =
         withContext(Dispatchers.IO) {
             runCatching {
-                val rawStream = context.contentResolver.openInputStream(sourceUri) ?: return@withContext null
-                val decoded = rawStream.use { BitmapFactory.decodeStream(it) } ?: return@withContext null
-                val maxDim = 720
-                val scale = minOf(1f, maxDim.toFloat() / maxOf(decoded.width, decoded.height).toFloat())
-                val finalBmp = if (scale < 1f) {
-                    Bitmap.createScaledBitmap(
-                        decoded,
-                        (decoded.width * scale).toInt().coerceAtLeast(1),
-                        (decoded.height * scale).toInt().coerceAtLeast(1),
-                        true
-                    )
+                // 1. Read EXIF orientation so portrait/camera photos never appear rotated sideways!
+                val exifOrientation = runCatching {
+                    context.contentResolver.openInputStream(sourceUri)?.use { exifStream ->
+                        ExifInterface(exifStream).getAttributeInt(
+                            ExifInterface.TAG_ORIENTATION,
+                            ExifInterface.ORIENTATION_NORMAL
+                        )
+                    }
+                }.getOrDefault(ExifInterface.ORIENTATION_NORMAL)
+
+                // 2. Measure bounds first so high-MP camera photos decode safely without OOM
+                val boundsOpts = BitmapFactory.Options().apply { inJustDecodeBounds = true }
+                context.contentResolver.openInputStream(sourceUri)?.use {
+                    BitmapFactory.decodeStream(it, null, boundsOpts)
+                }
+                val maxTarget = 1080
+                var sampleSize = 1
+                while (boundsOpts.outWidth / sampleSize > maxTarget * 2 ||
+                    boundsOpts.outHeight / sampleSize > maxTarget * 2
+                ) {
+                    sampleSize *= 2
+                }
+
+                val decodeOpts = BitmapFactory.Options().apply { inSampleSize = sampleSize }
+                val decoded = context.contentResolver.openInputStream(sourceUri)?.use {
+                    BitmapFactory.decodeStream(it, null, decodeOpts)
+                } ?: return@withContext null
+
+                // 3. Apply EXIF rotation/flip + smooth downscale to crisp 1080px max edge
+                val matrix = Matrix()
+                when (exifOrientation) {
+                    ExifInterface.ORIENTATION_ROTATE_90 -> matrix.postRotate(90f)
+                    ExifInterface.ORIENTATION_ROTATE_180 -> matrix.postRotate(180f)
+                    ExifInterface.ORIENTATION_ROTATE_270 -> matrix.postRotate(270f)
+                    ExifInterface.ORIENTATION_FLIP_HORIZONTAL -> matrix.postScale(-1f, 1f)
+                    ExifInterface.ORIENTATION_FLIP_VERTICAL -> matrix.postScale(1f, -1f)
+                    ExifInterface.ORIENTATION_TRANSPOSE -> {
+                        matrix.postRotate(90f)
+                        matrix.postScale(-1f, 1f)
+                    }
+                    ExifInterface.ORIENTATION_TRANSVERSE -> {
+                        matrix.postRotate(270f)
+                        matrix.postScale(-1f, 1f)
+                    }
+                }
+                val scale = minOf(1f, maxTarget.toFloat() / maxOf(decoded.width, decoded.height).toFloat())
+                if (scale < 1f) {
+                    matrix.postScale(scale, scale)
+                }
+
+                val finalBmp = if (!matrix.isIdentity) {
+                    Bitmap.createBitmap(decoded, 0, 0, decoded.width, decoded.height, matrix, true)
                 } else {
                     decoded
                 }
+
                 val outFile = File(context.filesDir, fileName)
                 FileOutputStream(outFile).use { fos ->
-                    finalBmp.compress(Bitmap.CompressFormat.JPEG, 88, fos)
+                    finalBmp.compress(Bitmap.CompressFormat.JPEG, 92, fos)
                 }
                 if (finalBmp !== decoded) {
                     decoded.recycle()

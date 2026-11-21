@@ -23,9 +23,12 @@ import com.roomlauncher.app.data.WeatherState
 import com.roomlauncher.app.data.WebShortcut
 import com.roomlauncher.app.system.RoomWallpaperRenderer
 import com.roomlauncher.app.system.SystemIntentHelper
+import com.roomlauncher.app.ui.theme.ChargingAnimationStyle
 import com.roomlauncher.app.ui.theme.RoomStyleId
 import com.roomlauncher.app.ui.theme.RoomThemeId
+import com.roomlauncher.app.ui.theme.RoomThemes
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -33,6 +36,7 @@ import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.io.File
+import java.util.Calendar
 import java.util.UUID
 
 @Immutable
@@ -45,6 +49,7 @@ data class RoomUiState(
     val weatherState: WeatherState = WeatherState(),
     val batteryStatus: BatteryStatus = BatteryStatus(),
     val activeChargingSplashKey: Long = 0L,
+    val currentHourOfDay: Int = Calendar.getInstance().get(Calendar.HOUR_OF_DAY),
     val frameImageBitmap: ImageBitmap? = null,
     val posterLeftBitmap: ImageBitmap? = null,
     val posterRightBitmap: ImageBitmap? = null,
@@ -58,6 +63,13 @@ data class RoomUiState(
     val isDefaultLauncher: Boolean = false,
     val isSyncingWallpaper: Boolean = false
 ) {
+    val effectiveThemeId: RoomThemeId
+        get() = if (config.dynamicThemeEnabled) {
+            RoomThemes.dynamicThemeForHour(currentHourOfDay)
+        } else {
+            config.themeId
+        }
+
     val activeHotspot: RoomHotspot?
         get() = config.hotspots.firstOrNull { it.id == activeHotspotId }
 
@@ -88,6 +100,12 @@ class RoomLauncherViewModel(application: Application) : AndroidViewModel(applica
 
     init {
         batteryMonitor.start()
+        viewModelScope.launch {
+            while (true) {
+                delay(60_000L)
+                refreshDynamicThemeHour()
+            }
+        }
         viewModelScope.launch {
             batteryMonitor.status.collect { status ->
                 val triggerSplash = status.plugInEventId > lastObservedPlugInId &&
@@ -175,6 +193,7 @@ class RoomLauncherViewModel(application: Application) : AndroidViewModel(applica
      * Also prevents the onboarding reset bug when Android fires HOME intent right after ROLE_HOME is granted.
      */
     fun refreshSystemStatus() {
+        refreshDynamicThemeHour()
         val isBatteryIgnored = SystemIntentHelper.isIgnoringBatteryOptimizations(appContext)
         val isDefault = SystemIntentHelper.isDefaultHomeLauncher(appContext)
         val state = _uiState.value
@@ -351,9 +370,34 @@ class RoomLauncherViewModel(application: Application) : AndroidViewModel(applica
     }
 
     fun setTheme(themeId: RoomThemeId) {
-        updateConfig { it.copy(themeId = themeId) }
+        updateConfig { it.copy(themeId = themeId, dynamicThemeEnabled = false) }
         if (_uiState.value.config.mirrorHomeWallpaper) {
             syncHomeWallpaperNow(showToast = false)
+        }
+    }
+
+    fun setDynamicThemeEnabled(enabled: Boolean) {
+        val nowHour = Calendar.getInstance().get(Calendar.HOUR_OF_DAY)
+        _uiState.update { it.copy(currentHourOfDay = nowHour) }
+        updateConfig { it.copy(dynamicThemeEnabled = enabled) }
+        if (_uiState.value.config.mirrorHomeWallpaper) {
+            syncHomeWallpaperNow(showToast = false)
+        }
+    }
+
+    private fun refreshDynamicThemeHour() {
+        val nowHour = Calendar.getInstance().get(Calendar.HOUR_OF_DAY)
+        val before = _uiState.value
+        if (before.currentHourOfDay != nowHour) {
+            val prevEffective = before.effectiveThemeId
+            _uiState.update { it.copy(currentHourOfDay = nowHour) }
+            val nextEffective = _uiState.value.effectiveThemeId
+            if (before.config.dynamicThemeEnabled &&
+                prevEffective != nextEffective &&
+                before.config.mirrorHomeWallpaper
+            ) {
+                syncHomeWallpaperNow(showToast = false)
+            }
         }
     }
 
@@ -399,6 +443,10 @@ class RoomLauncherViewModel(application: Application) : AndroidViewModel(applica
         updateConfig { it.copy(chargingAnimationEnabled = enabled) }
     }
 
+    fun setChargingAnimationStyle(style: ChargingAnimationStyle) {
+        updateConfig { it.copy(chargingAnimationStyle = style) }
+    }
+
     fun triggerChargingAnimationPreview() {
         _uiState.update {
             it.copy(
@@ -441,7 +489,7 @@ class RoomLauncherViewModel(application: Application) : AndroidViewModel(applica
             val state = _uiState.value
             val ok = RoomWallpaperRenderer.applyHomeScreenWallpaper(
                 context = appContext,
-                config = state.config,
+                config = state.config.copy(themeId = state.effectiveThemeId),
                 weather = state.weatherState
             )
             _uiState.update { it.copy(isSyncingWallpaper = false) }
@@ -658,8 +706,10 @@ class RoomLauncherViewModel(application: Application) : AndroidViewModel(applica
             onboardingStep = 3,
             roomStyleId = current.roomStyleId,
             themeId = current.themeId,
+            dynamicThemeEnabled = current.dynamicThemeEnabled,
             useQuickAnimations = current.useQuickAnimations,
             chargingAnimationEnabled = current.chargingAnimationEnabled,
+            chargingAnimationStyle = current.chargingAnimationStyle,
             weatherEnabled = current.weatherEnabled,
             mirrorHomeWallpaper = current.mirrorHomeWallpaper,
             framePhotoPath = current.framePhotoPath,

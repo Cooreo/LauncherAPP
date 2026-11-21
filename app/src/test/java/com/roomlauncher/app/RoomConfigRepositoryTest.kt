@@ -8,8 +8,10 @@ import com.roomlauncher.app.data.RoomConfigRepository
 import com.roomlauncher.app.data.RoomHotspot
 import com.roomlauncher.app.data.RoomObjectVisual
 import com.roomlauncher.app.data.WebShortcut
+import com.roomlauncher.app.ui.theme.ChargingAnimationStyle
 import com.roomlauncher.app.ui.theme.RoomStyleId
 import com.roomlauncher.app.ui.theme.RoomThemeId
+import com.roomlauncher.app.ui.theme.RoomThemes
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -53,8 +55,10 @@ class RoomConfigRepositoryTest {
             autoPopulated = true,
             roomStyleId = RoomStyleId.TEEN_ROOM,
             themeId = RoomThemeId.MIDNIGHT_COZY,
+            dynamicThemeEnabled = true,
             useQuickAnimations = true,
-            chargingAnimationEnabled = false,
+            chargingAnimationEnabled = true,
+            chargingAnimationStyle = ChargingAnimationStyle.LIQUID_GLASS,
             weatherEnabled = true,
             mirrorHomeWallpaper = true,
             posterLeftPath = "/tmp/poster_left.jpg",
@@ -142,5 +146,15 @@ class RoomConfigRepositoryTest {
         assertTrue(RoomConfigRepository.ID_CONSOLE in byId)
         assertTrue(RoomConfigRepository.ID_STICKY_NOTE in byId)
         assertFalse(byId[RoomConfigRepository.ID_TV]!!.height > 0.19f)
+    }
+
+    @Test
+    fun dynamicThemeFollowsDayAfternoonAndNightSchedule() {
+        assertEquals(RoomThemeId.WARM_LINEN, RoomThemes.dynamicThemeForHour(9))
+        assertEquals(RoomThemeId.WARM_LINEN, RoomThemes.dynamicThemeForHour(14))
+        assertEquals(RoomThemeId.MIDNIGHT_COZY, RoomThemes.dynamicThemeForHour(15))
+        assertEquals(RoomThemeId.MIDNIGHT_COZY, RoomThemes.dynamicThemeForHour(20))
+        assertEquals(RoomThemeId.OLED_PITCH, RoomThemes.dynamicThemeForHour(21))
+        assertEquals(RoomThemeId.OLED_PITCH, RoomThemes.dynamicThemeForHour(3))
     }
 }

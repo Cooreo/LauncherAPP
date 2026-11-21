@@ -2,10 +2,13 @@
 
 **Room Launcher** is a minimalist Android home screen launcher built with **Kotlin** and **Jetpack Compose**. Instead of a traditional grid of icons, your home screen is a customizable, illustrated room where every piece of furniture is an interactive, movable object.
 
-## Features (v2.2)
+## Features (v2.3)
 
+- **Museum-Quality Picture Frame**: Automatic EXIF photo orientation correction, symmetrical wooden beveled frame, warm gallery cream mat, center-cropped framing, and subtle glass reflection sheen (both in-room and on mirrored Home wallpaper).
+- **Dynamic Time-of-Day Themes**: Optional automatic schedule shifting your room from **Warm Linen** (daytime, 6 AM) → **Midnight Cozy** (3 PM afternoon/evening) → **OLED Pitch** (9 PM night).
+- **6 Selectable Charging Animations (Screen On)**: Choose between **Match Room Style**, **Liquid Orb** (animated sloshing liquid & bubbles), **Aurora Ribbons**, **Cyber Plasma**, **Cosmic Orbit**, and **Redstone Voxel**, held on screen ~5.5s (tap to dismiss) alongside a clean clickable `⚡ %` charging badge (no bottom bar).
+- **Atmospheric Temperature Window Glass**: Live local temperature visually transforms the window glass—**fogged condensation & water droplets** below 10°C, **crystalline frost branches & frozen ice glaze** below 0°C, and warm sunlit shimmer on hot days.
 - **True Edge-to-Edge Full-Screen Room & Lighting**: Extends seamlessly behind camera cutouts, notches, status bar, and gesture navigation bar across every Room Style and mirrored Home wallpaper.
-- **Custom Room-Styled Charging Animation (Screen On)**: Plugging in your charger triggers a custom animated energy splash & subtle ambient charging glow tailored to your active Room Style (Cozy warm amber lamp ripples, Teen Room RGB neon pulse, Kids twinkling stars, or Minecraft Redstone & XP voxel bar), with a Settings toggle and live preview button.
 - **4 Architectural Room Styles**:
   - **Cozy Minimalist** — Clean wood panels, warm floorboards, woven rug, and modern furniture
   - **Teen Room** — RGB LED ceiling strip, string fairy lights, dark rug, and **two customizable wall posters** you can replace with your own gallery images
@@ -32,4 +35,4 @@
 ./gradlew testDebugUnitTest assembleRelease
 ```
 
-Pre-built APKs are stored in `/releases/` (`RoomLauncher-v2.2.apk`, `RoomLauncher-v2.1.apk`, `RoomLauncher-v2.0.apk`, `RoomLauncher-v1.0.apk`).
+Pre-built APKs are stored in `/releases/` (`RoomLauncher-v2.3.apk`, `RoomLauncher-v2.2.apk`, `RoomLauncher-v2.1.apk`, `RoomLauncher-v2.0.apk`, `RoomLauncher-v1.0.apk`).

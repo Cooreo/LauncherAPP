@@ -82,6 +82,7 @@ import com.roomlauncher.app.system.SystemIntentHelper
 import com.roomlauncher.app.ui.RoomUiState
 import com.roomlauncher.app.ui.allapps.AllAppsSheet
 import com.roomlauncher.app.ui.settings.SettingsSheet
+import com.roomlauncher.app.ui.theme.ChargingAnimationStyle
 import com.roomlauncher.app.ui.theme.LocalRoomPalette
 import com.roomlauncher.app.ui.theme.RoomInk
 import com.roomlauncher.app.ui.theme.RoomSage
@@ -118,10 +119,12 @@ fun RoomScreen(
     onCloseSettings: () -> Unit,
     onSelectRoomStyle: (RoomStyleId) -> Unit,
     onSelectTheme: (RoomThemeId) -> Unit,
+    onToggleDynamicTheme: (Boolean) -> Unit,
     onPickTeenPoster: (isLeft: Boolean, uri: Uri) -> Unit,
     onClearTeenPoster: (isLeft: Boolean) -> Unit,
     onToggleQuickAnimations: (Boolean) -> Unit,
     onToggleChargingAnimation: (Boolean) -> Unit,
+    onSelectChargingAnimationStyle: (ChargingAnimationStyle) -> Unit,
     onPreviewChargingAnimation: () -> Unit,
     onDismissChargingAnimation: () -> Unit,
     onToggleWeather: (Boolean) -> Unit,
@@ -449,7 +452,7 @@ fun RoomScreen(
                 }
             }
 
-            // Subtle ambient charging glow & clickable battery badge while plugged in on the room screen
+            // Sleek clickable charging badge while plugged in on the room screen (no bottom edge bar!)
             if (!uiState.isEditMode &&
                 uiState.config.chargingAnimationEnabled &&
                 uiState.batteryStatus.isCharging
@@ -457,6 +460,7 @@ fun RoomScreen(
                 AmbientChargingIndicator(
                     batteryStatus = uiState.batteryStatus,
                     roomStyle = uiState.config.roomStyleId,
+                    animationStyle = uiState.config.chargingAnimationStyle,
                     onReplayAnimation = onPreviewChargingAnimation
                 )
             }
@@ -541,10 +545,12 @@ fun RoomScreen(
                 uiState = uiState,
                 onSelectRoomStyle = onSelectRoomStyle,
                 onSelectTheme = onSelectTheme,
+                onToggleDynamicTheme = onToggleDynamicTheme,
                 onPickTeenPoster = onPickTeenPoster,
                 onClearTeenPoster = onClearTeenPoster,
                 onToggleQuickAnimations = onToggleQuickAnimations,
                 onToggleChargingAnimation = onToggleChargingAnimation,
+                onSelectChargingAnimationStyle = onSelectChargingAnimationStyle,
                 onPreviewChargingAnimation = onPreviewChargingAnimation,
                 onToggleWeather = onToggleWeather,
                 onRefreshWeather = onRefreshWeather,
@@ -567,6 +573,7 @@ fun RoomScreen(
             ChargingSplashOverlay(
                 batteryStatus = uiState.batteryStatus,
                 roomStyle = uiState.config.roomStyleId,
+                animationStyle = uiState.config.chargingAnimationStyle,
                 triggerKey = uiState.activeChargingSplashKey,
                 onFinished = onDismissChargingAnimation
             )
