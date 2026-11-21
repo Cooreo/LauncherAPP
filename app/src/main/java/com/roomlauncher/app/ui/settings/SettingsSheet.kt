@@ -97,6 +97,8 @@ fun SettingsSheet(
     onShowUpdatePopup: () -> Unit,
     onDismissUpdatePopup: () -> Unit,
     onDownloadAndInstallUpdate: () -> Unit,
+    onSaveUpdateApkToDownloads: () -> Unit,
+    onUninstallForCleanUpdate: () -> Unit,
     onOpenUpdateReleasePage: () -> Unit,
     onToggleWeather: (Boolean) -> Unit,
     onRefreshWeather: () -> Unit,
@@ -983,6 +985,13 @@ fun SettingsSheet(
                                     MaterialTheme.colorScheme.onSurfaceVariant
                                 }
                             )
+                            if (!upd.installedCertFingerprint.isNullOrBlank()) {
+                                Text(
+                                    text = "Signing key: ${upd.installedCertFingerprint} (in-place upgrades enabled)",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
                         }
                         Switch(
                             checked = uiState.config.autoCheckUpdatesEnabled,
@@ -1113,18 +1122,26 @@ fun SettingsSheet(
         }
         AlertDialog(
             onDismissRequest = {
-                if (!upd.isDownloading) onDismissUpdatePopup()
+                if (!upd.isDownloading && !upd.isInstalling) onDismissUpdatePopup()
             },
             icon = {
                 Icon(
                     imageVector = Icons.Rounded.SystemUpdate,
                     contentDescription = null,
-                    tint = MaterialTheme.colorScheme.primary
+                    tint = if (upd.signatureConflict) {
+                        MaterialTheme.colorScheme.error
+                    } else {
+                        MaterialTheme.colorScheme.primary
+                    }
                 )
             },
             title = {
                 Text(
-                    text = "Update Available — v${availableUpdate.versionName}",
+                    text = if (upd.signatureConflict) {
+                        "One-Time Key Upgrade"
+                    } else {
+                        "Update Available (v${availableUpdate.versionName})"
+                    },
                     fontWeight = FontWeight.Bold
                 )
             },
@@ -1135,48 +1152,100 @@ fun SettingsSheet(
                         style = MaterialTheme.typography.labelLarge,
                         color = MaterialTheme.colorScheme.primary
                     )
-                    if (availableUpdate.releaseNotes.isNotBlank()) {
+
+                    if (upd.signatureConflict) {
                         Text(
-                            text = availableUpdate.releaseNotes.take(420),
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                            text = "Android blocked an in-place install because your currently installed build was signed with an older/different key than this release. Follow these 3 quick steps once so all future updates install automatically in-place:",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.error
                         )
-                    }
-                    if (upd.isDownloading) {
-                        Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                            if (upd.downloadProgress >= 0f) {
-                                LinearProgressIndicator(
-                                    progress = { upd.downloadProgress.coerceIn(0f, 1f) },
-                                    modifier = Modifier.fillMaxWidth()
-                                )
-                                Text(
-                                    text = "Downloading APK… ${(upd.downloadProgress * 100).toInt()}%",
-                                    style = MaterialTheme.typography.labelMedium,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                                )
-                            } else {
+                        OutlinedButton(
+                            onClick = { exportBackupLauncher.launch("roomlauncher-backup.json") },
+                            shape = RoundedCornerShape(10.dp),
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Text("1. Export Room Backup (.json)")
+                        }
+                        OutlinedButton(
+                            onClick = onSaveUpdateApkToDownloads,
+                            shape = RoundedCornerShape(10.dp),
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Text(
+                                if (upd.savedToDownloadsPath != null) {
+                                    "2. Saved: ${upd.savedToDownloadsPath} ✓"
+                                } else {
+                                    "2. Save v${availableUpdate.versionName} APK to Downloads"
+                                }
+                            )
+                        }
+                        Button(
+                            onClick = onUninstallForCleanUpdate,
+                            shape = RoundedCornerShape(10.dp),
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Text("3. Uninstall Old Build, Then Open Downloads")
+                        }
+                    } else {
+                        if (availableUpdate.releaseNotes.isNotBlank()) {
+                            Text(
+                                text = availableUpdate.releaseNotes.take(420),
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                        if (upd.signatureVerified && !upd.isDownloading) {
+                            Text(
+                                text = "Signing key verified ✓ • Ready for in-place upgrade",
+                                style = MaterialTheme.typography.labelMedium,
+                                color = MaterialTheme.colorScheme.primary
+                            )
+                        }
+                        if (upd.isDownloading) {
+                            Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                                if (upd.downloadProgress >= 0f) {
+                                    LinearProgressIndicator(
+                                        progress = { upd.downloadProgress.coerceIn(0f, 1f) },
+                                        modifier = Modifier.fillMaxWidth()
+                                    )
+                                    Text(
+                                        text = "Downloading APK… ${(upd.downloadProgress * 100).toInt()}%",
+                                        style = MaterialTheme.typography.labelMedium,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
+                                } else {
+                                    LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
+                                    Text(
+                                        text = "Downloading APK…",
+                                        style = MaterialTheme.typography.labelMedium,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
+                                }
+                            }
+                        } else if (upd.isInstalling) {
+                            Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
                                 LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
                                 Text(
-                                    text = "Downloading APK…",
+                                    text = "Verifying signing key & preparing installer…",
                                     style = MaterialTheme.typography.labelMedium,
                                     color = MaterialTheme.colorScheme.onSurfaceVariant
                                 )
                             }
                         }
-                    }
-                    if (upd.needsInstallPermission) {
-                        Text(
-                            text = "Allow 'Install unknown apps' for Room Launcher in Android Settings, then return here to finish installing.",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.error
-                        )
-                    }
-                    if (upd.errorMessage != null && !upd.isDownloading) {
-                        Text(
-                            text = upd.errorMessage,
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.error
-                        )
+                        if (upd.needsInstallPermission) {
+                            Text(
+                                text = "Allow 'Install unknown apps' for Room Launcher in Android Settings, then return here to finish installing.",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.error
+                            )
+                        }
+                        if (upd.errorMessage != null && !upd.isDownloading && !upd.isInstalling) {
+                            Text(
+                                text = upd.errorMessage,
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.error
+                            )
+                        }
                     }
                     TextButton(
                         onClick = onOpenUpdateReleasePage,
@@ -1187,26 +1256,29 @@ fun SettingsSheet(
                 }
             },
             confirmButton = {
-                Button(
-                    onClick = onDownloadAndInstallUpdate,
-                    enabled = !upd.isDownloading
-                ) {
-                    Text(
-                        when {
-                            upd.isDownloading -> "Downloading…"
-                            upd.needsInstallPermission -> "Allow & Install"
-                            !upd.downloadedApkPath.isNullOrBlank() -> "Install Now"
-                            else -> "Download & Install"
-                        }
-                    )
+                if (!upd.signatureConflict) {
+                    Button(
+                        onClick = onDownloadAndInstallUpdate,
+                        enabled = !upd.isDownloading && !upd.isInstalling
+                    ) {
+                        Text(
+                            when {
+                                upd.isDownloading -> "Downloading…"
+                                upd.isInstalling -> "Installing…"
+                                upd.needsInstallPermission -> "Allow & Install"
+                                !upd.downloadedApkPath.isNullOrBlank() -> "Install Now"
+                                else -> "Download & Install"
+                            }
+                        )
+                    }
                 }
             },
             dismissButton = {
                 TextButton(
                     onClick = onDismissUpdatePopup,
-                    enabled = !upd.isDownloading
+                    enabled = !upd.isDownloading && !upd.isInstalling
                 ) {
-                    Text("Later")
+                    Text(if (upd.signatureConflict) "Close" else "Later")
                 }
             }
         )

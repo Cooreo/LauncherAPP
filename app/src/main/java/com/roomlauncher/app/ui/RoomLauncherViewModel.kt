@@ -32,10 +32,13 @@ import com.roomlauncher.app.data.VisualizerStyle
 import com.roomlauncher.app.data.WeatherRepository
 import com.roomlauncher.app.data.WeatherState
 import com.roomlauncher.app.data.WebShortcut
+import com.roomlauncher.app.system.ApkVerificationResult
 import com.roomlauncher.app.system.AppUpdateInstaller
+import com.roomlauncher.app.system.InstallSessionEvent
 import com.roomlauncher.app.system.RoomNotificationListenerService
 import com.roomlauncher.app.system.RoomWallpaperRenderer
 import com.roomlauncher.app.system.SystemIntentHelper
+import com.roomlauncher.app.system.UpdateInstallReceiver
 import com.roomlauncher.app.ui.theme.ChargingAnimationStyle
 import com.roomlauncher.app.ui.theme.RoomStyleId
 import com.roomlauncher.app.ui.theme.RoomThemeId
@@ -135,6 +138,62 @@ class RoomLauncherViewModel(application: Application) : AndroidViewModel(applica
     init {
         batteryMonitor.start()
         musicMediaMonitor.startOrRefresh()
+        val installedFingerprint = AppUpdateInstaller.getInstalledShortFingerprint(appContext)
+        _uiState.update { state ->
+            state.copy(
+                updateState = state.updateState.copy(
+                    installedCertFingerprint = installedFingerprint
+                )
+            )
+        }
+        viewModelScope.launch {
+            UpdateInstallReceiver.events.collect { event ->
+                when (event) {
+                    InstallSessionEvent.PendingUserAction -> {
+                        _uiState.update { s ->
+                            s.copy(updateState = s.updateState.copy(isInstalling = false))
+                        }
+                    }
+                    InstallSessionEvent.Success -> {
+                        _uiState.update { s ->
+                            s.copy(
+                                updateState = s.updateState.copy(
+                                    isInstalling = false,
+                                    signatureConflict = false,
+                                    errorMessage = null,
+                                    showUpdateDialog = false
+                                )
+                            )
+                        }
+                        Toast.makeText(appContext, "Room Launcher updated!", Toast.LENGTH_SHORT).show()
+                    }
+                    is InstallSessionEvent.Conflict -> {
+                        _uiState.update { s ->
+                            s.copy(
+                                updateState = s.updateState.copy(
+                                    isInstalling = false,
+                                    signatureVerified = false,
+                                    signatureConflict = true,
+                                    errorMessage = null,
+                                    showUpdateDialog = true
+                                )
+                            )
+                        }
+                    }
+                    is InstallSessionEvent.Failed -> {
+                        _uiState.update { s ->
+                            s.copy(
+                                updateState = s.updateState.copy(
+                                    isInstalling = false,
+                                    errorMessage = event.message,
+                                    showUpdateDialog = true
+                                )
+                            )
+                        }
+                    }
+                }
+            }
+        }
         viewModelScope.launch {
             while (true) {
                 delay(60_000L)
@@ -782,6 +841,10 @@ class RoomLauncherViewModel(application: Application) : AndroidViewModel(applica
                 updateState = it.updateState.copy(
                     isDownloading = true,
                     downloadProgress = 0f,
+                    isInstalling = false,
+                    signatureConflict = false,
+                    signatureVerified = false,
+                    savedToDownloadsPath = null,
                     errorMessage = null,
                     needsInstallPermission = false
                 )
@@ -818,6 +881,7 @@ class RoomLauncherViewModel(application: Application) : AndroidViewModel(applica
                     s.copy(
                         updateState = s.updateState.copy(
                             isDownloading = false,
+                            isInstalling = false,
                             downloadProgress = 0f,
                             errorMessage = msg
                         )
@@ -829,17 +893,117 @@ class RoomLauncherViewModel(application: Application) : AndroidViewModel(applica
     }
 
     private fun triggerInstallOrRequestPermission(apkFile: File) {
-        if (AppUpdateInstaller.canInstallPackages(appContext)) {
+        viewModelScope.launch {
             _uiState.update {
-                it.copy(updateState = it.updateState.copy(needsInstallPermission = false))
+                it.copy(
+                    updateState = it.updateState.copy(
+                        isInstalling = true,
+                        errorMessage = null
+                    )
+                )
             }
-            AppUpdateInstaller.launchApkInstaller(appContext, apkFile)
-        } else {
-            _uiState.update {
-                it.copy(updateState = it.updateState.copy(needsInstallPermission = true))
+
+            when (val verification = AppUpdateInstaller.verifyApkForInstall(appContext, apkFile)) {
+                is ApkVerificationResult.Compatible -> {
+                    _uiState.update {
+                        it.copy(
+                            updateState = it.updateState.copy(
+                                signatureVerified = true,
+                                signatureConflict = false,
+                                errorMessage = null
+                            )
+                        )
+                    }
+                    if (AppUpdateInstaller.canInstallPackages(appContext)) {
+                        _uiState.update {
+                            it.copy(updateState = it.updateState.copy(needsInstallPermission = false))
+                        }
+                        val started = AppUpdateInstaller.installApkViaSession(appContext, apkFile)
+                        if (!started) {
+                            _uiState.update {
+                                it.copy(
+                                    updateState = it.updateState.copy(
+                                        isInstalling = false,
+                                        errorMessage = "Could not start Android installer session."
+                                    )
+                                )
+                            }
+                        }
+                    } else {
+                        _uiState.update {
+                            it.copy(
+                                updateState = it.updateState.copy(
+                                    isInstalling = false,
+                                    needsInstallPermission = true
+                                )
+                            )
+                        }
+                        AppUpdateInstaller.openInstallUnknownAppsSettings(appContext)
+                    }
+                }
+
+                is ApkVerificationResult.SignatureMismatch -> {
+                    _uiState.update {
+                        it.copy(
+                            updateState = it.updateState.copy(
+                                isInstalling = false,
+                                signatureVerified = false,
+                                signatureConflict = true,
+                                errorMessage = null
+                            )
+                        )
+                    }
+                }
+
+                is ApkVerificationResult.DowngradeBlocked -> {
+                    _uiState.update {
+                        it.copy(
+                            updateState = it.updateState.copy(
+                                isInstalling = false,
+                                errorMessage = "Downloaded build (${verification.apkVersionCode}) is older than installed (${verification.installedVersionCode})."
+                            )
+                        )
+                    }
+                }
+
+                is ApkVerificationResult.InvalidApk -> {
+                    _uiState.update {
+                        it.copy(
+                            updateState = it.updateState.copy(
+                                isInstalling = false,
+                                downloadedApkPath = null,
+                                errorMessage = verification.reason
+                            )
+                        )
+                    }
+                }
             }
-            AppUpdateInstaller.openInstallUnknownAppsSettings(appContext)
         }
+    }
+
+    fun saveDownloadedApkToDownloads() {
+        val state = _uiState.value.updateState
+        val path = state.downloadedApkPath ?: return
+        val version = state.availableUpdate?.versionName ?: "latest"
+        viewModelScope.launch {
+            val savedPath = AppUpdateInstaller.saveApkToPublicDownloads(
+                context = appContext,
+                apkFile = File(path),
+                versionName = version
+            )
+            if (savedPath != null) {
+                _uiState.update { s ->
+                    s.copy(updateState = s.updateState.copy(savedToDownloadsPath = savedPath))
+                }
+                Toast.makeText(appContext, "Saved to $savedPath", Toast.LENGTH_LONG).show()
+            } else {
+                Toast.makeText(appContext, "Could not copy APK to Downloads", Toast.LENGTH_LONG).show()
+            }
+        }
+    }
+
+    fun uninstallCurrentAppForMigration() {
+        AppUpdateInstaller.launchUninstallCurrentApp(appContext)
     }
 
     fun openUpdateReleasePage() {

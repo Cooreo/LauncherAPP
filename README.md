@@ -2,8 +2,11 @@
 
 **Room Launcher** is a minimalist Android home screen launcher built with **Kotlin** and **Jetpack Compose**. Instead of a traditional grid of icons, your home screen is a customizable, illustrated room where every piece of furniture is an interactive, movable object.
 
-## Features (v2.5.1)
+## Features (v2.6)
 
+- **Bulletproof In-App Updater & Package Conflict Protection (v2.6)**:
+  - Upgrades installer to Android's native `PackageInstaller.Session` API with structured status callbacks (`UpdateInstallReceiver`), pre-install APK signature & version verification, and verified signing-key display in Settings.
+  - Detects signing-key conflicts before Android fails and walks through a 1-tap guided migration (**Export Room Backup** → **Save APK to Downloads** → **Uninstall Old Build**), plus an automated CI signing-certificate verification guard so every release shares the exact same persistent key (`app/roomlauncher-debug.keystore`) for seamless in-place updates.
 - **Persistent In-Place Update Signing & Hardened Saves (v2.5.1)**:
   - Uses a permanent project signing keystore (`app/roomlauncher-debug.keystore`) instead of ephemeral per-build CI debug keys so every future update upgrades cleanly in-place without uninstalling or losing saved data.
   - Hardened `room_config.json` persistence with serialized `Mutex` writes, `fsync` + rolling `.bak` crash recovery, `coerceInputValues = true` forward/backward enum safety, and 1-tap **Export / Restore Backup** right in Settings.
@@ -48,4 +51,4 @@
 ./gradlew testDebugUnitTest assembleRelease
 ```
 
-Pre-built APKs are stored in `/releases/` (`RoomLauncher-v2.5.1.apk`, `RoomLauncher-v2.5.apk`, `RoomLauncher-v2.4.apk`, `RoomLauncher-v2.3.1.apk`, `RoomLauncher-v2.3.apk`, `RoomLauncher-v2.2.apk`, `RoomLauncher-v2.1.apk`, `RoomLauncher-v2.0.apk`, `RoomLauncher-v1.0.apk`).
+Pre-built APKs are stored in `/releases/` (`RoomLauncher-v2.6.apk`, `RoomLauncher-v2.5.1.apk`, `RoomLauncher-v2.5.apk`, `RoomLauncher-v2.4.apk`, `RoomLauncher-v2.3.1.apk`, `RoomLauncher-v2.3.apk`, `RoomLauncher-v2.2.apk`, `RoomLauncher-v2.1.apk`, `RoomLauncher-v2.0.apk`, `RoomLauncher-v1.0.apk`).

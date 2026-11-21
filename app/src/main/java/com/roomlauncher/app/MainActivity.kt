@@ -198,6 +198,8 @@ private fun RoomLauncherRoot(
                 onShowUpdatePopup = viewModel::showUpdatePopup,
                 onDismissUpdatePopup = viewModel::dismissUpdatePopup,
                 onDownloadAndInstallUpdate = viewModel::downloadAndInstallUpdate,
+                onSaveUpdateApkToDownloads = viewModel::saveDownloadedApkToDownloads,
+                onUninstallForCleanUpdate = viewModel::uninstallCurrentAppForMigration,
                 onOpenUpdateReleasePage = viewModel::openUpdateReleasePage,
                 onToggleWeather = viewModel::setWeatherEnabled,
                 onRefreshWeather = { viewModel.refreshWeather(forceRefresh = true) },
