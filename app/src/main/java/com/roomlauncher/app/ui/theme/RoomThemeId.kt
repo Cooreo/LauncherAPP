@@ -28,7 +28,31 @@ enum class RoomStyleId(
     COZY_MINIMALIST("Cozy Minimalist", "Calm Scandinavian room & clean wood furniture"),
     TEEN_ROOM("Teen Room", "LED wall glow, fairy lights & 2 custom wall posters"),
     KIDS_ROOM("Kids Room", "Bunting garland, starry walls & cheerful play rug"),
-    MINECRAFT("Blocky / Voxel", "Pixelated oak walls, torches & blocky furniture")
+    MINECRAFT("Blocky / Voxel", "Pixelated oak walls, torches & blocky furniture"),
+    GEOMETRY_DASH("Geometry Dash", "Extreme Demon room with Sonic Wave, Astral Divinity & Death Corridor sub-themes")
+}
+
+@Serializable
+enum class GeometryDashSubTheme(
+    val displayName: String,
+    val creatorTag: String,
+    val description: String
+) {
+    SONIC_WAVE(
+        displayName = "Sonic Wave",
+        creatorTag = "Cyclic • Extreme Demon",
+        description = "Electric cyan Nine Circles wave, spinning cobalt saws & neon grid"
+    ),
+    ASTRAL_DIVINITY(
+        displayName = "Astral Divinity",
+        creatorTag = "Knobbelboy • Extreme Demon",
+        description = "Cosmic violet crystals, rainbow prism eyes & celestial nebula glow"
+    ),
+    DEATH_CORRIDOR(
+        displayName = "Death Corridor",
+        creatorTag = "KaotikJumper • Extreme Demon",
+        description = "Pitch-black diamond wave corridor, blazing crimson spikes & hell saws"
+    )
 }
 
 @Serializable
@@ -91,6 +115,167 @@ object RoomThemes {
         in 6..14 -> RoomThemeId.WARM_LINEN
         in 15..20 -> RoomThemeId.MIDNIGHT_COZY
         else -> RoomThemeId.OLED_PITCH
+    }
+
+    fun effectivePalette(
+        roomStyle: RoomStyleId,
+        themeId: RoomThemeId,
+        gdSubTheme: GeometryDashSubTheme = GeometryDashSubTheme.SONIC_WAVE
+    ): RoomVisualPalette {
+        return if (roomStyle == RoomStyleId.GEOMETRY_DASH) {
+            geometryDashPalette(gdSubTheme)
+        } else {
+            paletteFor(themeId)
+        }
+    }
+
+    fun geometryDashPalette(subTheme: GeometryDashSubTheme): RoomVisualPalette = when (subTheme) {
+        GeometryDashSubTheme.SONIC_WAVE -> RoomVisualPalette(
+            themeId = RoomThemeId.OLED_PITCH,
+            isDark = true,
+            wallMain = Color(0xFF040B1C),
+            wallUpper = Color(0xFF020612),
+            baseboard = Color(0xFF0B224A),
+            baseboardShadow = Color(0xFF01040B),
+            floorMain = Color(0xFF051128),
+            floorPlankLine = Color(0xFF00D4FF),
+            rugFill = Color(0xFF081B3D),
+            rugBorder = Color(0xFF00F0FF),
+            woodDark = Color(0xFF0A1D3D),
+            woodMid = Color(0xFF123466),
+            woodLight = Color(0xFF1F58A8),
+            duvetPrimary = Color(0xFF0B3B8C),
+            throwBlanket = Color(0xFF00E5FF),
+            pillowColor = Color(0xFFD6F7FF),
+            tvBezel = Color(0xFF040914),
+            tvScreen = Color(0xFF0A244D),
+            consoleBody = Color(0xFF071329),
+            consoleAccent = Color(0xFF00F0FF),
+            trashBody = Color(0xFF0E2547),
+            trashRim = Color(0xFF38BDF8),
+            stickyNoteFill = Color(0xFF5CEBFF),
+            stickyNoteFold = Color(0xFF18A9D6),
+            clockFace = Color(0xFF071733),
+            clockHands = Color(0xFFE0FAFF),
+            clockAccent = Color(0xFF00E5FF),
+            ambientLightTint = Color(0x2800E5FF),
+            hudTextColor = Color(0xFFE8FAFF),
+            colorScheme = darkColorScheme(
+                primary = Color(0xFF00E5FF),
+                onPrimary = Color(0xFF002029),
+                primaryContainer = Color(0xFF09365E),
+                onPrimaryContainer = Color(0xFFD4F8FF),
+                secondary = Color(0xFF4D8DFF),
+                onSecondary = Color(0xFF001A45),
+                secondaryContainer = Color(0xFF102A5C),
+                onSecondaryContainer = Color(0xFFD6E5FF),
+                background = Color(0xFF030816),
+                onBackground = Color(0xFFE8FAFF),
+                surface = Color(0xFF071226),
+                onSurface = Color(0xFFE8FAFF),
+                surfaceVariant = Color(0xFF0F2142),
+                onSurfaceVariant = Color(0xFF8CC4E8),
+                outline = Color(0xFF1C467A)
+            )
+        )
+
+        GeometryDashSubTheme.ASTRAL_DIVINITY -> RoomVisualPalette(
+            themeId = RoomThemeId.OLED_PITCH,
+            isDark = true,
+            wallMain = Color(0xFF140724),
+            wallUpper = Color(0xFF0B0317),
+            baseboard = Color(0xFF2B104A),
+            baseboardShadow = Color(0xFF07020F),
+            floorMain = Color(0xFF180A2B),
+            floorPlankLine = Color(0xFFD946EF),
+            rugFill = Color(0xFF240F3F),
+            rugBorder = Color(0xFFF472B6),
+            woodDark = Color(0xFF24103B),
+            woodMid = Color(0xFF3E1C63),
+            woodLight = Color(0xFF6B2FA0),
+            duvetPrimary = Color(0xFF5B21B6),
+            throwBlanket = Color(0xFFF59E0B),
+            pillowColor = Color(0xFFF5E6FF),
+            tvBezel = Color(0xFF0E051A),
+            tvScreen = Color(0xFF2B124C),
+            consoleBody = Color(0xFF190A2E),
+            consoleAccent = Color(0xFFE879F9),
+            trashBody = Color(0xFF2E144D),
+            trashRim = Color(0xFFFBBF24),
+            stickyNoteFill = Color(0xFFFDE047),
+            stickyNoteFold = Color(0xFFD97706),
+            clockFace = Color(0xFF1C0C33),
+            clockHands = Color(0xFFFAF0FF),
+            clockAccent = Color(0xFFF59E0B),
+            ambientLightTint = Color(0x2AE879F9),
+            hudTextColor = Color(0xFFFAF0FF),
+            colorScheme = darkColorScheme(
+                primary = Color(0xFFE879F9),
+                onPrimary = Color(0xFF2D0636),
+                primaryContainer = Color(0xFF4A1563),
+                onPrimaryContainer = Color(0xFFFCE7FF),
+                secondary = Color(0xFFFBBF24),
+                onSecondary = Color(0xFF332100),
+                secondaryContainer = Color(0xFF523400),
+                onSecondaryContainer = Color(0xFFFFEAB0),
+                background = Color(0xFF0D041A),
+                onBackground = Color(0xFFFAF0FF),
+                surface = Color(0xFF17092B),
+                onSurface = Color(0xFFFAF0FF),
+                surfaceVariant = Color(0xFF281247),
+                onSurfaceVariant = Color(0xFFCBB0E8),
+                outline = Color(0xFF542885)
+            )
+        )
+
+        GeometryDashSubTheme.DEATH_CORRIDOR -> RoomVisualPalette(
+            themeId = RoomThemeId.OLED_PITCH,
+            isDark = true,
+            wallMain = Color(0xFF120305),
+            wallUpper = Color(0xFF080102),
+            baseboard = Color(0xFF33080E),
+            baseboardShadow = Color(0xFF000000),
+            floorMain = Color(0xFF160407),
+            floorPlankLine = Color(0xFFFF2442),
+            rugFill = Color(0xFF24070C),
+            rugBorder = Color(0xFFFF3B30),
+            woodDark = Color(0xFF26090D),
+            woodMid = Color(0xFF471118),
+            woodLight = Color(0xFF7A1C26),
+            duvetPrimary = Color(0xFF7F1D1D),
+            throwBlanket = Color(0xFFFF453A),
+            pillowColor = Color(0xFFF5E6E8),
+            tvBezel = Color(0xFF0A0203),
+            tvScreen = Color(0xFF2B080E),
+            consoleBody = Color(0xFF170508),
+            consoleAccent = Color(0xFFFF2E4C),
+            trashBody = Color(0xFF2E0B10),
+            trashRim = Color(0xFFEF4444),
+            stickyNoteFill = Color(0xFFFF6B57),
+            stickyNoteFold = Color(0xFFC82828),
+            clockFace = Color(0xFF1B0609),
+            clockHands = Color(0xFFFFF1F2),
+            clockAccent = Color(0xFFFF2E4C),
+            ambientLightTint = Color(0x2CFF2442),
+            hudTextColor = Color(0xFFFFF1F2),
+            colorScheme = darkColorScheme(
+                primary = Color(0xFFFF455B),
+                onPrimary = Color(0xFF330008),
+                primaryContainer = Color(0xFF5C0C18),
+                onPrimaryContainer = Color(0xFFFFDCE0),
+                secondary = Color(0xFFFF8A4C),
+                onSecondary = Color(0xFF361200),
+                secondaryContainer = Color(0xFF572107),
+                onSecondaryContainer = Color(0xFFFFDFCE),
+                background = Color(0xFF0A0203),
+                onBackground = Color(0xFFFFF1F2),
+                surface = Color(0xFF170508),
+                onSurface = Color(0xFFFFF1F2),
+                surfaceVariant = Color(0xFF2B0B10),
+                onSurfaceVariant = Color(0xFFE0A4AC),
+                outline = Color(0xFF691A25)
+            )
+        )
     }
 
     fun paletteFor(id: RoomThemeId): RoomVisualPalette = when (id) {

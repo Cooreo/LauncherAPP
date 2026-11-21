@@ -11,6 +11,7 @@ import com.roomlauncher.app.data.RoomObjectVisual
 import com.roomlauncher.app.data.VisualizerStyle
 import com.roomlauncher.app.data.WebShortcut
 import com.roomlauncher.app.ui.theme.ChargingAnimationStyle
+import com.roomlauncher.app.ui.theme.GeometryDashSubTheme
 import com.roomlauncher.app.ui.theme.RoomStyleId
 import com.roomlauncher.app.ui.theme.RoomThemeId
 import com.roomlauncher.app.ui.theme.RoomThemes
@@ -210,5 +211,34 @@ class RoomConfigRepositoryTest {
         assertEquals(RoomStyleId.COZY_MINIMALIST, loaded.roomStyleId)
         assertEquals(RoomThemeId.OLED_PITCH, loaded.themeId)
         assertEquals(1, loaded.webShortcuts.size)
+    }
+
+    @Test
+    fun geometryDashSubThemesPersistAndProvideDistinctPalettes() = runTest {
+        val file = File(tempFolder.root, "room_config.json")
+        val repo = RoomConfigRepository(file)
+
+        for (subTheme in GeometryDashSubTheme.entries) {
+            val config = RoomConfigRepository.createDefaultRoomConfig().copy(
+                roomStyleId = RoomStyleId.GEOMETRY_DASH,
+                geometryDashSubTheme = subTheme
+            )
+            repo.saveConfig(config)
+            val loaded = repo.loadConfig()
+            assertEquals(RoomStyleId.GEOMETRY_DASH, loaded.roomStyleId)
+            assertEquals(subTheme, loaded.geometryDashSubTheme)
+
+            val palette = RoomThemes.effectivePalette(
+                roomStyle = loaded.roomStyleId,
+                themeId = loaded.themeId,
+                gdSubTheme = loaded.geometryDashSubTheme
+            )
+            assertTrue(palette.isDark)
+        }
+
+        val sw = RoomThemes.geometryDashPalette(GeometryDashSubTheme.SONIC_WAVE)
+        val ad = RoomThemes.geometryDashPalette(GeometryDashSubTheme.ASTRAL_DIVINITY)
+        val dc = RoomThemes.geometryDashPalette(GeometryDashSubTheme.DEATH_CORRIDOR)
+        assertTrue(sw.wallMain != ad.wallMain && ad.wallMain != dc.wallMain && sw.wallMain != dc.wallMain)
     }
 }

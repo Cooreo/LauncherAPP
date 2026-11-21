@@ -26,6 +26,9 @@
     <!-- Allows downloading & installing Room Launcher updates directly from GitHub releases -->
     <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
 
+    <!-- Allows launching Android's uninstall prompt only if user initiates a key-conflict migration -->
+    <uses-permission android:name="android.permission.REQUEST_DELETE_PACKAGES" />
+
     <queries>
         <intent>
             <action android:name="android.intent.action.MAIN" />
@@ -83,6 +86,11 @@
                 <action android:name="android.service.notification.NotificationListenerService" />
             </intent-filter>
         </service>
+
+        <!-- Receives structured PackageInstaller session results for in-app updates -->
+        <receiver
+            android:name=".system.UpdateInstallReceiver"
+            android:exported="false" />
 
         <!-- Exposes downloaded update APKs safely to Android's Package Installer -->
         <provider

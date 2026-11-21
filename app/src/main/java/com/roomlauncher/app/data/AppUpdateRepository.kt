@@ -22,6 +22,7 @@ data class AppUpdateInfo(
 @Immutable
 data class AppUpdateUiState(
     val currentVersion: String = "",
+    val installedCertFingerprint: String? = null,
     val isChecking: Boolean = false,
     val availableUpdate: AppUpdateInfo? = null,
     val isUpToDate: Boolean = false,
@@ -29,7 +30,11 @@ data class AppUpdateUiState(
     val errorMessage: String? = null,
     val isDownloading: Boolean = false,
     val downloadProgress: Float = 0f,
+    val isInstalling: Boolean = false,
     val downloadedApkPath: String? = null,
+    val signatureVerified: Boolean = false,
+    val signatureConflict: Boolean = false,
+    val savedToDownloadsPath: String? = null,
     val needsInstallPermission: Boolean = false,
     val showUpdateDialog: Boolean = false
 )

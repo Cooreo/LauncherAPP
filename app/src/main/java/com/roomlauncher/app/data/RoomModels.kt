@@ -2,6 +2,7 @@ package com.roomlauncher.app.data
 
 import androidx.compose.runtime.Immutable
 import com.roomlauncher.app.ui.theme.ChargingAnimationStyle
+import com.roomlauncher.app.ui.theme.GeometryDashSubTheme
 import com.roomlauncher.app.ui.theme.RoomStyleId
 import com.roomlauncher.app.ui.theme.RoomThemeId
 import kotlinx.serialization.Serializable
@@ -68,6 +69,7 @@ data class RoomConfig(
     val onboardingStep: Int = 0,
     val autoPopulated: Boolean = false,
     val roomStyleId: RoomStyleId = RoomStyleId.COZY_MINIMALIST,
+    val geometryDashSubTheme: GeometryDashSubTheme = GeometryDashSubTheme.SONIC_WAVE,
     val themeId: RoomThemeId = RoomThemeId.WARM_LINEN,
     val dynamicThemeEnabled: Boolean = false,
     val useQuickAnimations: Boolean = false,

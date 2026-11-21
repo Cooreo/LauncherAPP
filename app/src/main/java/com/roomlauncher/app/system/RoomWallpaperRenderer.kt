@@ -21,9 +21,13 @@ import com.roomlauncher.app.data.RoomHotspot
 import com.roomlauncher.app.data.RoomObjectVisual
 import com.roomlauncher.app.data.WeatherCondition
 import com.roomlauncher.app.data.WeatherState
+import com.roomlauncher.app.ui.theme.GeometryDashSubTheme
 import com.roomlauncher.app.ui.theme.RoomStyleId
 import com.roomlauncher.app.ui.theme.RoomThemes
 import com.roomlauncher.app.ui.theme.RoomVisualPalette
+import com.roomlauncher.app.ui.theme.accentNeonColors
+import com.roomlauncher.app.ui.theme.mainDrawableRes
+import com.roomlauncher.app.ui.theme.posterDrawableRes
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import java.io.File
@@ -49,9 +53,28 @@ object RoomWallpaperRenderer {
             val (realW, realH) = getRealDisplaySize(context)
             val width = realW.coerceIn(720, 1440)
             val height = realH.coerceIn(1280, 3200)
-            val palette = RoomThemes.paletteFor(config.themeId)
+            val palette = RoomThemes.effectivePalette(
+                roomStyle = config.roomStyleId,
+                themeId = config.themeId,
+                gdSubTheme = config.geometryDashSubTheme
+            )
 
-            val frameBitmap = decodeOptionalBitmap(config.framePhotoPath)
+            val gdMainBmp = if (config.roomStyleId == RoomStyleId.GEOMETRY_DASH) {
+                runCatching {
+                    BitmapFactory.decodeResource(context.resources, config.geometryDashSubTheme.mainDrawableRes())
+                }.getOrNull()
+            } else {
+                null
+            }
+            val gdPosterBmp = if (config.roomStyleId == RoomStyleId.GEOMETRY_DASH) {
+                runCatching {
+                    BitmapFactory.decodeResource(context.resources, config.geometryDashSubTheme.posterDrawableRes())
+                }.getOrNull()
+            } else {
+                null
+            }
+
+            val frameBitmap = decodeOptionalBitmap(config.framePhotoPath) ?: gdMainBmp
             val posterLeftBitmap = decodeOptionalBitmap(config.posterLeftPath)
             val posterRightBitmap = decodeOptionalBitmap(config.posterRightPath)
 
@@ -80,6 +103,9 @@ object RoomWallpaperRenderer {
                 floorY = floorY,
                 palette = palette,
                 style = config.roomStyleId,
+                gdSubTheme = config.geometryDashSubTheme,
+                gdMainBmp = gdMainBmp,
+                gdPosterBmp = gdPosterBmp,
                 posterLeft = posterLeftBitmap,
                 posterRight = posterRightBitmap
             )
@@ -148,10 +174,79 @@ object RoomWallpaperRenderer {
         floorY: Float,
         palette: RoomVisualPalette,
         style: RoomStyleId,
+        gdSubTheme: GeometryDashSubTheme,
+        gdMainBmp: Bitmap?,
+        gdPosterBmp: Bitmap?,
         posterLeft: Bitmap?,
         posterRight: Bitmap?
     ) {
         val paint = Paint(Paint.ANTI_ALIAS_FLAG)
+
+        if (style == RoomStyleId.GEOMETRY_DASH) {
+            val (neonPrimary, _, neonTertiary) = gdSubTheme.accentNeonColors()
+            paint.color = palette.wallUpper.toArgb()
+            canvas.drawRect(0f, 0f, fullW, floorY, paint)
+            if (gdMainBmp != null) {
+                paint.alpha = 64
+                drawBitmapCenterCrop(canvas, gdMainBmp, RectF(0f, 0f, fullW, floorY), paint)
+                paint.alpha = 255
+            }
+            paint.shader = LinearGradient(
+                0f, 0f, 0f, floorY,
+                intArrayOf(
+                    (palette.wallUpper.toArgb() and 0x00FFFFFF) or 0xD6000000.toInt(),
+                    (palette.wallMain.toArgb() and 0x00FFFFFF) or 0xA8000000.toInt(),
+                    (palette.wallMain.toArgb() and 0x00FFFFFF) or 0xE0000000.toInt()
+                ),
+                floatArrayOf(0f, 0.5f, 1f),
+                Shader.TileMode.CLAMP
+            )
+            canvas.drawRect(0f, 0f, fullW, floorY, paint)
+            paint.shader = null
+
+            // Framed Geometry Dash posters
+            val leftRect = RectF(viewLeft + viewW * 0.335f, viewTop + viewH * 0.265f, viewLeft + viewW * 0.555f, viewTop + viewH * 0.40f)
+            val rightRect = RectF(viewLeft + viewW * 0.555f, viewTop + viewH * 0.185f, viewLeft + viewW * 0.735f, viewTop + viewH * 0.297f)
+            if (gdPosterBmp != null) {
+                drawBitmapCenterCrop(canvas, gdPosterBmp, leftRect, paint)
+                paint.style = Paint.Style.STROKE
+                paint.strokeWidth = 4f
+                paint.color = neonPrimary.toArgb()
+                canvas.drawRect(leftRect, paint)
+                paint.style = Paint.Style.FILL
+            }
+            if (gdMainBmp != null) {
+                drawBitmapCenterCrop(canvas, gdMainBmp, rightRect, paint)
+                paint.style = Paint.Style.STROKE
+                paint.strokeWidth = 4f
+                paint.color = neonTertiary.toArgb()
+                canvas.drawRect(rightRect, paint)
+                paint.style = Paint.Style.FILL
+            }
+
+            // Neon ground laser + perspective grid floor
+            paint.color = palette.floorMain.toArgb()
+            canvas.drawRect(0f, floorY, fullW, fullH, paint)
+            paint.color = neonPrimary.toArgb()
+            paint.strokeWidth = 4f
+            canvas.drawLine(0f, floorY, fullW, floorY, paint)
+            paint.alpha = 85
+            paint.strokeWidth = 2f
+            listOf(0.665f, 0.725f, 0.795f, 0.875f, 0.955f).forEach { fy ->
+                val y = viewTop + viewH * fy
+                canvas.drawLine(0f, y, fullW, y, paint)
+            }
+            paint.alpha = 255
+            val rugRect = RectF(viewLeft + viewW * 0.12f, viewTop + viewH * 0.665f, viewLeft + viewW * 0.88f, viewTop + viewH * 0.91f)
+            paint.color = palette.rugFill.toArgb()
+            canvas.drawRoundRect(rugRect, 20f, 20f, paint)
+            paint.style = Paint.Style.STROKE
+            paint.strokeWidth = 4f
+            paint.color = neonPrimary.toArgb()
+            canvas.drawRoundRect(rugRect, 20f, 20f, paint)
+            paint.style = Paint.Style.FILL
+            return
+        }
 
         if (style == RoomStyleId.MINECRAFT) {
             val oakBase = if (palette.isDark) 0xFF4A3723.toInt() else 0xFFB8945F.toInt()

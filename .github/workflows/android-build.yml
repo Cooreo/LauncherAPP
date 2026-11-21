@@ -46,25 +46,52 @@ jobs:
       - name: Build Release-Optimized APK (signed with persistent project keystore for in-place upgrades)
         run: ./gradlew assembleRelease --stacktrace
 
-      - name: Prepare releases/RoomLauncher-v2.5.1.apk
+      - name: Prepare releases/RoomLauncher-v2.6.apk
         run: |
           mkdir -p releases
-          cp app/build/outputs/apk/release/app-release.apk releases/RoomLauncher-v2.5.1.apk
-          ls -lh releases/RoomLauncher-v2.5.1.apk
+          cp app/build/outputs/apk/release/app-release.apk releases/RoomLauncher-v2.6.apk
+          ls -lh releases/RoomLauncher-v2.6.apk
+
+      - name: Verify persistent signing certificate matches keystore & v2.5.1 (prevents package conflicts)
+        run: |
+          python3 - <<'EOF'
+          import subprocess, hashlib, struct, sys
+
+          cert_pem = subprocess.check_output([
+              "openssl", "pkcs12", "-in", "app/roomlauncher-debug.keystore",
+              "-passin", "pass:android", "-clcerts", "-nokeys"
+          ])
+          cert_der = subprocess.check_output(
+              ["openssl", "x509", "-outform", "DER"], input=cert_pem
+          )
+          print("Expected persistent keystore cert SHA-256:", hashlib.sha256(cert_der).hexdigest())
+
+          for apk in ["releases/RoomLauncher-v2.5.1.apk", "releases/RoomLauncher-v2.6.apk"]:
+              with open(apk, "rb") as f:
+                  data = f.read()
+              eocd = data.rfind(b'PK\x05\x06')
+              cd_offset = struct.unpack_from('<I', data, eocd + 16)[0]
+              block_size = struct.unpack_from('<Q', data, cd_offset - 24)[0]
+              block = data[cd_offset - 8 - block_size : cd_offset]
+              if cert_der not in block:
+                  print(f"::error::Signing cert mismatch in {apk}!")
+                  sys.exit(1)
+              print(f"Verified persistent signing cert in {apk} ✓")
+          EOF
 
       - name: Upload APK artifact
         uses: actions/upload-artifact@v4
         with:
-          name: RoomLauncher-v2.5.1.apk
-          path: releases/RoomLauncher-v2.5.1.apk
+          name: RoomLauncher-v2.6.apk
+          path: releases/RoomLauncher-v2.6.apk
 
       - name: Commit compiled APK to branch
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add -f releases/RoomLauncher-v2.5.1.apk
+          git add -f releases/RoomLauncher-v2.6.apk
           if ! git diff --cached --quiet; then
-            git commit -m "Build: add compiled releases/RoomLauncher-v2.5.1.apk [skip ci]"
+            git commit -m "Build: add compiled releases/RoomLauncher-v2.6.apk [skip ci]"
             git push origin HEAD:${GITHUB_REF_NAME}
           else
             echo "APK unchanged, skipping commit."

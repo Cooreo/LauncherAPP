@@ -43,7 +43,11 @@ class MainActivity : ComponentActivity() {
         setContent {
             val uiState by launcherViewModel.uiState.collectAsStateWithLifecycle()
 
-            RoomLauncherTheme(themeId = uiState.effectiveThemeId) {
+            RoomLauncherTheme(
+                themeId = uiState.effectiveThemeId,
+                roomStyle = uiState.config.roomStyleId,
+                gdSubTheme = uiState.config.geometryDashSubTheme
+            ) {
                 val palette = LocalRoomPalette.current
                 LaunchedEffect(palette.isDark) {
                     val barStyle = if (palette.isDark) {
@@ -167,6 +171,7 @@ private fun RoomLauncherRoot(
                 onOpenSettings = viewModel::openSettings,
                 onCloseSettings = viewModel::closeSettings,
                 onSelectRoomStyle = viewModel::setRoomStyle,
+                onSelectGeometryDashSubTheme = viewModel::setGeometryDashSubTheme,
                 onSelectTheme = viewModel::setTheme,
                 onToggleDynamicTheme = viewModel::setDynamicThemeEnabled,
                 onPickTeenPoster = viewModel::setTeenPoster,
@@ -198,6 +203,8 @@ private fun RoomLauncherRoot(
                 onShowUpdatePopup = viewModel::showUpdatePopup,
                 onDismissUpdatePopup = viewModel::dismissUpdatePopup,
                 onDownloadAndInstallUpdate = viewModel::downloadAndInstallUpdate,
+                onSaveUpdateApkToDownloads = viewModel::saveDownloadedApkToDownloads,
+                onUninstallForCleanUpdate = viewModel::uninstallCurrentAppForMigration,
                 onOpenUpdateReleasePage = viewModel::openUpdateReleasePage,
                 onToggleWeather = viewModel::setWeatherEnabled,
                 onRefreshWeather = { viewModel.refreshWeather(forceRefresh = true) },
