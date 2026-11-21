@@ -1,0 +1,352 @@
+<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="360dp"
+    android:height="800dp"
+    android:viewportWidth="360"
+    android:viewportHeight="800">
+
+    <!-- ==================== ROOM SHELL ==================== -->
+    <!-- Warm cream back wall -->
+    <path
+        android:fillColor="#F5EFE6"
+        android:pathData="M0,0 L360,0 L360,488 L0,488 Z" />
+
+    <!-- Subtle upper wall warmth band -->
+    <path
+        android:fillColor="#EFE6D8"
+        android:pathData="M0,0 L360,0 L360,92 L0,92 Z" />
+
+    <!-- Soft sunlight diagonal wash from left window -->
+    <path
+        android:fillAlpha="0.32"
+        android:fillColor="#FFFDF8"
+        android:pathData="M18,92 L106,92 L180,488 L40,488 Z" />
+
+    <!-- Baseboard / wainscoting trim -->
+    <path
+        android:fillColor="#E5DAC8"
+        android:pathData="M0,474 L360,474 L360,488 L0,488 Z" />
+    <path
+        android:fillColor="#D4C5AE"
+        android:pathData="M0,488 L360,488 L360,492 L0,492 Z" />
+
+    <!-- Warm oak wooden floor -->
+    <path
+        android:fillColor="#DEC6A4"
+        android:pathData="M0,492 L360,492 L360,800 L0,800 Z" />
+
+    <!-- Subtle horizontal floorboard plank seams -->
+    <path
+        android:fillColor="#00000000"
+        android:pathData="M0,545 L360,545 M0,602 L360,602 M0,664 L360,664 M0,730 L360,730"
+        android:strokeAlpha="0.35"
+        android:strokeColor="#B99971"
+        android:strokeWidth="1.2" />
+
+    <!-- Subtle vertical floorboard joins -->
+    <path
+        android:fillColor="#00000000"
+        android:pathData="M95,492 L95,545 M240,545 L240,602 M148,602 L148,664 M282,664 L282,730 M112,730 L112,800"
+        android:strokeAlpha="0.28"
+        android:strokeColor="#B99971"
+        android:strokeWidth="1" />
+
+    <!-- Cozy woven area rug in center-lower floor -->
+    <path
+        android:fillColor="#EAE1D3"
+        android:pathData="M48,544 C48,537 54,532 61,532 L299,532 C306,532 312,537 312,544 L312,718 C312,725 306,730 299,730 L61,730 C54,730 48,725 48,718 Z" />
+    <path
+        android:fillColor="#00000000"
+        android:pathData="M60,544 L300,544 L300,718 L60,718 Z"
+        android:strokeAlpha="0.55"
+        android:strokeColor="#CBBBA4"
+        android:strokeWidth="1.5" />
+
+    <!-- ==================== DECORATIVE WINDOW (Upper Left) ==================== -->
+    <path
+        android:fillColor="#D9E7EA"
+        android:pathData="M24,104 L104,104 L104,214 L24,214 Z" />
+    <!-- Soft sky reflection on glass -->
+    <path
+        android:fillAlpha="0.45"
+        android:fillColor="#FFFFFF"
+        android:pathData="M34,108 L56,108 L34,162 Z M62,108 L76,108 L34,200 L34,178 Z" />
+    <!-- Window wood frame & muntins -->
+    <path
+        android:fillColor="#00000000"
+        android:pathData="M24,104 L104,104 L104,214 L24,214 Z M64,104 L64,214 M24,159 L104,159"
+        android:strokeColor="#A9825A"
+        android:strokeWidth="4" />
+    <!-- Window sill -->
+    <path
+        android:fillColor="#8F6944"
+        android:pathData="M18,214 L110,214 L110,221 L18,221 Z" />
+
+    <!-- ==================== 1. PAINTING (Upper Center, x:130..232, y:108..218) ==================== -->
+    <!-- Soft wall shadow -->
+    <path
+        android:fillAlpha="0.12"
+        android:fillColor="#3A2D22"
+        android:pathData="M134,113 L236,113 L236,222 L134,222 Z" />
+    <!-- Outer wood frame -->
+    <path
+        android:fillColor="#6D4C34"
+        android:pathData="M130,108 L232,108 L232,218 L130,218 Z" />
+    <!-- Cream mat -->
+    <path
+        android:fillColor="#FAF7F2"
+        android:pathData="M138,116 L224,116 L224,210 L138,210 Z" />
+    <!-- Artwork sky -->
+    <path
+        android:fillColor="#E9C7A6"
+        android:pathData="M145,123 L217,123 L217,203 L145,203 Z" />
+    <!-- Minimalist sun disc -->
+    <path
+        android:fillColor="#D97D54"
+        android:pathData="M192,147 m-12,0 a12,12 0 1,0 24,0 a12,12 0 1,0 -24,0" />
+    <!-- Distant sage mountain -->
+    <path
+        android:fillColor="#7B9382"
+        android:pathData="M145,186 L172,155 L198,186 Z" />
+    <!-- Foreground terracotta hill -->
+    <path
+        android:fillColor="#4B5D52"
+        android:pathData="M145,203 L145,184 L182,170 L217,188 L217,203 Z" />
+
+    <!-- ==================== 2. CLOCK (Upper Right, center 278,128 r=34) ==================== -->
+    <!-- Soft shadow -->
+    <path
+        android:fillAlpha="0.12"
+        android:fillColor="#3A2D22"
+        android:pathData="M281,132 m-34,0 a34,34 0 1,0 68,0 a34,34 0 1,0 -68,0" />
+    <!-- Outer wood rim -->
+    <path
+        android:fillColor="#6D4C34"
+        android:pathData="M278,128 m-34,0 a34,34 0 1,0 68,0 a34,34 0 1,0 -68,0" />
+    <!-- Clock face -->
+    <path
+        android:fillColor="#FCF9F4"
+        android:pathData="M278,128 m-29,0 a29,29 0 1,0 58,0 a29,29 0 1,0 -58,0" />
+    <!-- Cardinal hour ticks -->
+    <path
+        android:fillColor="#00000000"
+        android:pathData="M278,103 L278,108 M278,148 L278,153 M253,128 L258,128 M298,128 L303,128"
+        android:strokeColor="#5A4A3D"
+        android:strokeLineCap="round"
+        android:strokeWidth="2.2" />
+    <!-- Hour hand (pointing ~10) -->
+    <path
+        android:fillColor="#00000000"
+        android:pathData="M278,128 L266,119"
+        android:strokeColor="#2C3531"
+        android:strokeLineCap="round"
+        android:strokeWidth="3" />
+    <!-- Minute hand (pointing ~2) -->
+    <path
+        android:fillColor="#00000000"
+        android:pathData="M278,128 L293,115"
+        android:strokeColor="#2C3531"
+        android:strokeLineCap="round"
+        android:strokeWidth="2.2" />
+    <!-- Second hand accent -->
+    <path
+        android:fillColor="#00000000"
+        android:pathData="M278,128 L286,143"
+        android:strokeColor="#C96A4B"
+        android:strokeLineCap="round"
+        android:strokeWidth="1.2" />
+    <!-- Center pin -->
+    <path
+        android:fillColor="#C96A4B"
+        android:pathData="M278,128 m-3,0 a3,3 0 1,0 6,0 a3,3 0 1,0 -6,0" />
+
+    <!-- ==================== 3. TV & MEDIA CONSOLE (Middle Left, x:20..192, y:262..438) ==================== -->
+    <!-- TV shadow on wall -->
+    <path
+        android:fillAlpha="0.12"
+        android:fillColor="#2A241E"
+        android:pathData="M28,266 L192,266 L192,368 L28,368 Z" />
+    <!-- TV outer bezel -->
+    <path
+        android:fillColor="#262D30"
+        android:pathData="M24,262 L188,262 C190.2,262 192,263.8 192,266 L192,360 C192,362.2 190.2,364 188,364 L24,364 C21.8,364 20,362.2 20,360 L20,266 C20,263.8 21.8,262 24,262 Z" />
+    <!-- TV screen dark slate -->
+    <path
+        android:fillColor="#343F45"
+        android:pathData="M26,268 L186,268 L186,356 L26,356 Z" />
+    <!-- Subtle diagonal screen sheen -->
+    <path
+        android:fillAlpha="0.12"
+        android:fillColor="#FFFFFF"
+        android:pathData="M34,268 L76,268 L44,356 L26,356 L26,294 Z" />
+    <!-- Standby indicator LED -->
+    <path
+        android:fillColor="#7CC49E"
+        android:pathData="M180,360 m-1.8,0 a1.8,1.8 0 1,0 3.6,0 a1.8,1.8 0 1,0 -3.6,0" />
+    <!-- TV stand neck & base -->
+    <path
+        android:fillColor="#1E2427"
+        android:pathData="M98,364 L114,364 L114,376 L98,376 Z M78,374 L134,374 L134,379 L78,379 Z" />
+    <!-- Mid-century wooden media console -->
+    <path
+        android:fillColor="#9E7148"
+        android:pathData="M20,379 L192,379 C193.6,379 195,380.4 195,382 L195,422 C195,423.6 193.6,425 192,425 L20,425 C18.4,425 17,423.6 17,422 L17,382 C17,380.4 18.4,379 20,379 Z" />
+    <!-- Console left & right cabinet doors -->
+    <path
+        android:fillColor="#875E3B"
+        android:pathData="M24,386 L74,386 L74,418 L24,418 Z M138,386 L188,386 L188,418 L138,418 Z" />
+    <!-- Console center media compartment -->
+    <path
+        android:fillColor="#4E3928"
+        android:pathData="M81,386 L131,386 L131,418 L81,418 Z" />
+    <path
+        android:fillColor="#7B5636"
+        android:pathData="M81,401 L131,401 L131,404 L81,404 Z" />
+    <!-- Console cabinet knobs -->
+    <path
+        android:fillColor="#E5C89E"
+        android:pathData="M67,402 m-2,0 a2,2 0 1,0 4,0 a2,2 0 1,0 -4,0 M145,402 m-2,0 a2,2 0 1,0 4,0 a2,2 0 1,0 -4,0" />
+    <!-- Console tapered legs -->
+    <path
+        android:fillColor="#6D4C34"
+        android:pathData="M30,425 L36,425 L32,442 L26,442 Z M176,425 L182,425 L186,442 L180,442 Z" />
+
+    <!-- ==================== 4. WORK SHELF (Middle Right, x:214..342, y:242..392) ==================== -->
+    <!-- Upper floating wooden shelf -->
+    <path
+        android:fillAlpha="0.14"
+        android:fillColor="#3A2D22"
+        android:pathData="M218,302 L342,302 L342,308 L218,308 Z" />
+    <path
+        android:fillColor="#8D633E"
+        android:pathData="M214,294 L342,294 L342,303 L214,303 Z" />
+    <!-- Books on upper shelf -->
+    <path
+        android:fillColor="#4B665A"
+        android:pathData="M222,256 L234,256 L234,294 L222,294 Z" />
+    <path
+        android:fillColor="#C97B5D"
+        android:pathData="M236,262 L246,262 L246,294 L236,294 Z" />
+    <path
+        android:fillColor="#E2B97B"
+        android:pathData="M248,252 L259,252 L259,294 L248,294 Z" />
+    <!-- Leaning book -->
+    <path
+        android:fillColor="#596E79"
+        android:pathData="M261,294 L270,260 L279,262 L270,294 Z" />
+    <!-- Small terracotta potted succulent -->
+    <path
+        android:fillColor="#C66E4E"
+        android:pathData="M306,278 L328,278 L324,294 L310,294 Z" />
+    <path
+        android:fillColor="#5D8768"
+        android:pathData="M317,278 C307,273 305,263 313,262 C312,254 322,254 321,262 C329,263 327,273 317,278 Z" />
+
+    <!-- Lower floating wooden shelf -->
+    <path
+        android:fillAlpha="0.14"
+        android:fillColor="#3A2D22"
+        android:pathData="M218,382 L342,382 L342,388 L218,388 Z" />
+    <path
+        android:fillColor="#8D633E"
+        android:pathData="M214,374 L342,374 L342,383 L214,383 Z" />
+    <!-- Work organizer box / folder -->
+    <path
+        android:fillColor="#3E4E56"
+        android:pathData="M222,334 L256,334 L256,374 L222,374 Z" />
+    <path
+        android:fillColor="#FAF7F2"
+        android:pathData="M230,348 L248,348 L248,354 L230,354 Z" />
+    <!-- Stacked notebooks -->
+    <path
+        android:fillColor="#D9A76A"
+        android:pathData="M264,364 L310,364 L310,374 L264,374 Z" />
+    <path
+        android:fillColor="#6F8C7C"
+        android:pathData="M268,354 L306,354 L306,364 L268,364 Z" />
+    <!-- Mini coffee mug / pen cup -->
+    <path
+        android:fillColor="#F0E5D6"
+        android:pathData="M318,352 L334,352 L334,374 L318,374 Z" />
+    <path
+        android:fillColor="#C97B5D"
+        android:pathData="M323,340 L326,340 L326,352 L323,352 Z" />
+    <path
+        android:fillColor="#4B5D52"
+        android:pathData="M329,343 L331,343 L331,352 L329,352 Z" />
+
+    <!-- ==================== 5. BED (Bottom Left, x:16..226, y:500..692) ==================== -->
+    <!-- Soft floor shadow under bed -->
+    <path
+        android:fillAlpha="0.16"
+        android:fillColor="#3A2D22"
+        android:pathData="M20,680 L228,680 L228,696 L20,696 Z" />
+    <!-- Wooden headboard -->
+    <path
+        android:fillColor="#7D5636"
+        android:pathData="M18,506 C18,501 22,497 27,497 L195,497 C200,497 204,501 204,506 L204,562 L18,562 Z" />
+    <!-- Headboard slatted detail -->
+    <path
+        android:fillColor="#6C492C"
+        android:pathData="M28,510 L194,510 L194,514 L28,514 Z M28,526 L194,526 L194,530 L28,530 Z" />
+    <!-- Crisp white mattress base -->
+    <path
+        android:fillColor="#FAF7F2"
+        android:pathData="M18,554 L218,554 C222,554 225,557 225,561 L225,654 L18,654 Z" />
+    <!-- Soft pillows -->
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M28,542 C28,536 33,532 39,532 L98,532 C104,532 109,536 109,542 L109,560 C109,565 104,569 98,569 L39,569 C33,569 28,565 28,560 Z" />
+    <path
+        android:fillColor="#F2EBE0"
+        android:pathData="M115,542 C115,536 120,532 126,532 L186,532 C192,532 197,536 197,542 L197,560 C197,565 192,569 186,569 L126,569 C120,569 115,565 115,560 Z" />
+    <!-- Cozy sage green duvet cover -->
+    <path
+        android:fillColor="#6C8776"
+        android:pathData="M18,578 L225,578 L225,654 L18,654 Z" />
+    <!-- Folded terracotta throw blanket across foot of bed -->
+    <path
+        android:fillColor="#C97B5D"
+        android:pathData="M18,622 L225,622 L225,654 L18,654 Z" />
+    <!-- Subtle folded sheet lip -->
+    <path
+        android:fillColor="#E9E0D2"
+        android:pathData="M18,572 L225,572 L225,582 L18,582 Z" />
+    <!-- Wooden bed frame rails & feet -->
+    <path
+        android:fillColor="#7D5636"
+        android:pathData="M16,652 L226,652 L226,668 L16,668 Z" />
+    <path
+        android:fillColor="#5F4026"
+        android:pathData="M24,668 L35,668 L35,688 L24,688 Z M207,668 L218,668 L218,688 L207,688 Z" />
+
+    <!-- ==================== 6. TRASH CAN (Bottom Right, x:258..330, y:560..662) ==================== -->
+    <!-- Floor shadow -->
+    <path
+        android:fillAlpha="0.18"
+        android:fillColor="#3A2D22"
+        android:pathData="M294,661 m-34,0 a34,8 0 1,0 68,0 a34,8 0 1,0 -68,0" />
+    <!-- Tapered minimalist matte charcoal wastebasket body -->
+    <path
+        android:fillColor="#475154"
+        android:pathData="M261,568 L327,568 L319,656 C318.6,660 315,663 311,663 L277,663 C273,663 269.4,660 269,656 Z" />
+    <!-- Subtle vertical rib highlights on bin -->
+    <path
+        android:fillColor="#00000000"
+        android:pathData="M276,580 L280,652 M294,580 L294,654 M312,580 L308,652"
+        android:strokeAlpha="0.32"
+        android:strokeColor="#6E7B7F"
+        android:strokeLineCap="round"
+        android:strokeWidth="2" />
+    <!-- Dark interior rim opening -->
+    <path
+        android:fillColor="#2D3436"
+        android:pathData="M294,568 m-33,0 a33,9 0 1,0 66,0 a33,9 0 1,0 -66,0" />
+    <!-- Warm wood/brass top rim accent -->
+    <path
+        android:fillColor="#00000000"
+        android:pathData="M294,568 m-33,0 a33,9 0 1,0 66,0 a33,9 0 1,0 -66,0"
+        android:strokeColor="#C2A37D"
+        android:strokeWidth="2.5" />
+
+</vector>
