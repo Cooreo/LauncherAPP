@@ -166,6 +166,7 @@ class RoomLauncherViewModel(application: Application) : AndroidViewModel(applica
 
     override fun onCleared() {
         appRepository.stopListening()
+        batteryMonitor.stop()
         super.onCleared()
     }
 
@@ -707,11 +708,6 @@ class RoomLauncherViewModel(application: Application) : AndroidViewModel(applica
                 configRepository.saveConfig(toSave)
             }
         }
-    }
-
-    override fun onCleared() {
-        batteryMonitor.stop()
-        super.onCleared()
     }
 
     companion object {

@@ -277,7 +277,7 @@ fun AllAppsSheet(
                 placeholder = { Text("Search apps by name…") },
                 leadingIcon = { Icon(Icons.Rounded.Search, contentDescription = null) },
                 trailingIcon = {
-                    AnimatedVisibility(
+                    androidx.compose.animation.AnimatedVisibility(
                         visible = searchQuery.isNotEmpty(),
                         enter = scaleIn(spring(stiffness = Spring.StiffnessMedium)) + fadeIn(),
                         exit = scaleOut(tween(120)) + fadeOut(tween(120))
@@ -420,7 +420,7 @@ fun AllAppsSheet(
                         label = "bubble_y"
                     )
 
-                    AnimatedVisibility(
+                    androidx.compose.animation.AnimatedVisibility(
                         visible = activeScrubLetter != null,
                         enter = scaleIn(
                             initialScale = 0.55f,
