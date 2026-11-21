@@ -97,8 +97,15 @@ private fun RoomLauncherRoot(
 
     DisposableEffect(lifecycleOwner) {
         val observer = LifecycleEventObserver { _, event ->
-            if (event == Lifecycle.Event.ON_RESUME) {
-                viewModel.refreshSystemStatus()
+            when (event) {
+                Lifecycle.Event.ON_RESUME -> {
+                    viewModel.setAppForeground(true)
+                    viewModel.refreshSystemStatus()
+                }
+                Lifecycle.Event.ON_PAUSE -> {
+                    viewModel.setAppForeground(false)
+                }
+                else -> Unit
             }
         }
         lifecycleOwner.lifecycle.addObserver(observer)
@@ -134,6 +141,8 @@ private fun RoomLauncherRoot(
         else -> {
             RoomScreen(
                 uiState = uiState,
+                fftBandsFlow = viewModel.fftBands,
+                hasLiveFftSignalFlow = viewModel.hasLiveFftSignal,
                 onEnterEditMode = viewModel::enterEditMode,
                 onExitEditMode = viewModel::exitEditMode,
                 onHotspotPanelOpen = viewModel::openHotspotPanel,
@@ -167,6 +176,23 @@ private fun RoomLauncherRoot(
                 onSelectChargingAnimationStyle = viewModel::setChargingAnimationStyle,
                 onPreviewChargingAnimation = viewModel::triggerChargingAnimationPreview,
                 onDismissChargingAnimation = viewModel::dismissChargingAnimation,
+                onExpandMusic = { viewModel.expandMusicVisualizer() },
+                onExpandMusicToLyrics = { viewModel.expandMusicVisualizer(com.roomlauncher.app.data.MusicDisplayMode.LYRICS) },
+                onCollapseMusic = viewModel::collapseMusicVisualizer,
+                onSelectMusicDisplayMode = viewModel::setMusicDisplayMode,
+                onSelectVisualizerStyle = viewModel::setMusicVisualizerStyle,
+                onToggleMusicVisualizerEnabled = viewModel::setMusicVisualizerEnabled,
+                onSelectMusicDefaultMode = viewModel::setMusicDefaultMode,
+                onToggleAudioReactiveVisualizer = viewModel::setAudioReactiveVisualizerEnabled,
+                onOpenNotificationAccess = viewModel::openNotificationAccessSettings,
+                onPreviewMusicVisualizer = viewModel::previewMusicVisualizer,
+                onExitMusicDemo = viewModel::stopMusicDemoPreview,
+                onMusicTogglePlayPause = viewModel::toggleMusicPlayPause,
+                onMusicSkipNext = viewModel::skipMusicNext,
+                onMusicSkipPrevious = viewModel::skipMusicPrevious,
+                onMusicSeekTo = viewModel::seekMusicTo,
+                onOpenActiveMusicApp = viewModel::openActiveMusicApp,
+                onRetryLyrics = viewModel::retryFetchLyrics,
                 onToggleWeather = viewModel::setWeatherEnabled,
                 onRefreshWeather = { viewModel.refreshWeather(forceRefresh = true) },
                 onToggleMirrorWallpaper = viewModel::setMirrorHomeWallpaper,

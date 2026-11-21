@@ -76,8 +76,10 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import com.roomlauncher.app.data.HotspotActionType
+import com.roomlauncher.app.data.MusicDisplayMode
 import com.roomlauncher.app.data.RoomHotspot
 import com.roomlauncher.app.data.RoomObjectVisual
+import com.roomlauncher.app.data.VisualizerStyle
 import com.roomlauncher.app.system.SystemIntentHelper
 import com.roomlauncher.app.ui.RoomUiState
 import com.roomlauncher.app.ui.allapps.AllAppsSheet
@@ -88,7 +90,9 @@ import com.roomlauncher.app.ui.theme.RoomInk
 import com.roomlauncher.app.ui.theme.RoomSage
 import com.roomlauncher.app.ui.theme.RoomStyleId
 import com.roomlauncher.app.ui.theme.RoomThemeId
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.StateFlow
 import java.util.Calendar
 import kotlin.math.roundToInt
 
@@ -96,6 +100,8 @@ import kotlin.math.roundToInt
 @Composable
 fun RoomScreen(
     uiState: RoomUiState,
+    fftBandsFlow: StateFlow<FloatArray>,
+    hasLiveFftSignalFlow: StateFlow<Boolean>,
     onEnterEditMode: () -> Unit,
     onExitEditMode: () -> Unit,
     onHotspotPanelOpen: (String) -> Unit,
@@ -127,6 +133,23 @@ fun RoomScreen(
     onSelectChargingAnimationStyle: (ChargingAnimationStyle) -> Unit,
     onPreviewChargingAnimation: () -> Unit,
     onDismissChargingAnimation: () -> Unit,
+    onExpandMusic: () -> Unit,
+    onExpandMusicToLyrics: () -> Unit,
+    onCollapseMusic: () -> Unit,
+    onSelectMusicDisplayMode: (MusicDisplayMode) -> Unit,
+    onSelectVisualizerStyle: (VisualizerStyle) -> Unit,
+    onToggleMusicVisualizerEnabled: (Boolean) -> Unit,
+    onSelectMusicDefaultMode: (MusicDisplayMode) -> Unit,
+    onToggleAudioReactiveVisualizer: (Boolean) -> Unit,
+    onOpenNotificationAccess: () -> Unit,
+    onPreviewMusicVisualizer: () -> Unit,
+    onExitMusicDemo: () -> Unit,
+    onMusicTogglePlayPause: () -> Unit,
+    onMusicSkipNext: () -> Unit,
+    onMusicSkipPrevious: () -> Unit,
+    onMusicSeekTo: (Long) -> Unit,
+    onOpenActiveMusicApp: () -> Unit,
+    onRetryLyrics: () -> Unit,
     onToggleWeather: (Boolean) -> Unit,
     onRefreshWeather: () -> Unit,
     onToggleMirrorWallpaper: (Boolean) -> Unit,
@@ -452,6 +475,25 @@ fun RoomScreen(
                 }
             }
 
+            // Floating Now-Playing compact music pill (visible only when music is active!)
+            if (!uiState.isEditMode &&
+                zoomScale <= 1.05f &&
+                uiState.config.musicVisualizerEnabled &&
+                uiState.nowPlaying.hasSession &&
+                !uiState.isMusicExpanded &&
+                activeHotspot == null
+            ) {
+                NowPlayingCompactPill(
+                    nowPlaying = uiState.nowPlaying,
+                    displayMode = uiState.musicDisplayMode,
+                    onExpand = onExpandMusic,
+                    onExpandToLyrics = onExpandMusicToLyrics,
+                    onTogglePlayPause = onMusicTogglePlayPause,
+                    onExitDemo = onExitMusicDemo,
+                    modifier = Modifier.align(Alignment.TopCenter)
+                )
+            }
+
             // Sleek clickable charging badge while plugged in on the room screen (no bottom edge bar!)
             if (!uiState.isEditMode &&
                 uiState.config.chargingAnimationEnabled &&
@@ -462,6 +504,33 @@ fun RoomScreen(
                     roomStyle = uiState.config.roomStyleId,
                     animationStyle = uiState.config.chargingAnimationStyle,
                     onReplayAnimation = onPreviewChargingAnimation
+                )
+            }
+
+            // Expanded Interactive Music Visualizer & Synced Lyrics Overlay
+            if (uiState.isMusicExpanded &&
+                uiState.config.musicVisualizerEnabled &&
+                uiState.nowPlaying.hasSession
+            ) {
+                val fftBands by fftBandsFlow.collectAsStateWithLifecycle()
+                val hasLiveFftSignal by hasLiveFftSignalFlow.collectAsStateWithLifecycle()
+                MusicVisualizerOverlay(
+                    nowPlaying = uiState.nowPlaying,
+                    displayMode = uiState.musicDisplayMode,
+                    visualizerStyle = uiState.config.musicVisualizerStyle,
+                    lyricsState = uiState.lyricsState,
+                    fftBands = fftBands,
+                    hasLiveFftSignal = hasLiveFftSignal,
+                    onSelectDisplayMode = onSelectMusicDisplayMode,
+                    onSelectVisualizerStyle = onSelectVisualizerStyle,
+                    onTogglePlayPause = onMusicTogglePlayPause,
+                    onSkipNext = onMusicSkipNext,
+                    onSkipPrevious = onMusicSkipPrevious,
+                    onSeekTo = onMusicSeekTo,
+                    onOpenMusicApp = onOpenActiveMusicApp,
+                    onRetryLyrics = onRetryLyrics,
+                    onExitDemo = onExitMusicDemo,
+                    onDismiss = onCollapseMusic
                 )
             }
 
@@ -552,6 +621,12 @@ fun RoomScreen(
                 onToggleChargingAnimation = onToggleChargingAnimation,
                 onSelectChargingAnimationStyle = onSelectChargingAnimationStyle,
                 onPreviewChargingAnimation = onPreviewChargingAnimation,
+                onToggleMusicVisualizerEnabled = onToggleMusicVisualizerEnabled,
+                onSelectVisualizerStyle = onSelectVisualizerStyle,
+                onSelectMusicDefaultMode = onSelectMusicDefaultMode,
+                onToggleAudioReactiveVisualizer = onToggleAudioReactiveVisualizer,
+                onOpenNotificationAccess = onOpenNotificationAccess,
+                onPreviewMusicVisualizer = onPreviewMusicVisualizer,
                 onToggleWeather = onToggleWeather,
                 onRefreshWeather = onRefreshWeather,
                 onToggleMirrorWallpaper = onToggleMirrorWallpaper,

@@ -2,7 +2,13 @@
 
 **Room Launcher** is a minimalist Android home screen launcher built with **Kotlin** and **Jetpack Compose**. Instead of a traditional grid of icons, your home screen is a customizable, illustrated room where every piece of furniture is an interactive, movable object.
 
-## Features (v2.3)
+## Features (v2.4)
+
+- **Live Music Visualizer & Synced Lyrics (LRCLIB)**:
+  - Automatically detects playing music from Spotify, YouTube Music, Apple Music, SoundCloud, and local players via Android `MediaSessionManager` (with Notification Access).
+  - Floating **Now-Playing pill** shows album art, live mini equalizer, scrolling song title, artist, exact elapsed/total progress bar, and Play/Pause without cluttering the room when idle.
+  - Tap to expand into the interactive **Visualizer ↔ Lyrics** stage: switch between **3 animated visualizer styles** (**Spectrum Bars**, **Sound Wave**, **Vinyl Groove**, tinted to album art with optional real-time FFT audio reactivity) and **real-time time-synced `.lrc` lyrics** fetched from the free open-source **LRCLIB** library (tap any synced line to seek directly to that moment!).
+- **Clean Panel Icons (v2.3.1)**: App icon & Sticky Note shortcut delete (`×`) buttons stay hidden until you tap the panel Edit (`✏️`) toggle.
 
 - **Museum-Quality Picture Frame**: Automatic EXIF photo orientation correction, symmetrical wooden beveled frame, warm gallery cream mat, center-cropped framing, and subtle glass reflection sheen (both in-room and on mirrored Home wallpaper).
 - **Dynamic Time-of-Day Themes**: Optional automatic schedule shifting your room from **Warm Linen** (daytime, 6 AM) → **Midnight Cozy** (3 PM afternoon/evening) → **OLED Pitch** (9 PM night).
@@ -35,4 +41,4 @@
 ./gradlew testDebugUnitTest assembleRelease
 ```
 
-Pre-built APKs are stored in `/releases/` (`RoomLauncher-v2.3.1.apk`, `RoomLauncher-v2.3.apk`, `RoomLauncher-v2.2.apk`, `RoomLauncher-v2.1.apk`, `RoomLauncher-v2.0.apk`, `RoomLauncher-v1.0.apk`).
+Pre-built APKs are stored in `/releases/` (`RoomLauncher-v2.4.apk`, `RoomLauncher-v2.3.1.apk`, `RoomLauncher-v2.3.apk`, `RoomLauncher-v2.2.apk`, `RoomLauncher-v2.1.apk`, `RoomLauncher-v2.0.apk`, `RoomLauncher-v1.0.apk`).
