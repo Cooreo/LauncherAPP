@@ -106,6 +106,8 @@ fun SettingsSheet(
     onClearFramePhoto: () -> Unit,
     onEnterEditMode: () -> Unit,
     onReopenOnboarding: () -> Unit,
+    onExportBackup: (Uri) -> Unit,
+    onImportBackup: (Uri) -> Unit,
     onResetRoom: () -> Unit,
     onDismiss: () -> Unit
 ) {
@@ -144,6 +146,22 @@ fun SettingsSheet(
     ) { uri ->
         if (uri != null) {
             onPickTeenPoster(false, uri)
+        }
+    }
+
+    val exportBackupLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.CreateDocument("application/json")
+    ) { uri ->
+        if (uri != null) {
+            onExportBackup(uri)
+        }
+    }
+
+    val importBackupLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.OpenDocument()
+    ) { uri ->
+        if (uri != null) {
+            onImportBackup(uri)
         }
     }
 
@@ -1046,6 +1064,25 @@ fun SettingsSheet(
                             Icon(Icons.Rounded.Tune, contentDescription = null, modifier = Modifier.size(18.dp))
                             Spacer(modifier = Modifier.width(8.dp))
                             Text("Open Setup & Permissions Guide")
+                        }
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            OutlinedButton(
+                                onClick = { exportBackupLauncher.launch("roomlauncher-backup.json") },
+                                shape = RoundedCornerShape(12.dp),
+                                modifier = Modifier.weight(1f)
+                            ) {
+                                Text("Export Backup")
+                            }
+                            OutlinedButton(
+                                onClick = { importBackupLauncher.launch(arrayOf("application/json", "*/*")) },
+                                shape = RoundedCornerShape(12.dp),
+                                modifier = Modifier.weight(1f)
+                            ) {
+                                Text("Restore Backup")
+                            }
                         }
                         OutlinedButton(
                             onClick = onResetRoom,

@@ -3,46 +3,85 @@ package com.roomlauncher.app.data
 import android.content.Context
 import android.content.pm.ApplicationInfo
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
 import java.io.File
+import java.io.FileOutputStream
 
 class RoomConfigRepository(
     private val configFile: File
 ) {
     constructor(context: Context) : this(File(context.filesDir, CONFIG_FILE_NAME))
 
+    private val saveMutex = Mutex()
+    private val backupFile: File
+        get() = File(configFile.parentFile, "$CONFIG_FILE_NAME.bak")
+
     private val json = Json {
         prettyPrint = true
         ignoreUnknownKeys = true
+        coerceInputValues = true
         encodeDefaults = true
     }
 
     suspend fun loadConfig(): RoomConfig = withContext(Dispatchers.IO) {
-        if (!configFile.exists()) {
-            return@withContext createDefaultRoomConfig()
-        }
-        runCatching {
-            val raw = configFile.readText(Charsets.UTF_8)
-            val parsed = json.decodeFromString<RoomConfig>(raw)
-            migrateIfNeeded(parsed)
-        }.getOrElse {
-            createDefaultRoomConfig()
+        saveMutex.withLock {
+            readConfigFile(configFile)
+                ?: readConfigFile(backupFile)?.also { recovered ->
+                    // Restore primary file from healthy backup so subsequent boots are fast
+                    writeFileAtomically(configFile, json.encodeToString(recovered))
+                }
+                ?: createDefaultRoomConfig()
         }
     }
 
     suspend fun saveConfig(config: RoomConfig) = withContext(Dispatchers.IO) {
-        val parent = configFile.parentFile
+        saveMutex.withLock {
+            val parent = configFile.parentFile
+            if (parent != null && !parent.exists()) {
+                parent.mkdirs()
+            }
+            val serialized = json.encodeToString(config)
+            // Keep a backup of the previously known-good primary file before replacing it
+            if (configFile.exists() && configFile.length() > 0L) {
+                runCatching { configFile.copyTo(backupFile, overwrite = true) }
+            }
+            writeFileAtomically(configFile, serialized)
+            // Update backup to match latest committed state
+            writeFileAtomically(backupFile, serialized)
+        }
+    }
+
+    private fun readConfigFile(file: File): RoomConfig? {
+        if (!file.exists() || file.length() <= 0L) return null
+        return runCatching {
+            val raw = file.readText(Charsets.UTF_8)
+            val parsed = json.decodeFromString<RoomConfig>(raw)
+            migrateIfNeeded(parsed)
+        }.getOrNull()
+    }
+
+    private fun writeFileAtomically(target: File, content: String) {
+        val parent = target.parentFile
         if (parent != null && !parent.exists()) {
             parent.mkdirs()
         }
-        val tempFile = File(configFile.parentFile, "$CONFIG_FILE_NAME.tmp")
-        val serialized = json.encodeToString(config)
-        tempFile.writeText(serialized, Charsets.UTF_8)
-        if (!tempFile.renameTo(configFile)) {
-            configFile.writeText(serialized, Charsets.UTF_8)
-            tempFile.delete()
+        val tempFile = File(parent, "${target.name}.tmp")
+        FileOutputStream(tempFile).use { fos ->
+            fos.write(content.toByteArray(Charsets.UTF_8))
+            fos.flush()
+            runCatching { fos.fd.sync() }
+        }
+        if (!tempFile.renameTo(target)) {
+            FileOutputStream(target).use { fos ->
+                fos.write(content.toByteArray(Charsets.UTF_8))
+                fos.flush()
+                runCatching { fos.fd.sync() }
+            }
+            runCatching { tempFile.delete() }
         }
     }
 

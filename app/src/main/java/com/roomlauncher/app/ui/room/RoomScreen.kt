@@ -163,7 +163,9 @@ fun RoomScreen(
     onPickFramePhoto: (Uri) -> Unit,
     onClearFramePhoto: () -> Unit,
     onResetLayout: () -> Unit,
-    onReopenOnboarding: () -> Unit
+    onReopenOnboarding: () -> Unit,
+    onExportBackup: (Uri) -> Unit,
+    onImportBackup: (Uri) -> Unit
 ) {
     val context = LocalContext.current
     val haptic = LocalHapticFeedback.current
@@ -647,6 +649,8 @@ fun RoomScreen(
                 onClearFramePhoto = onClearFramePhoto,
                 onEnterEditMode = onEnterEditMode,
                 onReopenOnboarding = onReopenOnboarding,
+                onExportBackup = onExportBackup,
+                onImportBackup = onImportBackup,
                 onResetRoom = {
                     onCloseSettings()
                     showResetConfirm = true

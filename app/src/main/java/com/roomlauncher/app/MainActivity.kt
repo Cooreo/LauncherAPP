@@ -206,7 +206,9 @@ private fun RoomLauncherRoot(
                 onPickFramePhoto = viewModel::setFramePhoto,
                 onClearFramePhoto = viewModel::clearFramePhoto,
                 onResetLayout = viewModel::resetRoomLayout,
-                onReopenOnboarding = viewModel::reopenOnboarding
+                onReopenOnboarding = viewModel::reopenOnboarding,
+                onExportBackup = viewModel::exportRoomBackup,
+                onImportBackup = viewModel::importRoomBackup
             )
         }
     }
