@@ -2,8 +2,12 @@ package com.roomlauncher.app.ui.settings
 
 import android.Manifest
 import android.net.Uri
+import androidx.activity.BackEventCompat
+import androidx.activity.compose.PredictiveBackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -60,15 +64,21 @@ import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import kotlin.coroutines.cancellation.CancellationException
 import com.roomlauncher.app.data.MusicDisplayMode
 import com.roomlauncher.app.data.VisualizerStyle
 import com.roomlauncher.app.ui.RoomUiState
@@ -175,8 +185,47 @@ fun SettingsSheet(
         }
     }
 
+    // Silky live Predictive Back gesture + hardware Back button handler for Settings
+    val backProgress = remember { Animatable(0f) }
+    var backSwipeEdge by remember { mutableIntStateOf(BackEventCompat.EDGE_LEFT) }
+
+    PredictiveBackHandler(enabled = uiState.showSettingsSheet) { progressFlow ->
+        try {
+            progressFlow.collect { event ->
+                backSwipeEdge = event.swipeEdge
+                backProgress.snapTo(event.progress.coerceIn(0f, 1f))
+            }
+            val upd = uiState.updateState
+            if (upd.showUpdateDialog) {
+                backProgress.snapTo(0f)
+                if (!upd.isDownloading && !upd.isInstalling) {
+                    onDismissUpdatePopup()
+                }
+            } else {
+                onDismiss()
+            }
+        } catch (e: CancellationException) {
+            backProgress.animateTo(0f, tween(160))
+            throw e
+        }
+    }
+
+    val p = backProgress.value
+    val cornerDp = (p * 26f).dp
+
     Surface(
-        modifier = Modifier.fillMaxSize(),
+        shape = RoundedCornerShape(cornerDp),
+        shadowElevation = if (p > 0.01f) 14.dp else 0.dp,
+        modifier = Modifier
+            .fillMaxSize()
+            .graphicsLayer {
+                val scale = 1f - (p * 0.085f)
+                scaleX = scale
+                scaleY = scale
+                val dir = if (backSwipeEdge == BackEventCompat.EDGE_RIGHT) -1f else 1f
+                translationX = dir * p * size.width * 0.06f
+                alpha = 1f - (p * 0.14f)
+            },
         color = MaterialTheme.colorScheme.background
     ) {
         Column(

@@ -525,15 +525,47 @@ class RoomLauncherViewModel(application: Application) : AndroidViewModel(applica
         }
     }
 
+    fun returnToHomeRoom() {
+        val state = _uiState.value
+        val wasInEditMode = state.isEditMode
+        _uiState.update {
+            it.copy(
+                showSettingsSheet = false,
+                showAllAppsSheet = false,
+                activeHotspotId = null,
+                editingHotspotId = null,
+                showAddHotspotDialog = false,
+                isEditMode = false,
+                isMusicExpanded = false,
+                activeChargingSplashKey = 0L,
+                updateState = it.updateState.copy(showUpdateDialog = false)
+            )
+        }
+        syncAudioVisualizerState()
+        if (wasInEditMode && state.config.mirrorHomeWallpaper) {
+            syncHomeWallpaperNow(showToast = false)
+        }
+    }
+
     fun handleBackPressed(): Boolean {
         val state = _uiState.value
         return when {
+            state.activeChargingSplashKey != 0L -> {
+                dismissChargingAnimation()
+                true
+            }
             state.showAddHotspotDialog -> {
                 closeAddHotspotDialog()
                 true
             }
             state.editingHotspotId != null -> {
                 closeEditHotspot()
+                true
+            }
+            state.updateState.showUpdateDialog -> {
+                if (!state.updateState.isDownloading && !state.updateState.isInstalling) {
+                    dismissUpdatePopup()
+                }
                 true
             }
             state.showSettingsSheet -> {

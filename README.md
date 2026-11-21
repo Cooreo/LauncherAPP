@@ -2,8 +2,11 @@
 
 **Room Launcher** is a minimalist Android home screen launcher built with **Kotlin** and **Jetpack Compose**. Instead of a traditional grid of icons, your home screen is a customizable, illustrated room where every piece of furniture is an interactive, movable object.
 
-## Features (v2.6)
+## Features (v2.6.1)
 
+- **Silky Predictive Back Gesture & Hardware Back Button Fix (v2.6.1)**:
+  - Enabled native Android 14/15 Predictive Back (`android:enableOnBackInvokedCallback="true"`) with live finger-tracking `PredictiveBackHandler` inside **Settings** and **All Apps** (smooth scale, rounded-corner peek, swipe-edge glide, clean cancel spring-back, and automatic keyboard dismissal).
+  - Removed the background room unmount flash so the Room is immediately visible underneath with zero stutter on Back, and wired `HOME` intent (`onNewIntent`) to cleanly return to the Home Room from any open sheet or panel.
 - **Geometry Dash Room Theme & 3 Extreme Demon Sub-Themes (v2.6)**:
   - New **Geometry Dash** Room Style featuring real bundled level artwork, neon perspective GD grid floor, laser ground line, decorative spikes & sawblades, glowing wall posters, matching Picture Frame art, Home Wallpaper Mirror support, and neon GD charging ring.
   - 3 full sub-themes selectable with live artwork cards in Settings:
@@ -57,4 +60,4 @@
 ./gradlew testDebugUnitTest assembleRelease
 ```
 
-Pre-built APKs are stored in `/releases/` (`RoomLauncher-v2.6.apk`, `RoomLauncher-v2.5.1.apk`, `RoomLauncher-v2.5.apk`, `RoomLauncher-v2.4.apk`, `RoomLauncher-v2.3.1.apk`, `RoomLauncher-v2.3.apk`, `RoomLauncher-v2.2.apk`, `RoomLauncher-v2.1.apk`, `RoomLauncher-v2.0.apk`, `RoomLauncher-v1.0.apk`).
+Pre-built APKs are stored in `/releases/` (`RoomLauncher-v2.6.1.apk`, `RoomLauncher-v2.6.apk`, `RoomLauncher-v2.5.1.apk`, `RoomLauncher-v2.5.apk`, `RoomLauncher-v2.4.apk`, `RoomLauncher-v2.3.1.apk`, `RoomLauncher-v2.3.apk`, `RoomLauncher-v2.2.apk`, `RoomLauncher-v2.1.apk`, `RoomLauncher-v2.0.apk`, `RoomLauncher-v1.0.apk`).
