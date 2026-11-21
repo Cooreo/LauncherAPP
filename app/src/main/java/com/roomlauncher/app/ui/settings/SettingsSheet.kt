@@ -145,7 +145,7 @@ fun SettingsSheet(
                         color = MaterialTheme.colorScheme.onBackground
                     )
                     Text(
-                        text = "Room Launcher v2.3",
+                        text = "Room Launcher v2.3.1",
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )

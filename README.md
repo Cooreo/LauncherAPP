@@ -35,4 +35,4 @@
 ./gradlew testDebugUnitTest assembleRelease
 ```
 
-Pre-built APKs are stored in `/releases/` (`RoomLauncher-v2.3.apk`, `RoomLauncher-v2.2.apk`, `RoomLauncher-v2.1.apk`, `RoomLauncher-v2.0.apk`, `RoomLauncher-v1.0.apk`).
+Pre-built APKs are stored in `/releases/` (`RoomLauncher-v2.3.1.apk`, `RoomLauncher-v2.3.apk`, `RoomLauncher-v2.2.apk`, `RoomLauncher-v2.1.apk`, `RoomLauncher-v2.0.apk`, `RoomLauncher-v1.0.apk`).

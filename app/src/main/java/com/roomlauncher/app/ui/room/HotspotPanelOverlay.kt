@@ -37,6 +37,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Add
 import androidx.compose.material.icons.rounded.AddLink
 import androidx.compose.material.icons.rounded.Apps
+import androidx.compose.material.icons.rounded.Check
 import androidx.compose.material.icons.rounded.ChevronLeft
 import androidx.compose.material.icons.rounded.ChevronRight
 import androidx.compose.material.icons.rounded.Close
@@ -44,6 +45,7 @@ import androidx.compose.material.icons.rounded.DeleteOutline
 import androidx.compose.material.icons.rounded.Edit
 import androidx.compose.material.icons.rounded.Language
 import androidx.compose.material.icons.rounded.Search
+import androidx.compose.material.icons.rounded.Tune
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.HorizontalDivider
@@ -178,6 +180,7 @@ fun HotspotPanelOverlay(
     val dropZoneBounds = remember { mutableStateMapOf<String, Rect>() }
     var rootOffset by remember { mutableStateOf(Offset.Zero) }
     var rootSize by remember { mutableStateOf(IntSize.Zero) }
+    var isEditingItems by remember(hotspot.id) { mutableStateOf(false) }
     var showAddAppsDialog by remember { mutableStateOf(false) }
     var showAddWebShortcutDialog by remember { mutableStateOf(false) }
 
@@ -405,11 +408,28 @@ fun HotspotPanelOverlay(
                                     )
                                 }
                             }
-                            IconButton(onClick = onOpenEditHotspot) {
+                            if (isEditingItems) {
+                                IconButton(onClick = onOpenEditHotspot) {
+                                    Icon(
+                                        imageVector = Icons.Rounded.Tune,
+                                        contentDescription = "Customize ${hotspot.label} object",
+                                        tint = mutedOnContainer
+                                    )
+                                }
+                            }
+                            IconButton(
+                                onClick = {
+                                    if (hotspot.actionType == HotspotActionType.PANEL || isStickyRich) {
+                                        isEditingItems = !isEditingItems
+                                    } else {
+                                        onOpenEditHotspot()
+                                    }
+                                }
+                            ) {
                                 Icon(
-                                    imageVector = Icons.Rounded.Edit,
-                                    contentDescription = "Edit ${hotspot.label}",
-                                    tint = mutedOnContainer
+                                    imageVector = if (isEditingItems) Icons.Rounded.Check else Icons.Rounded.Edit,
+                                    contentDescription = if (isEditingItems) "Done editing icons" else "Edit ${hotspot.label}",
+                                    tint = if (isEditingItems) MaterialTheme.colorScheme.secondary else mutedOnContainer
                                 )
                             }
                             IconButton(onClick = onDismiss) {
@@ -514,38 +534,45 @@ fun HotspotPanelOverlay(
                                 modifier = Modifier.fillMaxWidth()
                             ) {
                                 items(webShortcuts, key = { it.id }) { shortcut ->
-                                    Row(
-                                        verticalAlignment = Alignment.CenterVertically,
-                                        modifier = Modifier
-                                            .clip(RoundedCornerShape(12.dp))
-                                            .background(contentOnContainer.copy(alpha = 0.12f))
-                                            .clickable { onOpenWebShortcut(shortcut) }
-                                            .padding(start = 10.dp, end = 4.dp, top = 6.dp, bottom = 6.dp)
-                                    ) {
-                                        Icon(
-                                            imageVector = Icons.Rounded.Language,
-                                            contentDescription = null,
-                                            tint = contentOnContainer,
-                                            modifier = Modifier.size(16.dp)
-                                        )
-                                        Spacer(modifier = Modifier.width(6.dp))
-                                        Text(
-                                            text = shortcut.title,
-                                            style = MaterialTheme.typography.labelLarge,
-                                            color = contentOnContainer
-                                        )
-                                        IconButton(
-                                            onClick = { onDeleteWebShortcut(shortcut.id) },
-                                            modifier = Modifier.size(24.dp)
+                                        Row(
+                                            verticalAlignment = Alignment.CenterVertically,
+                                            modifier = Modifier
+                                                .clip(RoundedCornerShape(12.dp))
+                                                .background(contentOnContainer.copy(alpha = 0.12f))
+                                                .clickable { onOpenWebShortcut(shortcut) }
+                                                .padding(
+                                                    start = 10.dp,
+                                                    end = if (isEditingItems) 4.dp else 10.dp,
+                                                    top = 6.dp,
+                                                    bottom = 6.dp
+                                                )
                                         ) {
                                             Icon(
-                                                imageVector = Icons.Rounded.Close,
-                                                contentDescription = "Remove ${shortcut.title}",
-                                                tint = mutedOnContainer,
-                                                modifier = Modifier.size(14.dp)
+                                                imageVector = Icons.Rounded.Language,
+                                                contentDescription = null,
+                                                tint = contentOnContainer,
+                                                modifier = Modifier.size(16.dp)
                                             )
+                                            Spacer(modifier = Modifier.width(6.dp))
+                                            Text(
+                                                text = shortcut.title,
+                                                style = MaterialTheme.typography.labelLarge,
+                                                color = contentOnContainer
+                                            )
+                                            if (isEditingItems) {
+                                                IconButton(
+                                                    onClick = { onDeleteWebShortcut(shortcut.id) },
+                                                    modifier = Modifier.size(24.dp)
+                                                ) {
+                                                    Icon(
+                                                        imageVector = Icons.Rounded.Close,
+                                                        contentDescription = "Remove ${shortcut.title}",
+                                                        tint = mutedOnContainer,
+                                                        modifier = Modifier.size(14.dp)
+                                                    )
+                                                }
+                                            }
                                         }
-                                    }
                                 }
                             }
                         }
@@ -590,7 +617,7 @@ fun HotspotPanelOverlay(
                             mutedColor = mutedOnContainer,
                             spineColor = palette.woodMid.copy(alpha = 0.45f),
                             draggingPackage = draggingApp?.packageName,
-                            showQuickRemove = hotspot.actionType == HotspotActionType.PANEL,
+                            showQuickRemove = isEditingItems && hotspot.actionType == HotspotActionType.PANEL,
                             onTapApp = onLaunchApp,
                             onRemoveToTrash = onRemoveAppFromPanel,
                             onDragStart = { app, pos ->
@@ -636,7 +663,7 @@ fun HotspotPanelOverlay(
                                     app = app,
                                     labelColor = contentOnContainer,
                                     isBeingDragged = draggingApp?.packageName == app.packageName,
-                                    showQuickRemove = hotspot.actionType == HotspotActionType.PANEL,
+                                    showQuickRemove = isEditingItems && hotspot.actionType == HotspotActionType.PANEL,
                                     onTap = { onLaunchApp(app) },
                                     onRemoveToTrash = { onRemoveAppFromPanel(app.packageName) },
                                     onDragStart = { startRootPos ->
