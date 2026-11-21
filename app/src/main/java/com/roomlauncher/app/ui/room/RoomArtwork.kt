@@ -36,6 +36,7 @@ import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.roomlauncher.app.data.RoomObjectVisual
+import com.roomlauncher.app.data.RoomType
 import com.roomlauncher.app.data.WeatherCondition
 import com.roomlauncher.app.data.WeatherState
 import com.roomlauncher.app.ui.theme.GeometryDashSubTheme
@@ -59,6 +60,7 @@ import kotlin.math.sin
 fun RoomShellCanvas(
     palette: RoomVisualPalette,
     roomStyle: RoomStyleId,
+    roomType: RoomType = RoomType.BEDROOM,
     gdSubTheme: GeometryDashSubTheme = GeometryDashSubTheme.SONIC_WAVE,
     posterLeftBitmap: ImageBitmap? = null,
     posterRightBitmap: ImageBitmap? = null,
@@ -92,10 +94,12 @@ fun RoomShellCanvas(
                 RoomStyleId.MINECRAFT -> drawMinecraftShell(palette)
                 RoomStyleId.GEOMETRY_DASH -> drawGeometryDashShell(palette, gdSubTheme)
             }
+            // Layer room-specific architecture (Living Room wainscoting, Kitchen tiles, Gaming Room RGB hexes)
+            drawRoomTypeArchitectureAccent(roomType, palette)
         }
 
         // Teen Room features 2 customizable taped wall posters right on the bedroom wall!
-        if (roomStyle == RoomStyleId.TEEN_ROOM && wPx > 0f && hPx > 0f) {
+        if (roomStyle == RoomStyleId.TEEN_ROOM && roomType == RoomType.BEDROOM && wPx > 0f && hPx > 0f) {
             TeenWallPoster(
                 bitmap = posterLeftBitmap,
                 isLeft = true,
@@ -120,8 +124,8 @@ fun RoomShellCanvas(
             )
         }
 
-        // Geometry Dash room features 2 glowing neon-framed Extreme Demon level artworks on the wall!
-        if (roomStyle == RoomStyleId.GEOMETRY_DASH && wPx > 0f && hPx > 0f) {
+        // Geometry Dash room features 2 glowing neon-framed Extreme Demon level artworks on the bedroom wall!
+        if (roomStyle == RoomStyleId.GEOMETRY_DASH && roomType == RoomType.BEDROOM && wPx > 0f && hPx > 0f) {
             val (neonPrimary, _, neonTertiary) = gdSubTheme.accentNeonColors()
             GeometryDashWallPoster(
                 drawableRes = gdSubTheme.posterDrawableRes(),
@@ -868,6 +872,18 @@ fun RoomObjectGraphic(
                             RoomObjectVisual.SHELF -> drawVoxelBookshelf()
                             RoomObjectVisual.BED -> drawVoxelRedBed()
                             RoomObjectVisual.TRASH_CAN -> drawVoxelLavaCauldron()
+                            RoomObjectVisual.SOFA -> drawSofa(palette, isVoxel = true)
+                            RoomObjectVisual.FIREPLACE -> drawFireplace(palette, isVoxel = true)
+                            RoomObjectVisual.COFFEE_TABLE -> drawCoffeeTable(palette, isVoxel = true)
+                            RoomObjectVisual.VINYL_PLAYER -> drawVinylPlayer(palette, isVoxel = true)
+                            RoomObjectVisual.FRIDGE -> drawFridge(palette, isVoxel = true)
+                            RoomObjectVisual.COFFEE_MAKER -> drawCoffeeMaker(palette, isVoxel = true)
+                            RoomObjectVisual.STOVE -> drawStove(palette, isVoxel = true)
+                            RoomObjectVisual.KITCHEN_COUNTER -> drawKitchenCounter(palette, isVoxel = true)
+                            RoomObjectVisual.GAMING_PC -> drawGamingPc(palette, isVoxel = true)
+                            RoomObjectVisual.ARCADE_CABINET -> drawArcadeCabinet(palette, isVoxel = true)
+                            RoomObjectVisual.STREAMING_DESK -> drawStreamingDesk(palette, isVoxel = true)
+                            RoomObjectVisual.TROPHY_SHELF -> drawTrophyShelf(palette, isVoxel = true)
                             RoomObjectVisual.CUSTOM -> drawCustomObject(palette)
                             else -> Unit
                         }
@@ -880,6 +896,18 @@ fun RoomObjectGraphic(
                             RoomObjectVisual.SHELF -> drawShelf(palette, isKids = roomStyle == RoomStyleId.KIDS_ROOM)
                             RoomObjectVisual.BED -> drawBed(palette, isKids = roomStyle == RoomStyleId.KIDS_ROOM)
                             RoomObjectVisual.TRASH_CAN -> drawTrashCan(palette)
+                            RoomObjectVisual.SOFA -> drawSofa(palette, isVoxel = false)
+                            RoomObjectVisual.FIREPLACE -> drawFireplace(palette, isVoxel = false)
+                            RoomObjectVisual.COFFEE_TABLE -> drawCoffeeTable(palette, isVoxel = false)
+                            RoomObjectVisual.VINYL_PLAYER -> drawVinylPlayer(palette, isVoxel = false)
+                            RoomObjectVisual.FRIDGE -> drawFridge(palette, isVoxel = false)
+                            RoomObjectVisual.COFFEE_MAKER -> drawCoffeeMaker(palette, isVoxel = false)
+                            RoomObjectVisual.STOVE -> drawStove(palette, isVoxel = false)
+                            RoomObjectVisual.KITCHEN_COUNTER -> drawKitchenCounter(palette, isVoxel = false)
+                            RoomObjectVisual.GAMING_PC -> drawGamingPc(palette, isVoxel = false)
+                            RoomObjectVisual.ARCADE_CABINET -> drawArcadeCabinet(palette, isVoxel = false)
+                            RoomObjectVisual.STREAMING_DESK -> drawStreamingDesk(palette, isVoxel = false)
+                            RoomObjectVisual.TROPHY_SHELF -> drawTrophyShelf(palette, isVoxel = false)
                             RoomObjectVisual.CUSTOM -> drawCustomObject(palette)
                             else -> Unit
                         }

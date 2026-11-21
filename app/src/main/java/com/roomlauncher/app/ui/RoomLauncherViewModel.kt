@@ -17,6 +17,7 @@ import com.roomlauncher.app.data.AppUpdateUiState
 import com.roomlauncher.app.data.AudioVisualizerEngine
 import com.roomlauncher.app.data.BatteryMonitor
 import com.roomlauncher.app.data.BatteryStatus
+import com.roomlauncher.app.data.ChangelogData
 import com.roomlauncher.app.data.HotspotActionType
 import com.roomlauncher.app.data.LyricsRepository
 import com.roomlauncher.app.data.LyricsState
@@ -27,6 +28,8 @@ import com.roomlauncher.app.data.RoomConfig
 import com.roomlauncher.app.data.RoomConfigRepository
 import com.roomlauncher.app.data.RoomHotspot
 import com.roomlauncher.app.data.RoomObjectVisual
+import com.roomlauncher.app.data.RoomPage
+import com.roomlauncher.app.data.RoomType
 import com.roomlauncher.app.data.UpdateCheckResult
 import com.roomlauncher.app.data.VisualizerStyle
 import com.roomlauncher.app.data.WeatherRepository
@@ -61,6 +64,7 @@ import java.util.UUID
 data class RoomUiState(
     val isLoaded: Boolean = false,
     val config: RoomConfig = RoomConfigRepository.createDefaultRoomConfig(),
+    val currentRoomIndex: Int = 0,
     val installedApps: List<AppInfo> = emptyList(),
     val packageOwnerLabels: Map<String, String> = emptyMap(),
     val defaultUnsortedLabel: String = "Trash Can",
@@ -84,10 +88,21 @@ data class RoomUiState(
     val showAddHotspotDialog: Boolean = false,
     val showAllAppsSheet: Boolean = false,
     val showSettingsSheet: Boolean = false,
+    val showChangelogDialog: Boolean = false,
+    val isAutoWelcomeChangelog: Boolean = false,
     val isBatteryOptimizationIgnored: Boolean = false,
     val isDefaultLauncher: Boolean = false,
     val isSyncingWallpaper: Boolean = false
 ) {
+    val rooms: List<RoomPage>
+        get() = config.effectiveRooms
+
+    val safeCurrentRoomIndex: Int
+        get() = currentRoomIndex.coerceIn(0, (rooms.size - 1).coerceAtLeast(0))
+
+    val currentRoom: RoomPage
+        get() = rooms.getOrElse(safeCurrentRoomIndex) { rooms.first() }
+
     val effectiveThemeId: RoomThemeId
         get() = if (config.dynamicThemeEnabled) {
             RoomThemes.dynamicThemeForHour(currentHourOfDay)
@@ -96,17 +111,24 @@ data class RoomUiState(
         }
 
     val activeHotspot: RoomHotspot?
-        get() = config.hotspots.firstOrNull { it.id == activeHotspotId }
+        get() = activeHotspotId?.let { config.findHotspot(it) }
 
     val editingHotspot: RoomHotspot?
-        get() = config.hotspots.firstOrNull { it.id == editingHotspotId }
+        get() = editingHotspotId?.let { config.findHotspot(it) }
 
     fun appsFor(hotspot: RoomHotspot): List<AppInfo> =
         RoomConfigRepository.appsForHotspot(hotspot, config, installedApps)
 
     val panelHotspots: List<RoomHotspot>
-        get() = config.hotspots.filter {
+        get() = config.allHotspots.filter {
             it.actionType == HotspotActionType.PANEL || it.actionType == HotspotActionType.UNSORTED_PANEL
+        }
+
+    val panelHotspotChoices: List<Pair<String, RoomHotspot>>
+        get() = rooms.flatMap { room ->
+            room.hotspots
+                .filter { it.actionType == HotspotActionType.PANEL || it.actionType == HotspotActionType.UNSORTED_PANEL }
+                .map { room.name to it }
         }
 }
 
@@ -266,6 +288,10 @@ class RoomLauncherViewModel(application: Application) : AndroidViewModel(applica
                 loadedConfig
             }
 
+            val shouldShowWelcomeChangelog =
+                effectiveConfig.onboardingCompleted &&
+                    effectiveConfig.lastSeenChangelogVersion != ChangelogData.CURRENT_VERSION
+
             _uiState.update {
                 it.copy(
                     isLoaded = true,
@@ -276,6 +302,8 @@ class RoomLauncherViewModel(application: Application) : AndroidViewModel(applica
                     frameImageBitmap = frameBmp,
                     posterLeftBitmap = posterLeftBmp,
                     posterRightBitmap = posterRightBmp,
+                    showChangelogDialog = shouldShowWelcomeChangelog,
+                    isAutoWelcomeChangelog = shouldShowWelcomeChangelog,
                     isBatteryOptimizationIgnored = isBatteryIgnored,
                     isDefaultLauncher = isDefault,
                     hasNotificationAccess = hasNotifAccess,
@@ -292,7 +320,7 @@ class RoomLauncherViewModel(application: Application) : AndroidViewModel(applica
 
             appRepository.installedApps.collect { apps ->
                 val current = _uiState.value.config
-                val populated = if (!current.autoPopulated && apps.isNotEmpty()) {
+                val populated = if ((!current.autoPopulated || !current.multiRoomAutoPopulated) && apps.isNotEmpty()) {
                     RoomConfigRepository.autoPopulateIfNeeded(current, apps).also { updated ->
                         configRepository.saveConfig(updated)
                     }
@@ -396,7 +424,131 @@ class RoomLauncherViewModel(application: Application) : AndroidViewModel(applica
     }
 
     fun completeOnboarding() {
-        updateConfig { it.copy(onboardingCompleted = true, onboardingStep = 3) }
+        updateConfig {
+            it.copy(
+                onboardingCompleted = true,
+                onboardingStep = 3,
+                lastSeenChangelogVersion = ChangelogData.CURRENT_VERSION
+            )
+        }
+    }
+
+    fun openChangelog() {
+        _uiState.update {
+            it.copy(
+                showChangelogDialog = true,
+                isAutoWelcomeChangelog = false
+            )
+        }
+    }
+
+    fun dismissChangelog() {
+        _uiState.update {
+            it.copy(
+                showChangelogDialog = false,
+                isAutoWelcomeChangelog = false
+            )
+        }
+        if (_uiState.value.config.lastSeenChangelogVersion != ChangelogData.CURRENT_VERSION) {
+            updateConfig { it.copy(lastSeenChangelogVersion = ChangelogData.CURRENT_VERSION) }
+        }
+    }
+
+    // ---- Multi-Room House Navigation & Management ----
+
+    fun selectRoom(index: Int) {
+        val rooms = _uiState.value.rooms
+        if (rooms.isEmpty()) return
+        val clamped = index.coerceIn(0, rooms.lastIndex)
+        if (_uiState.value.currentRoomIndex != clamped) {
+            _uiState.update {
+                it.copy(
+                    currentRoomIndex = clamped,
+                    activeHotspotId = null,
+                    editingHotspotId = null
+                )
+            }
+        }
+    }
+
+    fun addRoom(roomType: RoomType, customName: String = "") {
+        val existingRooms = _uiState.value.rooms
+        val baseName = customName.trim().ifEmpty { roomType.displayName }
+        val sameCount = existingRooms.count { it.name.equals(baseName, ignoreCase = true) }
+        val finalName = if (sameCount > 0) "$baseName ${sameCount + 1}" else baseName
+
+        val created = RoomConfigRepository.createPresetRoom(
+            type = roomType,
+            id = "room_${UUID.randomUUID().toString().take(8)}",
+            name = finalName
+        )
+        val installed = _uiState.value.installedApps
+        val targetIndex = existingRooms.size
+
+        updateConfig { cfg ->
+            val withNewRoom = RoomConfigRepository.syncLegacyHotspots(
+                cfg.copy(
+                    rooms = cfg.effectiveRooms + created,
+                    multiRoomAutoPopulated = false
+                )
+            )
+            if (installed.isNotEmpty()) {
+                RoomConfigRepository.autoPopulateIfNeeded(withNewRoom, installed)
+            } else {
+                withNewRoom
+            }
+        }
+        _uiState.update {
+            it.copy(currentRoomIndex = targetIndex)
+        }
+        Toast.makeText(appContext, "Added $finalName!", Toast.LENGTH_SHORT).show()
+    }
+
+    fun renameRoom(roomId: String, newName: String) {
+        val trimmed = newName.trim()
+        if (trimmed.isEmpty()) return
+        updateConfig { cfg ->
+            val updatedRooms = cfg.effectiveRooms.map { room ->
+                if (room.id == roomId) room.copy(name = trimmed) else room
+            }
+            RoomConfigRepository.syncLegacyHotspots(cfg.copy(rooms = updatedRooms))
+        }
+    }
+
+    fun deleteRoom(roomId: String): Boolean {
+        val state = _uiState.value
+        val rooms = state.rooms
+        if (rooms.size <= 1) {
+            Toast.makeText(appContext, "You need at least one room in your house", Toast.LENGTH_SHORT).show()
+            return false
+        }
+        val target = rooms.firstOrNull { it.id == roomId } ?: return false
+        val remainingRooms = rooms.filterNot { it.id == roomId }
+        val remainingUnsorted = remainingRooms.sumOf { room ->
+            room.hotspots.count { it.actionType == HotspotActionType.UNSORTED_PANEL }
+        }
+        if (remainingUnsorted == 0) {
+            Toast.makeText(
+                appContext,
+                "Keep the room containing your Trash Can (unsorted apps)",
+                Toast.LENGTH_SHORT
+            ).show()
+            return false
+        }
+
+        updateConfig { cfg ->
+            RoomConfigRepository.syncLegacyHotspots(cfg.copy(rooms = remainingRooms))
+        }
+        val newIndex = state.safeCurrentRoomIndex.coerceAtMost(remainingRooms.lastIndex)
+        _uiState.update {
+            it.copy(
+                currentRoomIndex = newIndex,
+                activeHotspotId = null,
+                editingHotspotId = null
+            )
+        }
+        Toast.makeText(appContext, "Removed ${target.name}", Toast.LENGTH_SHORT).show()
+        return true
     }
 
     fun reopenOnboarding() {
@@ -530,8 +682,10 @@ class RoomLauncherViewModel(application: Application) : AndroidViewModel(applica
         val wasInEditMode = state.isEditMode
         _uiState.update {
             it.copy(
+                currentRoomIndex = 0,
                 showSettingsSheet = false,
                 showAllAppsSheet = false,
+                showChangelogDialog = false,
                 activeHotspotId = null,
                 editingHotspotId = null,
                 showAddHotspotDialog = false,
@@ -552,6 +706,10 @@ class RoomLauncherViewModel(application: Application) : AndroidViewModel(applica
         return when {
             state.activeChargingSplashKey != 0L -> {
                 dismissChargingAnimation()
+                true
+            }
+            state.showChangelogDialog -> {
+                dismissChangelog()
                 true
             }
             state.showAddHotspotDialog -> {
@@ -586,6 +744,10 @@ class RoomLauncherViewModel(application: Application) : AndroidViewModel(applica
             }
             state.isEditMode -> {
                 exitEditMode()
+                true
+            }
+            state.safeCurrentRoomIndex != 0 -> {
+                selectRoom(0)
                 true
             }
             else -> false
@@ -1249,39 +1411,45 @@ class RoomLauncherViewModel(application: Application) : AndroidViewModel(applica
         }
     }
 
-    // ---- Room Hotspot Layout & App Assignment ----
+    // ---- Room Hotspot Layout & App Assignment (Multi-Room Aware) ----
+
+    private fun mapAllRoomHotspots(
+        config: RoomConfig,
+        transform: (RoomHotspot) -> RoomHotspot
+    ): RoomConfig {
+        val updatedRooms = config.effectiveRooms.map { room ->
+            room.copy(hotspots = room.hotspots.map(transform))
+        }
+        return RoomConfigRepository.syncLegacyHotspots(config.copy(rooms = updatedRooms))
+    }
 
     fun moveHotspot(hotspotId: String, newX: Float, newY: Float) {
         updateConfig { config ->
-            config.copy(
-                hotspots = config.hotspots.map { hotspot ->
-                    if (hotspot.id == hotspotId) {
-                        val clampedX = newX.coerceIn(0f, (1f - hotspot.width).coerceAtLeast(0f))
-                        val clampedY = newY.coerceIn(0f, (1f - hotspot.height).coerceAtLeast(0f))
-                        hotspot.copy(x = clampedX, y = clampedY)
-                    } else {
-                        hotspot
-                    }
+            mapAllRoomHotspots(config) { hotspot ->
+                if (hotspot.id == hotspotId) {
+                    val clampedX = newX.coerceIn(0f, (1f - hotspot.width).coerceAtLeast(0f))
+                    val clampedY = newY.coerceIn(0f, (1f - hotspot.height).coerceAtLeast(0f))
+                    hotspot.copy(x = clampedX, y = clampedY)
+                } else {
+                    hotspot
                 }
-            )
+            }
         }
     }
 
     fun resizeHotspot(hotspotId: String, newWidth: Float, newHeight: Float) {
         updateConfig { config ->
-            config.copy(
-                hotspots = config.hotspots.map { hotspot ->
-                    if (hotspot.id == hotspotId) {
-                        val maxW = (1f - hotspot.x).coerceAtLeast(MIN_HOTSPOT_WIDTH)
-                        val maxH = (1f - hotspot.y).coerceAtLeast(MIN_HOTSPOT_HEIGHT)
-                        val clampedW = newWidth.coerceIn(MIN_HOTSPOT_WIDTH, maxW)
-                        val clampedH = newHeight.coerceIn(MIN_HOTSPOT_HEIGHT, maxH)
-                        hotspot.copy(width = clampedW, height = clampedH)
-                    } else {
-                        hotspot
-                    }
+            mapAllRoomHotspots(config) { hotspot ->
+                if (hotspot.id == hotspotId) {
+                    val maxW = (1f - hotspot.x).coerceAtLeast(MIN_HOTSPOT_WIDTH)
+                    val maxH = (1f - hotspot.y).coerceAtLeast(MIN_HOTSPOT_HEIGHT)
+                    val clampedW = newWidth.coerceIn(MIN_HOTSPOT_WIDTH, maxW)
+                    val clampedH = newHeight.coerceIn(MIN_HOTSPOT_HEIGHT, maxH)
+                    hotspot.copy(width = clampedW, height = clampedH)
+                } else {
+                    hotspot
                 }
-            )
+            }
         }
     }
 
@@ -1289,35 +1457,35 @@ class RoomLauncherViewModel(application: Application) : AndroidViewModel(applica
         hotspotId: String,
         newLabel: String,
         newSubtitle: String,
-        newActionType: HotspotActionType
+        newActionType: HotspotActionType,
+        newVisualType: RoomObjectVisual? = null
     ) {
         val trimmedLabel = newLabel.trim().ifEmpty { return }
         val trimmedSubtitle = newSubtitle.trim()
         updateConfig { config ->
-            val unsortedCount = config.hotspots.count { it.actionType == HotspotActionType.UNSORTED_PANEL }
-            config.copy(
-                hotspots = config.hotspots.map { hotspot ->
-                    if (hotspot.id == hotspotId) {
-                        val safeType = if (
-                            hotspot.actionType == HotspotActionType.UNSORTED_PANEL &&
-                            newActionType != HotspotActionType.UNSORTED_PANEL &&
-                            unsortedCount <= 1
-                        ) {
-                            HotspotActionType.UNSORTED_PANEL
-                        } else {
-                            newActionType
-                        }
-                        hotspot.copy(
-                            label = trimmedLabel,
-                            subtitle = trimmedSubtitle,
-                            actionType = safeType,
-                            packages = if (safeType == HotspotActionType.PANEL) hotspot.packages else emptyList()
-                        )
+            val unsortedCount = config.allHotspots.count { it.actionType == HotspotActionType.UNSORTED_PANEL }
+            mapAllRoomHotspots(config) { hotspot ->
+                if (hotspot.id == hotspotId) {
+                    val safeType = if (
+                        hotspot.actionType == HotspotActionType.UNSORTED_PANEL &&
+                        newActionType != HotspotActionType.UNSORTED_PANEL &&
+                        unsortedCount <= 1
+                    ) {
+                        HotspotActionType.UNSORTED_PANEL
                     } else {
-                        hotspot
+                        newActionType
                     }
+                    hotspot.copy(
+                        label = trimmedLabel,
+                        subtitle = trimmedSubtitle,
+                        actionType = safeType,
+                        visualType = newVisualType ?: hotspot.visualType,
+                        packages = if (safeType == HotspotActionType.PANEL) hotspot.packages else emptyList()
+                    )
+                } else {
+                    hotspot
                 }
-            )
+            }
         }
     }
 
@@ -1328,6 +1496,7 @@ class RoomLauncherViewModel(application: Application) : AndroidViewModel(applica
         visualType: RoomObjectVisual = RoomObjectVisual.CUSTOM
     ) {
         val trimmedLabel = label.trim().ifEmpty { return }
+        val targetRoomId = _uiState.value.currentRoom.id
         val newHotspot = RoomHotspot(
             id = "custom_${UUID.randomUUID().toString().take(8)}",
             label = trimmedLabel,
@@ -1340,20 +1509,30 @@ class RoomLauncherViewModel(application: Application) : AndroidViewModel(applica
             visualType = visualType
         )
         updateConfig { config ->
-            config.copy(hotspots = config.hotspots + newHotspot)
+            val updatedRooms = config.effectiveRooms.map { room ->
+                if (room.id == targetRoomId) {
+                    room.copy(hotspots = room.hotspots + newHotspot)
+                } else {
+                    room
+                }
+            }
+            RoomConfigRepository.syncLegacyHotspots(config.copy(rooms = updatedRooms))
         }
         closeAddHotspotDialog()
     }
 
     fun deleteHotspot(hotspotId: String): Boolean {
         val current = _uiState.value.config
-        val target = current.hotspots.firstOrNull { it.id == hotspotId } ?: return false
-        val unsortedCount = current.hotspots.count { it.actionType == HotspotActionType.UNSORTED_PANEL }
+        val target = current.findHotspot(hotspotId) ?: return false
+        val unsortedCount = current.allHotspots.count { it.actionType == HotspotActionType.UNSORTED_PANEL }
         if (target.actionType == HotspotActionType.UNSORTED_PANEL && unsortedCount <= 1) {
             return false
         }
         updateConfig { config ->
-            config.copy(hotspots = config.hotspots.filterNot { it.id == hotspotId })
+            val updatedRooms = config.effectiveRooms.map { room ->
+                room.copy(hotspots = room.hotspots.filterNot { it.id == hotspotId })
+            }
+            RoomConfigRepository.syncLegacyHotspots(config.copy(rooms = updatedRooms))
         }
         closeEditHotspot()
         return true
@@ -1361,38 +1540,34 @@ class RoomLauncherViewModel(application: Application) : AndroidViewModel(applica
 
     fun moveAppToHotspot(packageName: String, targetHotspotId: String) {
         updateConfig { config ->
-            val target = config.hotspots.firstOrNull { it.id == targetHotspotId } ?: return@updateConfig config
+            val target = config.findHotspot(targetHotspotId) ?: return@updateConfig config
             if (target.actionType != HotspotActionType.PANEL && target.actionType != HotspotActionType.UNSORTED_PANEL) {
                 return@updateConfig config
             }
-            config.copy(
-                hotspots = config.hotspots.map { hotspot ->
-                    when {
-                        hotspot.id == targetHotspotId && hotspot.actionType == HotspotActionType.PANEL -> {
-                            val updated = (hotspot.packages.filterNot { it == packageName }) + packageName
-                            hotspot.copy(packages = updated)
-                        }
-                        hotspot.actionType == HotspotActionType.PANEL -> {
-                            hotspot.copy(packages = hotspot.packages.filterNot { it == packageName })
-                        }
-                        else -> hotspot
+            mapAllRoomHotspots(config) { hotspot ->
+                when {
+                    hotspot.id == targetHotspotId && hotspot.actionType == HotspotActionType.PANEL -> {
+                        val updated = (hotspot.packages.filterNot { it == packageName }) + packageName
+                        hotspot.copy(packages = updated)
                     }
+                    hotspot.actionType == HotspotActionType.PANEL -> {
+                        hotspot.copy(packages = hotspot.packages.filterNot { it == packageName })
+                    }
+                    else -> hotspot
                 }
-            )
+            }
         }
     }
 
     fun removeAppFromHotspot(packageName: String, hotspotId: String) {
         updateConfig { config ->
-            config.copy(
-                hotspots = config.hotspots.map { hotspot ->
-                    if (hotspot.id == hotspotId && hotspot.actionType == HotspotActionType.PANEL) {
-                        hotspot.copy(packages = hotspot.packages.filterNot { it == packageName })
-                    } else {
-                        hotspot
-                    }
+            mapAllRoomHotspots(config) { hotspot ->
+                if (hotspot.id == hotspotId && hotspot.actionType == HotspotActionType.PANEL) {
+                    hotspot.copy(packages = hotspot.packages.filterNot { it == packageName })
+                } else {
+                    hotspot
                 }
-            )
+            }
         }
     }
 
@@ -1419,12 +1594,14 @@ class RoomLauncherViewModel(application: Application) : AndroidViewModel(applica
             framePhotoPath = current.framePhotoPath,
             posterLeftPath = current.posterLeftPath,
             posterRightPath = current.posterRightPath,
-            webShortcuts = current.webShortcuts
+            webShortcuts = current.webShortcuts,
+            lastSeenChangelogVersion = current.lastSeenChangelogVersion
         )
         val populated = RoomConfigRepository.autoPopulateIfNeeded(base, installed)
         _uiState.update {
             it.copy(
                 config = populated,
+                currentRoomIndex = 0,
                 packageOwnerLabels = RoomConfigRepository.buildPackageOwnerLabelMap(populated),
                 defaultUnsortedLabel = RoomConfigRepository.defaultUnsortedLabel(populated),
                 editingHotspotId = null,
@@ -1475,18 +1652,22 @@ class RoomLauncherViewModel(application: Application) : AndroidViewModel(applica
                 return@launch
             }
             val current = _uiState.value.config
-            val sanitized = imported.copy(
-                onboardingCompleted = true,
-                onboardingStep = 3,
-                autoPopulated = true,
-                framePhotoPath = imported.framePhotoPath?.takeIf { File(it).exists() } ?: current.framePhotoPath,
-                posterLeftPath = imported.posterLeftPath?.takeIf { File(it).exists() } ?: current.posterLeftPath,
-                posterRightPath = imported.posterRightPath?.takeIf { File(it).exists() } ?: current.posterRightPath
+            val sanitized = RoomConfigRepository.syncLegacyHotspots(
+                imported.copy(
+                    onboardingCompleted = true,
+                    onboardingStep = 3,
+                    autoPopulated = true,
+                    multiRoomAutoPopulated = true,
+                    framePhotoPath = imported.framePhotoPath?.takeIf { File(it).exists() } ?: current.framePhotoPath,
+                    posterLeftPath = imported.posterLeftPath?.takeIf { File(it).exists() } ?: current.posterLeftPath,
+                    posterRightPath = imported.posterRightPath?.takeIf { File(it).exists() } ?: current.posterRightPath
+                )
             )
             configRepository.saveConfig(sanitized)
             _uiState.update { state ->
                 state.copy(
                     config = sanitized,
+                    currentRoomIndex = 0,
                     musicDisplayMode = sanitized.musicDefaultMode,
                     packageOwnerLabels = RoomConfigRepository.buildPackageOwnerLabelMap(sanitized),
                     defaultUnsortedLabel = RoomConfigRepository.defaultUnsortedLabel(sanitized),

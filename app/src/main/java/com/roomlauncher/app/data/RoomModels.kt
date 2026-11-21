@@ -17,17 +17,47 @@ enum class HotspotActionType {
 }
 
 @Serializable
-enum class RoomObjectVisual {
-    TV,
-    CONSOLE,
-    SHELF,
-    PAINTING,
-    TRASH_CAN,
-    BED,
-    CLOCK,
-    WINDOW,
-    STICKY_NOTE,
-    CUSTOM
+enum class RoomType(
+    val displayName: String,
+    val description: String
+) {
+    BEDROOM("Bedroom", "Cozy home base — TV, Console, Shelf, Bed & Trash Can"),
+    LIVING_ROOM("Living Room", "Lounge & social — Sofa, Fireplace, Vinyl Hi-Fi & Coffee Table"),
+    KITCHEN("Kitchen", "Daily essentials — Fridge, Espresso, Stove & Pantry Counter"),
+    GAMING_ROOM("Gaming Room", "RGB battle station — Gaming PC, Arcade, Stream Desk & Trophies")
+}
+
+@Serializable
+enum class RoomObjectVisual(val displayName: String) {
+    // Classic Bedroom visuals
+    TV("TV"),
+    CONSOLE("Game Console"),
+    SHELF("Bookshelf"),
+    PAINTING("Picture Frame"),
+    TRASH_CAN("Trash Can"),
+    BED("Bed"),
+    CLOCK("Wall Clock"),
+    WINDOW("Window"),
+    STICKY_NOTE("Sticky Note"),
+    CUSTOM("Custom Object"),
+
+    // Living Room visuals
+    SOFA("Lounge Sofa"),
+    FIREPLACE("Fireplace"),
+    COFFEE_TABLE("Coffee Table"),
+    VINYL_PLAYER("Vinyl Hi-Fi"),
+
+    // Kitchen visuals
+    FRIDGE("Refrigerator"),
+    COFFEE_MAKER("Coffee Maker"),
+    STOVE("Stove & Oven"),
+    KITCHEN_COUNTER("Kitchen Counter"),
+
+    // Gaming Room visuals
+    GAMING_PC("Gaming PC"),
+    ARCADE_CABINET("Arcade Cabinet"),
+    STREAMING_DESK("Streaming Desk"),
+    TROPHY_SHELF("Trophy Shelf")
 }
 
 @Immutable
@@ -63,11 +93,22 @@ data class RoomHotspot(
 
 @Immutable
 @Serializable
+data class RoomPage(
+    val id: String,
+    val name: String,
+    val type: RoomType = RoomType.BEDROOM,
+    val hotspots: List<RoomHotspot> = emptyList()
+)
+
+@Immutable
+@Serializable
 data class RoomConfig(
-    val version: Int = 2,
+    val version: Int = 3,
     val onboardingCompleted: Boolean = false,
     val onboardingStep: Int = 0,
     val autoPopulated: Boolean = false,
+    val multiRoomAutoPopulated: Boolean = false,
+    val lastSeenChangelogVersion: String = "",
     val roomStyleId: RoomStyleId = RoomStyleId.COZY_MINIMALIST,
     val geometryDashSubTheme: GeometryDashSubTheme = GeometryDashSubTheme.SONIC_WAVE,
     val themeId: RoomThemeId = RoomThemeId.WARM_LINEN,
@@ -86,5 +127,28 @@ data class RoomConfig(
     val posterLeftPath: String? = null,
     val posterRightPath: String? = null,
     val webShortcuts: List<WebShortcut> = emptyList(),
+    /** Multi-room house pages (Bedroom, Living Room, Kitchen, Gaming Room, etc.) */
+    val rooms: List<RoomPage> = emptyList(),
+    /** Legacy primary bedroom hotspots kept in sync for backward compatibility */
     val hotspots: List<RoomHotspot> = emptyList()
-)
+) {
+    val effectiveRooms: List<RoomPage>
+        get() = if (rooms.isNotEmpty()) {
+            rooms
+        } else {
+            listOf(
+                RoomPage(
+                    id = RoomConfigRepository.ROOM_ID_BEDROOM,
+                    name = "Bedroom",
+                    type = RoomType.BEDROOM,
+                    hotspots = hotspots
+                )
+            )
+        }
+
+    val allHotspots: List<RoomHotspot>
+        get() = effectiveRooms.flatMap { it.hotspots }
+
+    fun findHotspot(hotspotId: String): RoomHotspot? =
+        effectiveRooms.asSequence().flatMap { it.hotspots.asSequence() }.firstOrNull { it.id == hotspotId }
+}

@@ -12,10 +12,14 @@ import androidx.compose.animation.fadeOut
 import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
+import androidx.compose.foundation.gestures.awaitEachGesture
+import androidx.compose.foundation.gestures.awaitFirstDown
+import androidx.compose.foundation.gestures.calculatePan
+import androidx.compose.foundation.gestures.calculateZoom
 import androidx.compose.foundation.gestures.detectTapGestures
-import androidx.compose.foundation.gestures.detectTransformGestures
 import androidx.compose.foundation.gestures.detectVerticalDragGestures
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsPressedAsState
@@ -35,6 +39,8 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.pager.HorizontalPager
+import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -60,9 +66,12 @@ import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.TransformOrigin
@@ -79,10 +88,12 @@ import com.roomlauncher.app.data.HotspotActionType
 import com.roomlauncher.app.data.MusicDisplayMode
 import com.roomlauncher.app.data.RoomHotspot
 import com.roomlauncher.app.data.RoomObjectVisual
+import com.roomlauncher.app.data.RoomType
 import com.roomlauncher.app.data.VisualizerStyle
 import com.roomlauncher.app.system.SystemIntentHelper
 import com.roomlauncher.app.ui.RoomUiState
 import com.roomlauncher.app.ui.allapps.AllAppsSheet
+import com.roomlauncher.app.ui.settings.ChangelogDialog
 import com.roomlauncher.app.ui.settings.SettingsSheet
 import com.roomlauncher.app.ui.theme.ChargingAnimationStyle
 import com.roomlauncher.app.ui.theme.GeometryDashSubTheme
@@ -94,7 +105,10 @@ import com.roomlauncher.app.ui.theme.RoomThemeId
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.launch
 import java.util.Calendar
+import kotlin.math.abs
 import kotlin.math.roundToInt
 
 @OptIn(ExperimentalFoundationApi::class)
@@ -111,11 +125,17 @@ fun RoomScreen(
     onEditHotspotClose: () -> Unit,
     onAddHotspotOpen: () -> Unit,
     onAddHotspotClose: () -> Unit,
-    onAddHotspot: (label: String, subtitle: String, actionType: HotspotActionType) -> Unit,
+    onAddHotspot: (label: String, subtitle: String, actionType: HotspotActionType, visualType: RoomObjectVisual) -> Unit,
     onMoveHotspot: (hotspotId: String, newX: Float, newY: Float) -> Unit,
     onResizeHotspot: (hotspotId: String, newW: Float, newH: Float) -> Unit,
-    onUpdateHotspotDetails: (hotspotId: String, label: String, subtitle: String, actionType: HotspotActionType) -> Unit,
+    onUpdateHotspotDetails: (hotspotId: String, label: String, subtitle: String, actionType: HotspotActionType, visualType: RoomObjectVisual) -> Unit,
     onDeleteHotspot: (hotspotId: String) -> Unit,
+    onSelectRoom: (Int) -> Unit,
+    onAddRoom: (RoomType, String) -> Unit,
+    onRenameRoom: (roomId: String, newName: String) -> Unit,
+    onDeleteRoom: (roomId: String) -> Unit,
+    onOpenChangelog: () -> Unit,
+    onDismissChangelog: () -> Unit,
     onMoveAppToHotspot: (packageName: String, targetHotspotId: String) -> Unit,
     onRemoveAppFromHotspot: (packageName: String, hotspotId: String) -> Unit,
     onAddWebShortcut: (title: String, url: String) -> Unit,
@@ -175,10 +195,38 @@ fun RoomScreen(
     val haptic = LocalHapticFeedback.current
     val density = LocalDensity.current
     val palette = LocalRoomPalette.current
+    val coroutineScope = rememberCoroutineScope()
+
+    val rooms = uiState.rooms
+    val pagerState = rememberPagerState(
+        initialPage = uiState.safeCurrentRoomIndex,
+        pageCount = { rooms.size.coerceAtLeast(1) }
+    )
 
     var zoomScale by remember { mutableFloatStateOf(1f) }
     var panOffset by remember { mutableStateOf(Offset.Zero) }
     var showResetConfirm by remember { mutableStateOf(false) }
+
+    // Sync user swipes from HorizontalPager -> ViewModel
+    LaunchedEffect(pagerState) {
+        snapshotFlow { pagerState.currentPage }
+            .distinctUntilChanged()
+            .collect { page ->
+                if (page != uiState.safeCurrentRoomIndex) {
+                    zoomScale = 1f
+                    panOffset = Offset.Zero
+                    onSelectRoom(page)
+                }
+            }
+    }
+
+    // Sync programmatic room changes (Settings jump, Back/Home reset, Add Room) -> HorizontalPager
+    LaunchedEffect(uiState.safeCurrentRoomIndex, rooms.size) {
+        val target = uiState.safeCurrentRoomIndex.coerceIn(0, (rooms.size - 1).coerceAtLeast(0))
+        if (pagerState.currentPage != target) {
+            pagerState.animateScrollToPage(target)
+        }
+    }
 
     // Live minutes of day for analog Clock wall hands
     var currentMinutesOfDay by remember {
@@ -235,83 +283,115 @@ fun RoomScreen(
     }
 
     Box(modifier = Modifier.fillMaxSize()) {
-        // Keep the Room mounted cleanly underneath Settings & All Apps so Back gestures and
-        // Predictive Back reveals are 100% glitch-free with zero cold-recomposition flash!
-        BoxWithConstraints(
-            modifier = Modifier
-                .fillMaxSize()
-                .pointerInput(uiState.isEditMode, isFullScreenSheetOpen) {
-                    if (!uiState.isEditMode && !isFullScreenSheetOpen) {
-                        detectTapGestures(
-                            onLongPress = {
-                                haptic.performHapticFeedback(HapticFeedbackType.LongPress)
-                                onEnterEditMode()
-                            },
-                            onDoubleTap = {
-                                zoomScale = 1f
-                                panOffset = Offset.Zero
-                            }
-                        )
-                    }
-                }
-                .pointerInput(uiState.isEditMode, isFullScreenSheetOpen) {
-                    if (!uiState.isEditMode && !isFullScreenSheetOpen) {
-                        detectTransformGestures { _, pan, zoom, _ ->
-                            val newScale = (zoomScale * zoom).coerceIn(1f, 2.2f)
-                            if (newScale > 1.01f) {
-                                val maxPanX = (size.width * (newScale - 1f)) / 2f
-                                val maxPanY = (size.height * (newScale - 1f)) / 2f
-                                val nextPan = panOffset + pan
-                                    zoomScale = newScale
-                                    panOffset = Offset(
-                                        x = nextPan.x.coerceIn(-maxPanX, maxPanX),
-                                        y = nextPan.y.coerceIn(-maxPanY, maxPanY)
-                                    )
-                                } else {
+        // Multi-Room HorizontalPager — swipe right-to-left like a normal Android launcher to walk between rooms!
+        // Kept mounted underneath Settings & All Apps so Predictive Back reveals are 100% glitch-free.
+        HorizontalPager(
+            state = pagerState,
+            userScrollEnabled = !uiState.isEditMode &&
+                !isFullScreenSheetOpen &&
+                activeHotspot == null &&
+                !uiState.isMusicExpanded &&
+                zoomScale <= 1.02f,
+            beyondViewportPageCount = 1,
+            modifier = Modifier.fillMaxSize()
+        ) { pageIndex ->
+            val roomPage = rooms.getOrElse(pageIndex) { uiState.currentRoom }
+            val isThisPageActive = pageIndex == pagerState.currentPage
+
+            BoxWithConstraints(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .pointerInput(uiState.isEditMode, isFullScreenSheetOpen) {
+                        if (!uiState.isEditMode && !isFullScreenSheetOpen) {
+                            detectTapGestures(
+                                onLongPress = {
+                                    haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                                    onEnterEditMode()
+                                },
+                                onDoubleTap = {
                                     zoomScale = 1f
                                     panOffset = Offset.Zero
                                 }
+                            )
+                        }
+                    }
+                    // Pinch-zoom only engages on 2+ fingers OR when already zoomed in,
+                    // so 1-finger horizontal swipes NEVER fight HorizontalPager!
+                    .pointerInput(uiState.isEditMode, isFullScreenSheetOpen, isThisPageActive) {
+                        if (!uiState.isEditMode && !isFullScreenSheetOpen && isThisPageActive) {
+                            awaitEachGesture {
+                                awaitFirstDown(requireUnconsumed = false)
+                                do {
+                                    val event = awaitPointerEvent()
+                                    val pointerCount = event.changes.count { it.pressed }
+                                    val zoomChange = event.calculateZoom()
+                                    val panChange = event.calculatePan()
+                                    val isPinching = pointerCount >= 2 && abs(zoomChange - 1f) > 0.002f
+                                    val isZoomedPan = zoomScale > 1.02f && panChange != Offset.Zero
+                                    if (isPinching || isZoomedPan) {
+                                        val newScale = (zoomScale * zoomChange).coerceIn(1f, 2.2f)
+                                        if (newScale > 1.02f) {
+                                            val maxPanX = (size.width * (newScale - 1f)) / 2f
+                                            val maxPanY = (size.height * (newScale - 1f)) / 2f
+                                            val nextPan = panOffset + panChange
+                                            zoomScale = newScale
+                                            panOffset = Offset(
+                                                x = nextPan.x.coerceIn(-maxPanX, maxPanX),
+                                                y = nextPan.y.coerceIn(-maxPanY, maxPanY)
+                                            )
+                                        } else {
+                                            zoomScale = 1f
+                                            panOffset = Offset.Zero
+                                        }
+                                        event.changes.forEach { it.consume() }
+                                    }
+                                } while (event.changes.any { it.pressed })
                             }
                         }
                     }
             ) {
                 val roomWidthPx = with(density) { maxWidth.toPx() }
                 val roomHeightPx = with(density) { maxHeight.toPx() }
+                val activeZoom = if (isThisPageActive) zoomScale else 1f
+                val activePan = if (isThisPageActive) panOffset else Offset.Zero
+                val activeTvZoom = if (isThisPageActive) tvZoomProgress else 0f
 
                 Box(
                     modifier = Modifier
                         .fillMaxSize()
                         .graphicsLayer {
-                            val currentTvScale = 1f + (lastTvScale - 1f) * tvZoomProgress
-                            val combinedScale = zoomScale * currentTvScale
-                            val tvTx = (0.5f - lastTvCenterX) * roomWidthPx * currentTvScale * tvZoomProgress
-                            val tvTy = (0.5f - lastTvCenterY) * roomHeightPx * currentTvScale * tvZoomProgress
+                            val currentTvScale = 1f + (lastTvScale - 1f) * activeTvZoom
+                            val combinedScale = activeZoom * currentTvScale
+                            val tvTx = (0.5f - lastTvCenterX) * roomWidthPx * currentTvScale * activeTvZoom
+                            val tvTy = (0.5f - lastTvCenterY) * roomHeightPx * currentTvScale * activeTvZoom
                             scaleX = combinedScale
                             scaleY = combinedScale
-                            translationX = panOffset.x * (1f - tvZoomProgress) + tvTx
-                            translationY = panOffset.y * (1f - tvZoomProgress) + tvTy
+                            translationX = activePan.x * (1f - activeTvZoom) + tvTx
+                            translationY = activePan.y * (1f - activeTvZoom) + tvTy
                             transformOrigin = TransformOrigin.Center
                         }
                 ) {
-                    // 1. Empty Themed Room Shell (walls, floor, rug, style decor)
+                    // 1. Themed Architectural Room Shell (with Room-Specific Accents!)
                     RoomShellCanvas(
                         palette = palette,
                         roomStyle = uiState.config.roomStyleId,
+                        roomType = roomPage.type,
                         gdSubTheme = uiState.config.geometryDashSubTheme,
                         posterLeftBitmap = uiState.posterLeftBitmap,
                         posterRightBitmap = uiState.posterRightBitmap,
                         modifier = Modifier.fillMaxSize()
                     )
 
-                    // 2. Movable Illustrated Objects (both artwork & tap/drag hitbox live together!)
-                    uiState.config.hotspots.forEach { hotspot ->
-                        if (uiState.isEditMode) {
+                    // 2. Movable Illustrated Objects inside this Room
+                    roomPage.hotspots.forEach { hotspot ->
+                        if (uiState.isEditMode && isThisPageActive) {
                             EditableHotspotBox(
                                 hotspot = hotspot,
                                 roomWidthPx = roomWidthPx,
                                 roomHeightPx = roomHeightPx,
                                 appCount = uiState.appsFor(hotspot).size,
                                 roomStyle = uiState.config.roomStyleId,
+                                gdSubTheme = uiState.config.geometryDashSubTheme,
                                 weatherState = uiState.weatherState,
                                 weatherEnabled = uiState.config.weatherEnabled,
                                 frameImageBitmap = uiState.frameImageBitmap,
@@ -376,6 +456,7 @@ fun RoomScreen(
                     }
                 }
             }
+        }
 
             // Discreet Reset Zoom chip only when manually zoomed, OR Edit Mode toolbar (no redundant top clock!)
             if (!uiState.isEditMode) {
@@ -413,6 +494,7 @@ fun RoomScreen(
                 }
             } else {
                 EditModeTopBar(
+                    roomName = uiState.currentRoom.name,
                     onDone = onExitEditMode,
                     onAddObject = onAddHotspotOpen,
                     onResetClick = { showResetConfirm = true },
@@ -423,15 +505,16 @@ fun RoomScreen(
                 )
             }
 
-            // Bottom subtle swipe-up zone & All Apps A–Z fallback pill
+            // Bottom subtle swipe-up zone: Room Switcher Dots + All Apps A–Z fallback pill
             if (!uiState.isEditMode) {
                 var swipeAccumulated by remember { mutableFloatStateOf(0f) }
-                Box(
-                    contentAlignment = Alignment.BottomCenter,
+                Column(
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.Bottom,
                     modifier = Modifier
                         .align(Alignment.BottomCenter)
                         .fillMaxWidth()
-                        .height(88.dp)
+                        .height(112.dp)
                         .pointerInput(Unit) {
                             detectVerticalDragGestures(
                                 onDragStart = { swipeAccumulated = 0f },
@@ -445,8 +528,55 @@ fun RoomScreen(
                             )
                         }
                         .navigationBarsPadding()
-                        .padding(bottom = 12.dp)
+                        .padding(bottom = 10.dp)
                 ) {
+                    if (rooms.size > 1) {
+                        Surface(
+                            shape = RoundedCornerShape(18.dp),
+                            color = if (palette.isDark) {
+                                Color.Black.copy(alpha = 0.42f)
+                            } else {
+                                RoomInk.copy(alpha = 0.56f)
+                            },
+                            modifier = Modifier.padding(bottom = 8.dp)
+                        ) {
+                            Row(
+                                modifier = Modifier.padding(horizontal = 12.dp, vertical = 5.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                            ) {
+                                Text(
+                                    text = uiState.currentRoom.name,
+                                    style = MaterialTheme.typography.labelMedium,
+                                    fontWeight = FontWeight.SemiBold,
+                                    color = Color.White
+                                )
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(5.dp)
+                                ) {
+                                    rooms.forEachIndexed { idx, room ->
+                                        val isSelected = idx == pagerState.currentPage
+                                        Box(
+                                            modifier = Modifier
+                                                .height(6.dp)
+                                                .width(if (isSelected) 16.dp else 6.dp)
+                                                .clip(CircleShape)
+                                                .background(
+                                                    if (isSelected) Color.White else Color.White.copy(alpha = 0.38f)
+                                                )
+                                                .clickable {
+                                                    coroutineScope.launch {
+                                                        pagerState.animateScrollToPage(idx)
+                                                    }
+                                                }
+                                        )
+                                    }
+                                }
+                            }
+                        }
+                    }
+
                     Surface(
                         shape = RoundedCornerShape(24.dp),
                         color = if (palette.isDark) {
@@ -590,7 +720,7 @@ fun RoomScreen(
                 installedApps = uiState.installedApps,
                 packageOwnerLabels = uiState.packageOwnerLabels,
                 defaultUnsortedLabel = uiState.defaultUnsortedLabel,
-                panelHotspots = uiState.panelHotspots,
+                panelHotspotChoices = uiState.panelHotspotChoices,
                 onLaunchApp = { app ->
                     onCloseAllApps()
                     SystemIntentHelper.launchApp(context, app.packageName)
@@ -619,6 +749,11 @@ fun RoomScreen(
                 onSelectGeometryDashSubTheme = onSelectGeometryDashSubTheme,
                 onSelectTheme = onSelectTheme,
                 onToggleDynamicTheme = onToggleDynamicTheme,
+                onSelectRoomIndex = onSelectRoom,
+                onAddRoom = onAddRoom,
+                onRenameRoom = onRenameRoom,
+                onDeleteRoom = onDeleteRoom,
+                onOpenChangelog = onOpenChangelog,
                 onPickTeenPoster = onPickTeenPoster,
                 onClearTeenPoster = onClearTeenPoster,
                 onToggleQuickAnimations = onToggleQuickAnimations,
@@ -673,14 +808,14 @@ fun RoomScreen(
     // Edit Object Dialog
     val editingHotspot = uiState.editingHotspot
     if (editingHotspot != null) {
-        val unsortedCount = uiState.config.hotspots.count { it.actionType == HotspotActionType.UNSORTED_PANEL }
+        val unsortedCount = uiState.config.allHotspots.count { it.actionType == HotspotActionType.UNSORTED_PANEL }
         val canDelete = !(editingHotspot.actionType == HotspotActionType.UNSORTED_PANEL && unsortedCount <= 1)
 
         EditHotspotDialog(
             hotspot = editingHotspot,
             canDelete = canDelete,
-            onSave = { label, subtitle, actionType ->
-                onUpdateHotspotDetails(editingHotspot.id, label, subtitle, actionType)
+            onSave = { label, subtitle, actionType, visualType ->
+                onUpdateHotspotDetails(editingHotspot.id, label, subtitle, actionType, visualType)
             },
             onOpenAppsPanel = {
                 onEditHotspotClose()
@@ -694,8 +829,18 @@ fun RoomScreen(
     // Add New Object Dialog
     if (uiState.showAddHotspotDialog) {
         AddHotspotDialog(
+            roomName = uiState.currentRoom.name,
             onAdd = onAddHotspot,
             onDismiss = onAddHotspotClose
+        )
+    }
+
+    // In-App Changelog ("What's New") Dialog
+    if (uiState.showChangelogDialog) {
+        ChangelogDialog(
+            currentVersion = uiState.updateState.currentVersion,
+            isAutoWelcome = uiState.isAutoWelcomeChangelog,
+            onDismiss = onDismissChangelog
         )
     }
 
@@ -703,9 +848,9 @@ fun RoomScreen(
     if (showResetConfirm) {
         AlertDialog(
             onDismissRequest = { showResetConfirm = false },
-            title = { Text("Reset Room Layout?") },
+            title = { Text("Reset House Layout?") },
             text = {
-                Text("This restores all default room objects (Window, Painting, Clock, Sticky Note, TV, Game Console, Shelf, Bed, Trash Can) and their default positions.")
+                Text("This restores all default rooms (Bedroom, Living Room, Kitchen, Gaming Room) and their default furniture positions.")
             },
             confirmButton = {
                 Button(
@@ -728,6 +873,7 @@ fun RoomScreen(
 
 @Composable
 private fun EditModeTopBar(
+    roomName: String,
     onDone: () -> Unit,
     onAddObject: () -> Unit,
     onResetClick: () -> Unit,
@@ -758,7 +904,7 @@ private fun EditModeTopBar(
                     horizontalArrangement = Arrangement.spacedBy(2.dp)
                 ) {
                     Text(
-                        text = "Edit Room",
+                        text = "Edit $roomName",
                         style = MaterialTheme.typography.titleMedium,
                         fontWeight = FontWeight.Bold,
                         color = Color.White,
