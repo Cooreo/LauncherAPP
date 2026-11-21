@@ -77,6 +77,7 @@ data class RoomConfig(
     val musicVisualizerStyle: VisualizerStyle = VisualizerStyle.SPECTRUM_BARS,
     val musicDefaultMode: MusicDisplayMode = MusicDisplayMode.VISUALIZER,
     val audioReactiveVisualizerEnabled: Boolean = false,
+    val autoCheckUpdatesEnabled: Boolean = true,
     val weatherEnabled: Boolean = true,
     val mirrorHomeWallpaper: Boolean = false,
     val framePhotoPath: String? = null,

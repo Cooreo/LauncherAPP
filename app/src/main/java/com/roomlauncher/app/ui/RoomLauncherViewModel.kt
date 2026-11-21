@@ -9,8 +9,11 @@ import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
+import com.roomlauncher.app.BuildConfig
 import com.roomlauncher.app.data.AppInfo
 import com.roomlauncher.app.data.AppRepository
+import com.roomlauncher.app.data.AppUpdateRepository
+import com.roomlauncher.app.data.AppUpdateUiState
 import com.roomlauncher.app.data.AudioVisualizerEngine
 import com.roomlauncher.app.data.BatteryMonitor
 import com.roomlauncher.app.data.BatteryStatus
@@ -24,10 +27,12 @@ import com.roomlauncher.app.data.RoomConfig
 import com.roomlauncher.app.data.RoomConfigRepository
 import com.roomlauncher.app.data.RoomHotspot
 import com.roomlauncher.app.data.RoomObjectVisual
+import com.roomlauncher.app.data.UpdateCheckResult
 import com.roomlauncher.app.data.VisualizerStyle
 import com.roomlauncher.app.data.WeatherRepository
 import com.roomlauncher.app.data.WeatherState
 import com.roomlauncher.app.data.WebShortcut
+import com.roomlauncher.app.system.AppUpdateInstaller
 import com.roomlauncher.app.system.RoomNotificationListenerService
 import com.roomlauncher.app.system.RoomWallpaperRenderer
 import com.roomlauncher.app.system.SystemIntentHelper
@@ -64,6 +69,7 @@ data class RoomUiState(
     val isMusicExpanded: Boolean = false,
     val hasNotificationAccess: Boolean = false,
     val hasAudioPermission: Boolean = false,
+    val updateState: AppUpdateUiState = AppUpdateUiState(currentVersion = BuildConfig.VERSION_NAME),
     val currentHourOfDay: Int = Calendar.getInstance().get(Calendar.HOUR_OF_DAY),
     val frameImageBitmap: ImageBitmap? = null,
     val posterLeftBitmap: ImageBitmap? = null,
@@ -110,6 +116,7 @@ class RoomLauncherViewModel(application: Application) : AndroidViewModel(applica
     private val musicMediaMonitor = MusicMediaMonitor(appContext)
     private val lyricsRepository = LyricsRepository()
     private val audioVisualizerEngine = AudioVisualizerEngine(appContext)
+    private val appUpdateRepository = AppUpdateRepository()
 
     val fftBands: StateFlow<FloatArray> = audioVisualizerEngine.bands
     val hasLiveFftSignal: StateFlow<Boolean> = audioVisualizerEngine.hasLiveSignal
@@ -120,6 +127,9 @@ class RoomLauncherViewModel(application: Application) : AndroidViewModel(applica
     private var lastObservedPlugInId = 0L
     private var lastLyricsTrackKey = ""
     private var lyricsJob: Job? = null
+    private var updateCheckJob: Job? = null
+    private var updateDownloadJob: Job? = null
+    private var dismissedUpdateVersion: String? = null
     private var isAppInForeground = true
 
     init {
@@ -216,6 +226,9 @@ class RoomLauncherViewModel(application: Application) : AndroidViewModel(applica
             if (effectiveConfig.weatherEnabled) {
                 refreshWeather(forceRefresh = false)
             }
+            if (effectiveConfig.autoCheckUpdatesEnabled) {
+                checkForUpdates(userInitiated = false)
+            }
 
             appRepository.installedApps.collect { apps ->
                 val current = _uiState.value.config
@@ -241,6 +254,8 @@ class RoomLauncherViewModel(application: Application) : AndroidViewModel(applica
 
     override fun onCleared() {
         lyricsJob?.cancel()
+        updateCheckJob?.cancel()
+        updateDownloadJob?.cancel()
         audioVisualizerEngine.stop()
         musicMediaMonitor.stop()
         appRepository.stopListening()
@@ -288,6 +303,21 @@ class RoomLauncherViewModel(application: Application) : AndroidViewModel(applica
 
         musicMediaMonitor.startOrRefresh()
         syncAudioVisualizerState()
+
+        // If the user just returned from granting "Install unknown apps", finish launching the APK installer!
+        val upd = _uiState.value.updateState
+        if (upd.needsInstallPermission && AppUpdateInstaller.canInstallPackages(appContext)) {
+            _uiState.update {
+                it.copy(updateState = it.updateState.copy(needsInstallPermission = false))
+            }
+            val apkPath = upd.downloadedApkPath
+            if (!apkPath.isNullOrBlank()) {
+                val apkFile = File(apkPath)
+                if (apkFile.exists()) {
+                    AppUpdateInstaller.launchApkInstaller(appContext, apkFile)
+                }
+            }
+        }
 
         if (state.installedApps.isEmpty()) {
             viewModelScope.launch { appRepository.refreshInstalledApps() }
@@ -398,20 +428,40 @@ class RoomLauncherViewModel(application: Application) : AndroidViewModel(applica
     }
 
     fun openSettings() {
+        val current = _uiState.value
+        val knownUpdate = current.updateState.availableUpdate
+        val shouldPopupImmediately = knownUpdate != null &&
+            dismissedUpdateVersion != knownUpdate.versionName
+
         _uiState.update {
             it.copy(
                 showSettingsSheet = true,
                 showAllAppsSheet = false,
                 activeHotspotId = null,
                 isMusicExpanded = false,
-                isEditMode = false
+                isEditMode = false,
+                updateState = if (shouldPopupImmediately) {
+                    it.updateState.copy(showUpdateDialog = true)
+                } else {
+                    it.updateState
+                }
             )
         }
         syncAudioVisualizerState()
+
+        val stale = (System.currentTimeMillis() - current.updateState.lastCheckedAtMs) > AUTO_UPDATE_STALE_MS
+        if (current.config.autoCheckUpdatesEnabled && stale && !current.updateState.isChecking) {
+            checkForUpdates(userInitiated = false)
+        }
     }
 
     fun closeSettings() {
-        _uiState.update { it.copy(showSettingsSheet = false) }
+        _uiState.update {
+            it.copy(
+                showSettingsSheet = false,
+                updateState = it.updateState.copy(showUpdateDialog = false)
+            )
+        }
     }
 
     fun handleBackPressed(): Boolean {
@@ -598,6 +648,203 @@ class RoomLauncherViewModel(application: Application) : AndroidViewModel(applica
             state.isMusicExpanded &&
             state.musicDisplayMode == MusicDisplayMode.VISUALIZER
         audioVisualizerEngine.setActive(shouldCapture)
+    }
+
+    // ---- Auto-Updates from GitHub (Cooreo/LauncherAPP) ----
+
+    fun setAutoCheckUpdatesEnabled(enabled: Boolean) {
+        updateConfig { it.copy(autoCheckUpdatesEnabled = enabled) }
+        if (enabled) {
+            checkForUpdates(userInitiated = false)
+        }
+    }
+
+    fun checkForUpdates(userInitiated: Boolean) {
+        if (_uiState.value.updateState.isChecking || _uiState.value.updateState.isDownloading) return
+        if (userInitiated) {
+            dismissedUpdateVersion = null
+        }
+
+        val currentVersion = _uiState.value.updateState.currentVersion.ifBlank { BuildConfig.VERSION_NAME }
+        _uiState.update {
+            it.copy(
+                updateState = it.updateState.copy(
+                    isChecking = true,
+                    errorMessage = null
+                )
+            )
+        }
+
+        updateCheckJob?.cancel()
+        updateCheckJob = viewModelScope.launch {
+            val result = appUpdateRepository.checkForUpdate(currentVersion)
+            val now = System.currentTimeMillis()
+            when (result) {
+                is UpdateCheckResult.UpdateAvailable -> {
+                    val info = result.info
+                    val shouldShowPopup = userInitiated ||
+                        (_uiState.value.showSettingsSheet && dismissedUpdateVersion != info.versionName)
+                    _uiState.update { state ->
+                        val sameVersion = state.updateState.availableUpdate?.versionName == info.versionName
+                        state.copy(
+                            updateState = state.updateState.copy(
+                                isChecking = false,
+                                availableUpdate = info,
+                                isUpToDate = false,
+                                lastCheckedAtMs = now,
+                                errorMessage = null,
+                                downloadedApkPath = if (sameVersion) state.updateState.downloadedApkPath else null,
+                                showUpdateDialog = shouldShowPopup || state.updateState.showUpdateDialog
+                            )
+                        )
+                    }
+                }
+
+                is UpdateCheckResult.UpToDate -> {
+                    _uiState.update { state ->
+                        state.copy(
+                            updateState = state.updateState.copy(
+                                isChecking = false,
+                                availableUpdate = null,
+                                isUpToDate = true,
+                                lastCheckedAtMs = now,
+                                errorMessage = null,
+                                showUpdateDialog = false
+                            )
+                        )
+                    }
+                    if (userInitiated) {
+                        Toast.makeText(
+                            appContext,
+                            "Room Launcher v$currentVersion is up to date",
+                            Toast.LENGTH_SHORT
+                        ).show()
+                    }
+                }
+
+                is UpdateCheckResult.Error -> {
+                    _uiState.update { state ->
+                        state.copy(
+                            updateState = state.updateState.copy(
+                                isChecking = false,
+                                errorMessage = if (userInitiated) result.message else state.updateState.errorMessage
+                            )
+                        )
+                    }
+                    if (userInitiated) {
+                        Toast.makeText(
+                            appContext,
+                            "Update check failed: ${result.message}",
+                            Toast.LENGTH_LONG
+                        ).show()
+                    }
+                }
+            }
+        }
+    }
+
+    fun showUpdatePopup() {
+        if (_uiState.value.updateState.availableUpdate != null) {
+            _uiState.update {
+                it.copy(updateState = it.updateState.copy(showUpdateDialog = true))
+            }
+        }
+    }
+
+    fun dismissUpdatePopup() {
+        val version = _uiState.value.updateState.availableUpdate?.versionName
+        if (version != null) {
+            dismissedUpdateVersion = version
+        }
+        _uiState.update {
+            it.copy(updateState = it.updateState.copy(showUpdateDialog = false))
+        }
+    }
+
+    fun downloadAndInstallUpdate() {
+        val state = _uiState.value.updateState
+        val info = state.availableUpdate ?: return
+        if (state.isDownloading) return
+
+        // If already downloaded, go straight to install (or permission prompt)
+        val existingPath = state.downloadedApkPath
+        if (!existingPath.isNullOrBlank()) {
+            val file = File(existingPath)
+            if (file.exists()) {
+                triggerInstallOrRequestPermission(file)
+                return
+            }
+        }
+
+        _uiState.update {
+            it.copy(
+                updateState = it.updateState.copy(
+                    isDownloading = true,
+                    downloadProgress = 0f,
+                    errorMessage = null,
+                    needsInstallPermission = false
+                )
+            )
+        }
+
+        updateDownloadJob?.cancel()
+        updateDownloadJob = viewModelScope.launch {
+            runCatching {
+                AppUpdateInstaller.downloadApk(
+                    context = appContext,
+                    downloadUrl = info.downloadUrl,
+                    versionName = info.versionName,
+                    onProgress = { progress ->
+                        _uiState.update { s ->
+                            s.copy(updateState = s.updateState.copy(downloadProgress = progress))
+                        }
+                    }
+                )
+            }.onSuccess { apkFile ->
+                _uiState.update { s ->
+                    s.copy(
+                        updateState = s.updateState.copy(
+                            isDownloading = false,
+                            downloadProgress = 1f,
+                            downloadedApkPath = apkFile.absolutePath
+                        )
+                    )
+                }
+                triggerInstallOrRequestPermission(apkFile)
+            }.onFailure { err ->
+                val msg = err.message?.take(100) ?: "Download failed"
+                _uiState.update { s ->
+                    s.copy(
+                        updateState = s.updateState.copy(
+                            isDownloading = false,
+                            downloadProgress = 0f,
+                            errorMessage = msg
+                        )
+                    )
+                }
+                Toast.makeText(appContext, "Update download failed: $msg", Toast.LENGTH_LONG).show()
+            }
+        }
+    }
+
+    private fun triggerInstallOrRequestPermission(apkFile: File) {
+        if (AppUpdateInstaller.canInstallPackages(appContext)) {
+            _uiState.update {
+                it.copy(updateState = it.updateState.copy(needsInstallPermission = false))
+            }
+            AppUpdateInstaller.launchApkInstaller(appContext, apkFile)
+        } else {
+            _uiState.update {
+                it.copy(updateState = it.updateState.copy(needsInstallPermission = true))
+            }
+            AppUpdateInstaller.openInstallUnknownAppsSettings(appContext)
+        }
+    }
+
+    fun openUpdateReleasePage() {
+        val url = _uiState.value.updateState.availableUpdate?.releasePageUrl
+            ?: AppUpdateRepository.RELEASES_WEB_URL
+        SystemIntentHelper.openWebUrl(appContext, url)
     }
 
     // ---- Theme, Room Style, Animation, Weather, Wallpaper, Photos Settings ----
@@ -954,6 +1201,7 @@ class RoomLauncherViewModel(application: Application) : AndroidViewModel(applica
             musicVisualizerStyle = current.musicVisualizerStyle,
             musicDefaultMode = current.musicDefaultMode,
             audioReactiveVisualizerEnabled = current.audioReactiveVisualizerEnabled,
+            autoCheckUpdatesEnabled = current.autoCheckUpdatesEnabled,
             weatherEnabled = current.weatherEnabled,
             mirrorHomeWallpaper = current.mirrorHomeWallpaper,
             framePhotoPath = current.framePhotoPath,
@@ -1007,5 +1255,6 @@ class RoomLauncherViewModel(application: Application) : AndroidViewModel(applica
     companion object {
         const val MIN_HOTSPOT_WIDTH = 0.14f
         const val MIN_HOTSPOT_HEIGHT = 0.08f
+        private const val AUTO_UPDATE_STALE_MS = 30 * 60 * 1000L
     }
 }

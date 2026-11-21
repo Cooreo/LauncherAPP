@@ -2,8 +2,12 @@
 
 **Room Launcher** is a minimalist Android home screen launcher built with **Kotlin** and **Jetpack Compose**. Instead of a traditional grid of icons, your home screen is a customizable, illustrated room where every piece of furniture is an interactive, movable object.
 
-## Features (v2.4)
+## Features (v2.5)
 
+- **In-App GitHub Auto-Updates**:
+  - Automatically checks **`Cooreo/LauncherAPP`** (both GitHub Releases and the repository's `releases/` folder on `main`) for newer APKs.
+  - Displays an **Update Available popup** right inside Settings with live download progress and native Android APK installation via `FileProvider`, plus a manual **Check for Updates** button and Auto-Check toggle.
+- **Portrait-Locked Home Screen**: Locks `MainActivity` to portrait orientation so accidental phone rotation never squashes the illustrated room layout or wallpaper alignment.
 - **Live Music Visualizer & Synced Lyrics (LRCLIB)**:
   - Automatically detects playing music from Spotify, YouTube Music, Apple Music, SoundCloud, and local players via Android `MediaSessionManager` (with Notification Access).
   - Floating **Now-Playing pill** shows album art, live mini equalizer, scrolling song title, artist, exact elapsed/total progress bar, and Play/Pause without cluttering the room when idle.
@@ -41,4 +45,4 @@
 ./gradlew testDebugUnitTest assembleRelease
 ```
 
-Pre-built APKs are stored in `/releases/` (`RoomLauncher-v2.4.apk`, `RoomLauncher-v2.3.1.apk`, `RoomLauncher-v2.3.apk`, `RoomLauncher-v2.2.apk`, `RoomLauncher-v2.1.apk`, `RoomLauncher-v2.0.apk`, `RoomLauncher-v1.0.apk`).
+Pre-built APKs are stored in `/releases/` (`RoomLauncher-v2.5.apk`, `RoomLauncher-v2.4.apk`, `RoomLauncher-v2.3.1.apk`, `RoomLauncher-v2.3.apk`, `RoomLauncher-v2.2.apk`, `RoomLauncher-v2.1.apk`, `RoomLauncher-v2.0.apk`, `RoomLauncher-v1.0.apk`).
