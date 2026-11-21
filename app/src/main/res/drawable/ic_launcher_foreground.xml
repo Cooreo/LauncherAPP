@@ -1,0 +1,31 @@
+<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <!-- Minimalist isometric room house outline -->
+    <path
+        android:fillColor="#F5EFE6"
+        android:pathData="M54,24 L82,45 L82,78 C82,80.2 80.2,82 78,82 L30,82 C27.8,82 26,80.2 26,78 L26,45 Z" />
+    <!-- Warm terracotta window -->
+    <path
+        android:fillColor="#C97B5D"
+        android:pathData="M34,48 L48,48 L48,62 L34,62 Z" />
+    <!-- Minimalist oak door -->
+    <path
+        android:fillColor="#8C6239"
+        android:pathData="M56,52 L72,52 L72,82 L56,82 Z" />
+    <!-- Door handle -->
+    <path
+        android:fillColor="#F5EFE6"
+        android:pathData="M67,67 m-2,0 a2,2 0 1,0 4,0 a2,2 0 1,0 -4,0" />
+    <!-- Roof eaves accent -->
+    <path
+        android:fillColor="#00000000"
+        android:pathData="M21,49 L54,23 L87,49"
+        android:strokeColor="#E2B07E"
+        android:strokeLineCap="round"
+        android:strokeLineJoin="round"
+        android:strokeWidth="4.5" />
+</vector>
