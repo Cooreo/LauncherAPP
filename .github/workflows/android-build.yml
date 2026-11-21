@@ -34,9 +34,9 @@ jobs:
       - name: Run Unit Tests
         run: |
           set -o pipefail
-          if ! ./gradlew testDebugUnitTest --stacktrace > build_test.log 2>&1; then
+          if ! ./gradlew testDebugUnitTest > build_test.log 2>&1; then
             cat build_test.log
-            grep -E "(^e: |FAILURE:|What went wrong:|> .*|error:)" build_test.log | head -n 30 | while IFS= read -r line; do
+            grep -E "(^e: |error:|FAILED|FAILURE:|Execution failed)" build_test.log | head -n 10 | while IFS= read -r line; do
               echo "::error::$line"
             done
             exit 1
