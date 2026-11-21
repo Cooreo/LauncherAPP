@@ -58,6 +58,7 @@ import com.roomlauncher.app.ui.theme.LocalRoomPalette
 import com.roomlauncher.app.ui.theme.RoomEditAccent
 import com.roomlauncher.app.ui.theme.RoomInk
 import com.roomlauncher.app.ui.theme.RoomSage
+import com.roomlauncher.app.ui.theme.RoomStyleId
 import kotlin.math.roundToInt
 
 /**
@@ -70,6 +71,7 @@ fun EditableHotspotBox(
     roomWidthPx: Float,
     roomHeightPx: Float,
     appCount: Int,
+    roomStyle: RoomStyleId,
     weatherState: WeatherState,
     weatherEnabled: Boolean,
     frameImageBitmap: ImageBitmap?,
@@ -134,6 +136,7 @@ fun EditableHotspotBox(
         RoomObjectGraphic(
             visualType = hotspot.visualType,
             palette = palette,
+            roomStyle = roomStyle,
             weatherState = weatherState,
             weatherEnabled = weatherEnabled,
             frameImageBitmap = frameImageBitmap,

@@ -82,6 +82,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.IntOffset
+import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
 import com.roomlauncher.app.data.AppInfo
 import com.roomlauncher.app.data.HotspotActionType
@@ -90,6 +91,7 @@ import com.roomlauncher.app.data.RoomObjectVisual
 import com.roomlauncher.app.data.WebShortcut
 import com.roomlauncher.app.ui.components.AppIconView
 import com.roomlauncher.app.ui.theme.LocalRoomPalette
+import kotlinx.coroutines.delay
 import kotlin.math.roundToInt
 
 @Composable
@@ -135,15 +137,18 @@ fun HotspotPanelOverlay(
                 )
             }
             isTvRich -> {
+                // Let the room camera zoom squarely onto the TV first, then power the TV screen ON!
+                delay(170L)
                 animProgress.animateTo(
                     targetValue = 1f,
-                    animationSpec = tween(durationMillis = 440, easing = FastOutSlowInEasing)
+                    animationSpec = tween(durationMillis = 380, easing = FastOutSlowInEasing)
                 )
             }
             isBookRich -> {
+                // Stage 1 (0..0.46): book pops out from Shelf to center; Stage 2 (0.46..1): opens in center
                 animProgress.animateTo(
                     targetValue = 1f,
-                    animationSpec = tween(durationMillis = 460, easing = FastOutSlowInEasing)
+                    animationSpec = tween(durationMillis = 660, easing = FastOutSlowInEasing)
                 )
             }
             isTrashRich -> {
@@ -172,10 +177,13 @@ fun HotspotPanelOverlay(
     var hoveredTargetId by remember { mutableStateOf<String?>(null) }
     val dropZoneBounds = remember { mutableStateMapOf<String, Rect>() }
     var rootOffset by remember { mutableStateOf(Offset.Zero) }
+    var rootSize by remember { mutableStateOf(IntSize.Zero) }
     var showAddAppsDialog by remember { mutableStateOf(false) }
     var showAddWebShortcutDialog by remember { mutableStateOf(false) }
 
     val p = animProgress.value.coerceIn(0f, 1.25f)
+    val bookFlyPhase = (p / 0.46f).coerceIn(0f, 1f)
+    val bookOpenPhase = ((p - 0.44f) / 0.56f).coerceIn(0f, 1f)
 
     // Choose tailored surface styling per object when Rich Animations are active
     val containerColor = when {
@@ -204,8 +212,9 @@ fun HotspotPanelOverlay(
             .fillMaxSize()
             .onGloballyPositioned { coords ->
                 rootOffset = coords.positionInRoot()
+                rootSize = coords.size
             }
-            .background(Color.Black.copy(alpha = (if (isTvRich) 0.65f else 0.48f) * p.coerceIn(0f, 1f)))
+            .background(Color.Black.copy(alpha = (if (isTvRich) 0.42f else 0.48f) * p.coerceIn(0f, 1f)))
             .clickable(
                 interactionSource = remember { MutableInteractionSource() },
                 indication = null,
@@ -216,7 +225,7 @@ fun HotspotPanelOverlay(
         Surface(
             shape = RoundedCornerShape(
                 when {
-                    isTvRich -> 20.dp
+                    isTvRich -> 16.dp
                     isBookRich -> 18.dp
                     isStickyRich -> 14.dp
                     else -> 28.dp
@@ -226,14 +235,18 @@ fun HotspotPanelOverlay(
             tonalElevation = 8.dp,
             shadowElevation = 18.dp,
             modifier = Modifier
-                .fillMaxWidth(0.93f)
-                .heightIn(min = 270.dp, max = 600.dp)
+                .fillMaxWidth(if (isTvRich) 0.90f else 0.93f)
+                .heightIn(min = 270.dp, max = if (isTvRich) 520.dp else 600.dp)
                 .border(
-                    width = if (borderColor != Color.Transparent) 2.5.dp else 0.dp,
-                    color = borderColor,
+                    width = when {
+                        isTvRich -> 8.dp
+                        borderColor != Color.Transparent -> 2.5.dp
+                        else -> 0.dp
+                    },
+                    color = if (isTvRich) palette.tvBezel else borderColor,
                     shape = RoundedCornerShape(
                         when {
-                            isTvRich -> 20.dp
+                            isTvRich -> 16.dp
                             isBookRich -> 18.dp
                             isStickyRich -> 14.dp
                             else -> 28.dp
@@ -250,22 +263,21 @@ fun HotspotPanelOverlay(
                             transformOrigin = TransformOrigin(hotspot.centerX, hotspot.centerY)
                         }
                         isTvRich -> {
-                            // Classic CRT/OLED TV Power-On: horizontal bar expands fast, then blooms vertically!
-                            val widthPhase = (p / 0.42f).coerceIn(0.05f, 1f)
-                            val heightPhase = ((p - 0.30f) / 0.70f).coerceIn(0.03f, 1f)
+                            // Classic CRT/OLED TV Power-On centered inside the zoomed TV bezel!
+                            val widthPhase = (p / 0.40f).coerceIn(0.04f, 1f)
+                            val heightPhase = ((p - 0.28f) / 0.72f).coerceIn(0.025f, 1f)
                             scaleX = widthPhase
                             scaleY = heightPhase
-                            alpha = (p * 2.5f).coerceIn(0f, 1f)
+                            alpha = (p * 3.0f).coerceIn(0f, 1f)
                             transformOrigin = TransformOrigin(0.5f, 0.5f)
                         }
                         isBookRich -> {
-                            // Book cover swings open smoothly on Y axis with perspective
-                            cameraDistance = 14f * density.density
-                            rotationY = (1f - p.coerceIn(0f, 1f)) * -72f
-                            scaleX = 0.65f + 0.35f * p.coerceIn(0f, 1f)
-                            scaleY = 0.78f + 0.22f * p.coerceIn(0f, 1f)
-                            alpha = (p * 1.5f).coerceIn(0f, 1f)
-                            transformOrigin = TransformOrigin(0.15f, 0.5f)
+                            // Stage 2: Open book spread unfolds right in the middle of the screen!
+                            cameraDistance = 16f * density.density
+                            scaleX = 0.48f + 0.52f * bookOpenPhase
+                            scaleY = 0.82f + 0.18f * bookOpenPhase
+                            alpha = bookOpenPhase
+                            transformOrigin = TransformOrigin(0.5f, 0.5f)
                         }
                         isTrashRich -> {
                             // Pops straight up out of the Trash Can!
@@ -719,6 +731,98 @@ fun HotspotPanelOverlay(
                         modifier = Modifier
                             .matchParentSize()
                             .background(Color.White.copy(alpha = flashAlpha))
+                    )
+                }
+            }
+        }
+
+        // Stage 1 -> Stage 2 Closed Hardcover Book popping out from the Shelf and swinging open in center!
+        if (isBookRich && p < 0.92f) {
+            val startDx = (hotspot.centerX - 0.5f) * rootSize.width.toFloat()
+            val startDy = (hotspot.centerY - 0.5f) * rootSize.height.toFloat()
+            val bookCoverColor = palette.duvetPrimary
+            val bookSpineColor = palette.woodDark
+            val coverFadeOut = if (bookOpenPhase > 0.45f) {
+                (1f - ((bookOpenPhase - 0.45f) / 0.55f)).coerceIn(0f, 1f)
+            } else {
+                1f
+            }
+
+            Box(
+                modifier = Modifier
+                    .width(210.dp)
+                    .height(290.dp)
+                    .graphicsLayer {
+                        cameraDistance = 16f * density.density
+                        translationX = startDx * (1f - bookFlyPhase)
+                        translationY = startDy * (1f - bookFlyPhase)
+                        val flyScale = 0.24f + 0.76f * bookFlyPhase
+                        scaleX = flyScale
+                        scaleY = flyScale
+                        rotationY = -165f * bookOpenPhase
+                        transformOrigin = TransformOrigin(0.04f, 0.5f)
+                        alpha = coverFadeOut
+                    }
+                    .shadow(16.dp, RoundedCornerShape(topStart = 6.dp, bottomStart = 6.dp, topEnd = 16.dp, bottomEnd = 16.dp))
+                    .clip(RoundedCornerShape(topStart = 6.dp, bottomStart = 6.dp, topEnd = 16.dp, bottomEnd = 16.dp))
+                    .background(bookCoverColor)
+                    .border(
+                        2.dp,
+                        Color(0xFFE2B97B).copy(alpha = 0.75f),
+                        RoundedCornerShape(topStart = 6.dp, bottomStart = 6.dp, topEnd = 16.dp, bottomEnd = 16.dp)
+                    )
+            ) {
+                // Book spine band on left edge
+                Box(
+                    modifier = Modifier
+                        .align(Alignment.CenterStart)
+                        .width(22.dp)
+                        .fillMaxHeight()
+                        .background(bookSpineColor)
+                )
+                // Cream pages edge on right
+                Box(
+                    modifier = Modifier
+                        .align(Alignment.CenterEnd)
+                        .width(7.dp)
+                        .fillMaxHeight()
+                        .padding(vertical = 8.dp)
+                        .background(Color(0xFFF6EFE0))
+                )
+                // Embossed gold title on book cover
+                Column(
+                    modifier = Modifier
+                        .align(Alignment.Center)
+                        .padding(start = 24.dp, end = 16.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .width(56.dp)
+                            .height(2.dp)
+                            .background(Color(0xFFE2B97B))
+                    )
+                    Text(
+                        text = hotspot.label,
+                        style = MaterialTheme.typography.headlineMedium,
+                        fontWeight = FontWeight.Bold,
+                        color = Color(0xFFFAF4E6),
+                        textAlign = TextAlign.Center
+                    )
+                    if (hotspot.subtitle.isNotBlank()) {
+                        Text(
+                            text = hotspot.subtitle,
+                            style = MaterialTheme.typography.labelSmall,
+                            color = Color(0xFFFAF4E6).copy(alpha = 0.78f),
+                            textAlign = TextAlign.Center
+                        )
+                    }
+                    Box(
+                        modifier = Modifier
+                            .width(56.dp)
+                            .height(2.dp)
+                            .background(Color(0xFFE2B97B))
                     )
                 }
             }

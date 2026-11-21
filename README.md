@@ -2,28 +2,32 @@
 
 **Room Launcher** is a minimalist Android home screen launcher built with **Kotlin** and **Jetpack Compose**. Instead of a traditional grid of icons, your home screen is a customizable, illustrated room where every piece of furniture is an interactive, movable object.
 
-## Features (v2.0)
+## Features (v2.1)
 
-- **Movable Illustrated Room Objects**: Drag and resize the actual furniture anywhere in the room (not just invisible hitboxes!):
-  - **Window** — Displays live local weather sky & temperature (via Open-Meteo) and taps to open your Weather app
-  - **Painting** — Displays minimalist sunset art or your chosen custom photo and opens your Gallery/Photos app directly
-  - **Clock** — Live ticking analog hands; taps directly to System Alarms (`AlarmClock.ACTION_SHOW_ALARMS`)
-  - **Sticky Note** — Pin custom **Web Shortcuts** (URLs) alongside browser & PWA shortcut apps
-  - **TV** — Media panel (YouTube, music, video & podcasts) with camera zoom + CRT/OLED power-on animation
-  - **Game Console** — Cabinet under the TV storing installed games (`CATEGORY_GAME` auto-population)
-  - **Shelf** — Work, notes & email panel opening like a **two-page book spread**
-  - **Bed** — Wind-down panel for sleep, meditation, **health/fitness**, and **clock** apps
+- **4 Architectural Room Styles**:
+  - **Cozy Minimalist** — Clean wood panels, warm floorboards, woven rug, and modern furniture
+  - **Teen Room** — RGB LED ceiling strip, string fairy lights, dark rug, and **two customizable wall posters** you can replace with your own gallery images
+  - **Kids Room** — Colorful pennant bunting flags, starry sky wallpaper, polka-dot play rug, toy-cubby shelf, and cozy kids bed
+  - **Blocky / Voxel** — Pixelated oak planks & cobblestone blocks, glowing wall torches, checkered wool rug, and full blocky furniture (oak door window, oak crafting shelf, classic red voxel bed, cauldron trash bin!)
+- **6 Light & Dark Color Palettes**: Warm Linen, Botanical Sage, Midnight Cozy, Forest Night, Warm Ember, and OLED Pitch Black—combinable with any Room Style.
+- **Movable Illustrated Room Objects**: Drag and resize the actual furniture anywhere in the room:
+  - **Window** — Live local weather sky & temperature (Open-Meteo) → opens your Weather app
+  - **Painting** — Minimalist art or your custom photo → opens Gallery/Photos directly
+  - **Clock** — Live ticking analog hands → opens System Alarms directly
+  - **Sticky Note** — Pin custom **Web Shortcuts** (URLs) alongside browser & PWA apps
+  - **TV** — Media panel with centered camera zoom right into the TV bezel + CRT/OLED power-on animation
+  - **Game Console** — Cabinet under the TV storing installed games (`CATEGORY_GAME`)
+  - **Shelf** — Work, notes & email panel with a **two-stage hardcover book pop-out & open** animation
+  - **Bed** — Wind-down panel for sleep, meditation, health/fitness, and clock apps
   - **Trash Can** — Unsorted panel rising out of the bin containing every installed app not assigned elsewhere
-- **6 Light & Dark Themes**: Warm Linen, Botanical Sage, Midnight Cozy, Forest Night, Warm Ember, and OLED Pitch Black—dynamically styling both the room artwork and UI.
-- **Rich vs Quick Animations**: Toggle between custom per-object animations and instant spring popups in Settings.
-- **Mirror Room to Home Wallpaper**: Renders your live room layout & theme to Android's Home screen wallpaper (`WallpaperManager.FLAG_SYSTEM`), leaving your Lock screen untouched.
-- **Fast A–Z App Deck + Settings**: Smooth 60/120fps scrolling, touch-and-drag A–Z side letter fast scroller with floating indicator bubble, and a dedicated **Settings** panel right at the bottom of the App Deck.
+- **Silky-Smooth A–Z App Deck + Settings**: Release-optimized ART build, zero background Room overdraw while the drawer is open, pre-rounded off-thread icons, touch-and-drag A–Z side scroller, and Settings at the bottom.
+- **1:1 Home Wallpaper Mirror**: Compensates for Android's display insets and SystemUI wallpaper overscan so the Home screen wallpaper matches your room scale (`WallpaperManager.FLAG_SYSTEM` only—Lock screen untouched).
 - **Nothing Gets Lost**: Live `BroadcastReceiver` (`ACTION_PACKAGE_ADDED` / `REMOVED` / `REPLACED`) guarantees newly installed or removed apps always appear in the Trash Can.
 
 ## Building from Source
 
 ```bash
-./gradlew testDebugUnitTest assembleDebug
+./gradlew testDebugUnitTest assembleRelease
 ```
 
-Pre-built APKs are stored in `/releases/` (`RoomLauncher-v2.0.apk`).
+Pre-built APKs are stored in `/releases/` (`RoomLauncher-v2.1.apk`, `RoomLauncher-v2.0.apk`, `RoomLauncher-v1.0.apk`).

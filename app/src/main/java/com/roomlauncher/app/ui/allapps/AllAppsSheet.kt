@@ -439,7 +439,6 @@ private fun FastAllAppRow(
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .clip(RoundedCornerShape(12.dp))
             .combinedClickable(
                 onClick = onLaunch,
                 onLongClick = onOpenMenu
@@ -465,9 +464,11 @@ private fun FastAllAppRow(
                 overflow = TextOverflow.Ellipsis
             )
         }
-        IconButton(
-            onClick = onOpenMenu,
-            modifier = Modifier.size(34.dp)
+        Box(
+            contentAlignment = Alignment.Center,
+            modifier = Modifier
+                .size(36.dp)
+                .clickable(onClick = onOpenMenu)
         ) {
             Icon(
                 imageVector = Icons.Rounded.MoreVert,

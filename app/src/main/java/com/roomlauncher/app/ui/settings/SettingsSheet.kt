@@ -31,6 +31,7 @@ import androidx.compose.material.icons.rounded.Close
 import androidx.compose.material.icons.rounded.Cloud
 import androidx.compose.material.icons.rounded.DeleteOutline
 import androidx.compose.material.icons.rounded.Edit
+import androidx.compose.material.icons.rounded.Home
 import androidx.compose.material.icons.rounded.Image
 import androidx.compose.material.icons.rounded.LocationOn
 import androidx.compose.material.icons.rounded.Palette
@@ -58,13 +59,17 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.roomlauncher.app.ui.RoomUiState
+import com.roomlauncher.app.ui.theme.RoomStyleId
 import com.roomlauncher.app.ui.theme.RoomThemeId
 import com.roomlauncher.app.ui.theme.RoomThemes
 
 @Composable
 fun SettingsSheet(
     uiState: RoomUiState,
+    onSelectRoomStyle: (RoomStyleId) -> Unit,
     onSelectTheme: (RoomThemeId) -> Unit,
+    onPickTeenPoster: (isLeft: Boolean, uri: Uri) -> Unit,
+    onClearTeenPoster: (isLeft: Boolean) -> Unit,
     onToggleQuickAnimations: (Boolean) -> Unit,
     onToggleWeather: (Boolean) -> Unit,
     onRefreshWeather: () -> Unit,
@@ -93,6 +98,22 @@ fun SettingsSheet(
         }
     }
 
+    val leftPosterPickerLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.GetContent()
+    ) { uri ->
+        if (uri != null) {
+            onPickTeenPoster(true, uri)
+        }
+    }
+
+    val rightPosterPickerLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.GetContent()
+    ) { uri ->
+        if (uri != null) {
+            onPickTeenPoster(false, uri)
+        }
+    }
+
     Surface(
         modifier = Modifier.fillMaxSize(),
         color = MaterialTheme.colorScheme.background
@@ -118,7 +139,7 @@ fun SettingsSheet(
                         color = MaterialTheme.colorScheme.onBackground
                     )
                     Text(
-                        text = "Room Launcher v2.0",
+                        text = "Room Launcher v2.1",
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
@@ -135,11 +156,127 @@ fun SettingsSheet(
                     .padding(horizontal = 16.dp, vertical = 8.dp),
                 verticalArrangement = Arrangement.spacedBy(16.dp)
             ) {
-                // 1. Themes (Light + Multiple Dark Themes)
+                // 1. Distinct Architectural Room Styles
+                SettingsSectionCard(
+                    icon = Icons.Rounded.Home,
+                    title = "Room Style",
+                    subtitle = "Transform your room's architecture, decor, and furniture"
+                ) {
+                    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        RoomStyleId.entries.forEach { style ->
+                            val selected = uiState.config.roomStyleId == style
+                            Surface(
+                                shape = RoundedCornerShape(14.dp),
+                                color = if (selected) {
+                                    MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.5f)
+                                } else {
+                                    MaterialTheme.colorScheme.surface
+                                },
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .border(
+                                        width = if (selected) 2.dp else 1.dp,
+                                        color = if (selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outlineVariant,
+                                        shape = RoundedCornerShape(14.dp)
+                                    )
+                                    .clip(RoundedCornerShape(14.dp))
+                                    .clickable { onSelectRoomStyle(style) }
+                            ) {
+                                Row(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(horizontal = 12.dp, vertical = 10.dp),
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Column(modifier = Modifier.weight(1f)) {
+                                        Text(
+                                            text = style.displayName,
+                                            style = MaterialTheme.typography.titleSmall,
+                                            fontWeight = FontWeight.SemiBold,
+                                            color = MaterialTheme.colorScheme.onSurface
+                                        )
+                                        Text(
+                                            text = style.description,
+                                            style = MaterialTheme.typography.bodySmall,
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                                        )
+                                    }
+                                    if (selected) {
+                                        Icon(
+                                            imageVector = Icons.Rounded.Check,
+                                            contentDescription = "Selected style",
+                                            tint = MaterialTheme.colorScheme.primary,
+                                            modifier = Modifier.size(20.dp)
+                                        )
+                                    }
+                                }
+                            }
+                        }
+
+                        // Teen Room customizable wall posters!
+                        if (uiState.config.roomStyleId == RoomStyleId.TEEN_ROOM) {
+                            Spacer(modifier = Modifier.height(6.dp))
+                            Text(
+                                text = "Teen Room Wall Posters",
+                                style = MaterialTheme.typography.titleSmall,
+                                fontWeight = FontWeight.SemiBold,
+                                color = MaterialTheme.colorScheme.onSurface
+                            )
+                            Text(
+                                text = "Tape your own band, movie, or anime posters onto the room wall.",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                            ) {
+                                OutlinedButton(
+                                    onClick = { leftPosterPickerLauncher.launch("image/*") },
+                                    modifier = Modifier.weight(1f)
+                                ) {
+                                    Text(if (uiState.posterLeftBitmap != null) "Change Left" else "Left Poster")
+                                }
+                                OutlinedButton(
+                                    onClick = { rightPosterPickerLauncher.launch("image/*") },
+                                    modifier = Modifier.weight(1f)
+                                ) {
+                                    Text(if (uiState.posterRightBitmap != null) "Change Right" else "Right Poster")
+                                }
+                            }
+                            if (uiState.posterLeftBitmap != null || uiState.posterRightBitmap != null) {
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                ) {
+                                    if (uiState.posterLeftBitmap != null) {
+                                        OutlinedButton(
+                                            onClick = { onClearTeenPoster(true) },
+                                            modifier = Modifier.weight(1f)
+                                        ) {
+                                            Text("Reset Left")
+                                        }
+                                    }
+                                    if (uiState.posterRightBitmap != null) {
+                                        OutlinedButton(
+                                            onClick = { onClearTeenPoster(false) },
+                                            modifier = Modifier.weight(1f)
+                                        ) {
+                                            Text("Reset Right")
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+
+                // 2. Color Palettes (Light + Multiple Dark Themes)
                 SettingsSectionCard(
                     icon = Icons.Rounded.Palette,
-                    title = "Room Themes",
-                    subtitle = "Changes both the room artwork and interface colors"
+                    title = "Color Palettes",
+                    subtitle = "Light & dark lighting palettes that combine with any Room Style"
                 ) {
                     val themes = RoomThemeId.entries
                     Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {

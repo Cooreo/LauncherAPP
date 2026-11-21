@@ -126,23 +126,35 @@ class AppRepository(
     }
 
     private fun drawableToImageBitmap(drawable: Drawable, sizePx: Int): ImageBitmap {
+        val output = Bitmap.createBitmap(sizePx, sizePx, Bitmap.Config.ARGB_8888)
+        val canvas = Canvas(output)
+        val cornerRadius = sizePx * 0.24f
+        val clipPath = android.graphics.Path().apply {
+            addRoundRect(
+                0f,
+                0f,
+                sizePx.toFloat(),
+                sizePx.toFloat(),
+                cornerRadius,
+                cornerRadius,
+                android.graphics.Path.Direction.CW
+            )
+        }
+        canvas.clipPath(clipPath)
+
         if (drawable is BitmapDrawable && drawable.bitmap != null) {
             val src = drawable.bitmap
-            if (src.width <= sizePx && src.height <= sizePx) {
-                return src.asImageBitmap()
-            }
-            val scaled = Bitmap.createScaledBitmap(src, sizePx, sizePx, true)
-            return scaled.asImageBitmap()
+            val paint = android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG or android.graphics.Paint.FILTER_BITMAP_FLAG)
+            val dst = android.graphics.Rect(0, 0, sizePx, sizePx)
+            canvas.drawBitmap(src, null, dst, paint)
+        } else {
+            drawable.setBounds(0, 0, sizePx, sizePx)
+            drawable.draw(canvas)
         }
-
-        val bitmap = Bitmap.createBitmap(sizePx, sizePx, Bitmap.Config.ARGB_8888)
-        val canvas = Canvas(bitmap)
-        drawable.setBounds(0, 0, canvas.width, canvas.height)
-        drawable.draw(canvas)
-        return bitmap.asImageBitmap()
+        return output.asImageBitmap()
     }
 
     companion object {
-        private const val ICON_SIZE_PX = 96
+        private const val ICON_SIZE_PX = 72
     }
 }

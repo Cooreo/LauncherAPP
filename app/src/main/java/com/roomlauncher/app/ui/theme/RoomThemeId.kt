@@ -8,6 +8,17 @@ import androidx.compose.ui.graphics.Color
 import kotlinx.serialization.Serializable
 
 @Serializable
+enum class RoomStyleId(
+    val displayName: String,
+    val description: String
+) {
+    COZY_MINIMALIST("Cozy Minimalist", "Calm Scandinavian room & clean wood furniture"),
+    TEEN_ROOM("Teen Room", "LED wall glow, fairy lights & 2 custom wall posters"),
+    KIDS_ROOM("Kids Room", "Bunting garland, starry walls & cheerful play rug"),
+    MINECRAFT("Blocky / Voxel", "Pixelated oak walls, torches & blocky furniture")
+}
+
+@Serializable
 enum class RoomThemeId(
     val displayName: String,
     val description: String,
