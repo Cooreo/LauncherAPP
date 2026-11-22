@@ -110,6 +110,9 @@ import java.util.Calendar
 import kotlin.math.abs
 import kotlin.math.roundToInt
 
+internal const val ROOM_CAMERA_SCALE = 0.88f
+internal const val ROOM_CAMERA_ANCHOR_Y = 0.58f
+
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
 fun RoomScreen(
@@ -260,9 +263,9 @@ fun RoomScreen(
     var lastTvCenterY by remember { mutableFloatStateOf(0.37f) }
     var lastTvScale by remember { mutableFloatStateOf(2.0f) }
     if (isTvZoomActive && activeHotspot != null) {
-        lastTvCenterX = activeHotspot.centerX
-        lastTvCenterY = activeHotspot.centerY
-        lastTvScale = (0.94f / activeHotspot.width.coerceAtLeast(0.26f)).coerceIn(1.75f, 2.75f)
+        lastTvCenterX = 0.5f + (activeHotspot.centerX - 0.5f) * ROOM_CAMERA_SCALE
+        lastTvCenterY = ROOM_CAMERA_ANCHOR_Y + (activeHotspot.centerY - ROOM_CAMERA_ANCHOR_Y) * ROOM_CAMERA_SCALE
+        lastTvScale = (0.94f / (activeHotspot.width * ROOM_CAMERA_SCALE).coerceAtLeast(0.24f)).coerceIn(1.75f, 2.75f)
     }
     val tvZoomProgress by animateFloatAsState(
         targetValue = if (isTvZoomActive) 1f else 0f,
@@ -385,13 +388,15 @@ fun RoomScreen(
                         modifier = Modifier.fillMaxSize()
                     )
 
-                    // 2. Movable Illustrated Objects inside this Room
+                    // 2. Movable Illustrated Objects inside this Room (gently stepped back for comfortable perspective!)
                     roomPage.hotspots.forEach { hotspot ->
                         if (uiState.isEditMode && isThisPageActive) {
                             EditableHotspotBox(
                                 hotspot = hotspot,
                                 roomWidthPx = roomWidthPx,
                                 roomHeightPx = roomHeightPx,
+                                cameraScale = ROOM_CAMERA_SCALE,
+                                cameraAnchorY = ROOM_CAMERA_ANCHOR_Y,
                                 appCount = uiState.appsFor(hotspot).size,
                                 roomStyle = uiState.config.roomStyleId,
                                 gdSubTheme = uiState.config.geometryDashSubTheme,
@@ -408,8 +413,12 @@ fun RoomScreen(
                                 onTapEdit = { onEditHotspotOpen(hotspot.id) }
                             )
                         } else {
-                            val boxWidthDp = with(density) { (hotspot.width * roomWidthPx).toDp() }
-                            val boxHeightDp = with(density) { (hotspot.height * roomHeightPx).toDp() }
+                            val viewX = 0.5f + (hotspot.x - 0.5f) * ROOM_CAMERA_SCALE
+                            val viewY = ROOM_CAMERA_ANCHOR_Y + (hotspot.y - ROOM_CAMERA_ANCHOR_Y) * ROOM_CAMERA_SCALE
+                            val viewW = hotspot.width * ROOM_CAMERA_SCALE
+                            val viewH = hotspot.height * ROOM_CAMERA_SCALE
+                            val boxWidthDp = with(density) { (viewW * roomWidthPx).toDp() }
+                            val boxHeightDp = with(density) { (viewH * roomHeightPx).toDp() }
                             val interactionSource = remember(hotspot.id) { MutableInteractionSource() }
                             val isPressed by interactionSource.collectIsPressedAsState()
                             val pressScale by animateFloatAsState(
@@ -424,8 +433,8 @@ fun RoomScreen(
                                 modifier = Modifier
                                     .offset {
                                         IntOffset(
-                                            x = (hotspot.x * roomWidthPx).roundToInt(),
-                                            y = (hotspot.y * roomHeightPx).roundToInt()
+                                            x = (viewX * roomWidthPx).roundToInt(),
+                                            y = (viewY * roomHeightPx).roundToInt()
                                         )
                                     }
                                     .size(width = boxWidthDp, height = boxHeightDp)

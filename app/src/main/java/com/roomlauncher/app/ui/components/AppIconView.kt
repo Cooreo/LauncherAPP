@@ -29,7 +29,7 @@ fun AppIconView(
             bitmap = app.icon,
             contentDescription = app.label,
             contentScale = ContentScale.Fit,
-            filterQuality = FilterQuality.Low,
+            filterQuality = FilterQuality.Medium,
             modifier = modifier.size(size)
         )
     } else {

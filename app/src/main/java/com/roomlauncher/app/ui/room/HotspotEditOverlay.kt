@@ -78,6 +78,8 @@ fun EditableHotspotBox(
     hotspot: RoomHotspot,
     roomWidthPx: Float,
     roomHeightPx: Float,
+    cameraScale: Float = ROOM_CAMERA_SCALE,
+    cameraAnchorY: Float = ROOM_CAMERA_ANCHOR_Y,
     appCount: Int,
     roomStyle: RoomStyleId,
     gdSubTheme: GeometryDashSubTheme = GeometryDashSubTheme.SONIC_WAVE,
@@ -104,8 +106,11 @@ fun EditableHotspotBox(
         localH = hotspot.height
     }
 
-    val widthDp = with(density) { (localW * roomWidthPx).toDp() }
-    val heightDp = with(density) { (localH * roomHeightPx).toDp() }
+    val safeScale = cameraScale.coerceAtLeast(0.5f)
+    val viewX = 0.5f + (localX - 0.5f) * safeScale
+    val viewY = cameraAnchorY + (localY - cameraAnchorY) * safeScale
+    val widthDp = with(density) { (localW * safeScale * roomWidthPx).toDp() }
+    val heightDp = with(density) { (localH * safeScale * roomHeightPx).toDp() }
     val accent = when (hotspot.actionType) {
         HotspotActionType.UNSORTED_PANEL -> RoomEditAccent
         HotspotActionType.DIRECT_GALLERY,
@@ -118,18 +123,18 @@ fun EditableHotspotBox(
         modifier = Modifier
             .offset {
                 IntOffset(
-                    x = (localX * roomWidthPx).roundToInt(),
-                    y = (localY * roomHeightPx).roundToInt()
+                    x = (viewX * roomWidthPx).roundToInt(),
+                    y = (viewY * roomHeightPx).roundToInt()
                 )
             }
             .size(width = widthDp, height = heightDp)
-            .pointerInput(hotspot.id, roomWidthPx, roomHeightPx) {
+            .pointerInput(hotspot.id, roomWidthPx, roomHeightPx, safeScale) {
                 detectDragGestures(
                     onDrag = { change, dragAmount ->
                         change.consume()
                         if (roomWidthPx > 0f && roomHeightPx > 0f) {
-                            val dx = dragAmount.x / roomWidthPx
-                            val dy = dragAmount.y / roomHeightPx
+                            val dx = dragAmount.x / (roomWidthPx * safeScale)
+                            val dy = dragAmount.y / (roomHeightPx * safeScale)
                             localX = (localX + dx).coerceIn(0f, (1f - localW).coerceAtLeast(0f))
                             localY = (localY + dy).coerceIn(0f, (1f - localH).coerceAtLeast(0f))
                         }
@@ -216,13 +221,13 @@ fun EditableHotspotBox(
                 .clip(CircleShape)
                 .background(accent)
                 .border(1.5.dp, Color.White, CircleShape)
-                .pointerInput(hotspot.id, roomWidthPx, roomHeightPx) {
+                .pointerInput(hotspot.id, roomWidthPx, roomHeightPx, safeScale) {
                     detectDragGestures(
                         onDrag = { change, dragAmount ->
                             change.consume()
                             if (roomWidthPx > 0f && roomHeightPx > 0f) {
-                                val dw = dragAmount.x / roomWidthPx
-                                val dh = dragAmount.y / roomHeightPx
+                                val dw = dragAmount.x / (roomWidthPx * safeScale)
+                                val dh = dragAmount.y / (roomHeightPx * safeScale)
                                 val maxW = (1f - localX).coerceAtLeast(RoomLauncherViewModel.MIN_HOTSPOT_WIDTH)
                                 val maxH = (1f - localY).coerceAtLeast(RoomLauncherViewModel.MIN_HOTSPOT_HEIGHT)
                                 localW = (localW + dw).coerceIn(RoomLauncherViewModel.MIN_HOTSPOT_WIDTH, maxW)

@@ -235,10 +235,33 @@ class RoomConfigRepositoryTest {
 
     @Test
     fun changelogStartsWithLatestVersion() {
-        assertEquals("3.1.0", ChangelogData.CURRENT_VERSION)
+        assertEquals("3.1.1", ChangelogData.CURRENT_VERSION)
         assertTrue(ChangelogData.entries.isNotEmpty())
-        assertEquals("3.1.0", ChangelogData.entries.first().version)
+        assertEquals("3.1.1", ChangelogData.entries.first().version)
         assertTrue(ChangelogData.entries.first().highlights.size >= 3)
+    }
+
+    @Test
+    fun displayScalingNormalizesCompactHighDpiDevicesLikeOppoReno6() {
+        val oppoScale = com.roomlauncher.app.ui.theme.DisplayScaling.computeDensityScale(
+            screenWidthDp = 360,
+            physicalWidthPx = 1080
+        )
+        assertTrue(oppoScale in 0.86f..0.89f)
+
+        // Standard 412dp+ devices remain 1.0x unchanged
+        assertEquals(
+            1f,
+            com.roomlauncher.app.ui.theme.DisplayScaling.computeDensityScale(412, 1080),
+            0.0001f
+        )
+        assertEquals(
+            1f,
+            com.roomlauncher.app.ui.theme.DisplayScaling.computeDensityScale(480, 1440),
+            0.0001f
+        )
+        // Font scale safely clamped
+        assertEquals(1.15f, com.roomlauncher.app.ui.theme.DisplayScaling.clampFontScale(1.4f), 0.0001f)
     }
 
     @Test
