@@ -11,9 +11,19 @@ data class ChangelogEntry(
 )
 
 object ChangelogData {
-    const val CURRENT_VERSION = "3.0"
+    const val CURRENT_VERSION = "3.0.1"
 
     val entries: List<ChangelogEntry> = listOf(
+        ChangelogEntry(
+            version = "3.0.1",
+            title = "Smooth All Apps, Fast Settings & Play Protect Cleanup",
+            tag = "BUGFIX",
+            highlights = listOf(
+                "Fixed All Apps drawer lag and the glitchy exit animation: removed competing close transforms, detached keyboard padding from the outer sheet, dropped 27 idle A–Z rail spring animations, and cut extra background room overdraw.",
+                "Rebuilt Settings on a virtualized LazyColumn with a 1-tap Quick-Jump category strip, clean collapsible sections, and moved App Updates right to the top.",
+                "Removed high-scrutiny RECORD_AUDIO and REQUEST_DELETE_PACKAGES permissions to reduce Google Play Protect warnings while keeping the smooth Music Visualizer, Synced Lyrics, and seamless in-place updates intact."
+            )
+        ),
         ChangelogEntry(
             version = "3.0",
             title = "The Multi-Room House Update",

@@ -2,8 +2,14 @@
 
 **Room Launcher** is a minimalist Android home screen launcher built with **Kotlin** and **Jetpack Compose**. Instead of a traditional grid of icons, your home screen is a customizable, illustrated room where every piece of furniture is an interactive, movable object.
 
-## Features (v3.0 — The Multi-Room House Update)
+## Features (v3.0.1 — Performance, Settings Overhaul & Play Protect Cleanup)
 
+- **Buttery-Smooth All Apps Drawer & Zero-Glitch Close (v3.0.1)**:
+  - Removed competing close transforms (`slideOutVertically` vs Predictive Back), moved IME padding onto the `LazyColumn` list bottom so dismissing the keyboard never jumps the sheet, eliminated 27 idle A–Z rail spring animations and per-header animations, and cut extra background room overdraw (`beyondViewportPageCount = 0`).
+- **Fast Virtualized Settings & Updates at the Top (v3.0.1)**:
+  - Rebuilt Settings on `LazyColumn` with a 1-tap **Quick-Jump category chip bar**, clean **collapsible sections** with live status summaries, and moved **App Updates** right to the top.
+- **Play Protect Permission Cleanup (v3.0.1)**:
+  - Removed `RECORD_AUDIO` and `REQUEST_DELETE_PACKAGES` from the manifest (using standard App Info if manual uninstall is ever needed and keeping the smooth procedural Music Visualizer + LRCLIB Synced Lyrics working with zero microphone access).
 - **Swipeable Multi-Room House (v3.0)**:
   - Swipe left and right on your home screen just like a classic multi-page Android launcher (`HorizontalPager`) to walk seamlessly between your rooms: **Bedroom**, **Living Room**, **Kitchen**, and **Gaming Room** (plus add, rename, or remove custom rooms in **Settings → House & Rooms**).
   - Sleek floating **Room Switcher indicator pill** with quick-jump dots, non-blocking 2-finger pinch-zoom, and native Back/Home return to your main room.

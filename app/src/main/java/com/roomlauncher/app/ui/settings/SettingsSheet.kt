@@ -15,6 +15,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -25,10 +26,12 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Add
 import androidx.compose.material.icons.rounded.Animation
@@ -39,6 +42,8 @@ import androidx.compose.material.icons.rounded.Close
 import androidx.compose.material.icons.rounded.Cloud
 import androidx.compose.material.icons.rounded.DeleteOutline
 import androidx.compose.material.icons.rounded.Edit
+import androidx.compose.material.icons.rounded.ExpandLess
+import androidx.compose.material.icons.rounded.ExpandMore
 import androidx.compose.material.icons.rounded.GraphicEq
 import androidx.compose.material.icons.rounded.Home
 import androidx.compose.material.icons.rounded.Image
@@ -58,6 +63,7 @@ import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.FilterChip
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
@@ -71,20 +77,22 @@ import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.RectangleShape
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import kotlin.coroutines.cancellation.CancellationException
 import com.roomlauncher.app.data.MusicDisplayMode
 import com.roomlauncher.app.data.RoomPage
 import com.roomlauncher.app.data.RoomType
@@ -97,8 +105,21 @@ import com.roomlauncher.app.ui.theme.RoomThemeId
 import com.roomlauncher.app.ui.theme.RoomThemes
 import com.roomlauncher.app.ui.theme.accentNeonColors
 import com.roomlauncher.app.ui.theme.mainDrawableRes
-import com.roomlauncher.app.ui.theme.posterDrawableRes
+import kotlinx.coroutines.launch
+import kotlin.coroutines.cancellation.CancellationException
 
+private enum class SettingsSectionKey(val chipLabel: String) {
+    UPDATES("Updates"),
+    ROOMS("Rooms"),
+    STYLE("Style"),
+    THEME("Theme"),
+    ANIMATIONS("Animations"),
+    MUSIC("Music"),
+    WEATHER("Weather & Wall"),
+    BACKUP("Backup & Setup")
+}
+
+@Suppress("UNUSED_PARAMETER")
 @Composable
 fun SettingsSheet(
     uiState: RoomUiState,
@@ -147,62 +168,61 @@ fun SettingsSheet(
     val locationPermissionLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.RequestPermission()
     ) { granted ->
-        if (granted) {
-            onRefreshWeather()
-        }
-    }
-
-    val audioPermissionLauncher = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.RequestPermission()
-    ) { granted ->
-        onToggleAudioReactiveVisualizer(granted)
+        if (granted) onRefreshWeather()
     }
 
     val photoPickerLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.GetContent()
     ) { uri ->
-        if (uri != null) {
-            onPickFramePhoto(uri)
-        }
+        if (uri != null) onPickFramePhoto(uri)
     }
 
     val leftPosterPickerLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.GetContent()
     ) { uri ->
-        if (uri != null) {
-            onPickTeenPoster(true, uri)
-        }
+        if (uri != null) onPickTeenPoster(true, uri)
     }
 
     val rightPosterPickerLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.GetContent()
     ) { uri ->
-        if (uri != null) {
-            onPickTeenPoster(false, uri)
-        }
+        if (uri != null) onPickTeenPoster(false, uri)
     }
 
     val exportBackupLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.CreateDocument("application/json")
     ) { uri ->
-        if (uri != null) {
-            onExportBackup(uri)
-        }
+        if (uri != null) onExportBackup(uri)
     }
 
     val importBackupLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.OpenDocument()
     ) { uri ->
-        if (uri != null) {
-            onImportBackup(uri)
-        }
+        if (uri != null) onImportBackup(uri)
     }
 
-    // Silky live Predictive Back gesture + hardware Back button handler for Settings
+    // Silky Predictive Back + hardware Back button handler
     val backProgress = remember { Animatable(0f) }
     var backSwipeEdge by remember { mutableIntStateOf(BackEventCompat.EDGE_LEFT) }
     var showAddRoomDialog by remember { mutableStateOf(false) }
     var renamingRoom by remember { mutableStateOf<RoomPage?>(null) }
+
+    // Lazy list & section expansion state (only top essentials start expanded -> instant first frame!)
+    val listState = rememberLazyListState()
+    val coroutineScope = rememberCoroutineScope()
+    val expandedSections = remember {
+        mutableStateMapOf(
+            SettingsSectionKey.UPDATES to true,
+            SettingsSectionKey.ROOMS to true,
+            SettingsSectionKey.STYLE to true,
+            SettingsSectionKey.THEME to false,
+            SettingsSectionKey.ANIMATIONS to false,
+            SettingsSectionKey.MUSIC to false,
+            SettingsSectionKey.WEATHER to false,
+            SettingsSectionKey.BACKUP to false
+        )
+    }
+    var activeJumpChip by remember { mutableStateOf(SettingsSectionKey.UPDATES) }
 
     PredictiveBackHandler(enabled = uiState.showSettingsSheet) { progressFlow ->
         try {
@@ -210,36 +230,38 @@ fun SettingsSheet(
                 backSwipeEdge = event.swipeEdge
                 backProgress.snapTo(event.progress.coerceIn(0f, 1f))
             }
-            val upd = uiState.updateState
-            if (upd.showUpdateDialog) {
+            if (uiState.updateState.showUpdateDialog) {
                 backProgress.snapTo(0f)
-                if (!upd.isDownloading && !upd.isInstalling) {
+                if (!uiState.updateState.isDownloading && !uiState.updateState.isInstalling) {
                     onDismissUpdatePopup()
                 }
             } else {
                 onDismiss()
             }
         } catch (e: CancellationException) {
-            backProgress.animateTo(0f, tween(160))
+            backProgress.animateTo(0f, tween(140))
             throw e
         }
     }
 
     val p = backProgress.value
-    val cornerDp = (p * 26f).dp
+    val isBackDragging = p > 0.002f
+    val sections = remember { SettingsSectionKey.entries }
 
     Surface(
-        shape = RoundedCornerShape(cornerDp),
-        shadowElevation = if (p > 0.01f) 14.dp else 0.dp,
+        shape = if (isBackDragging) RoundedCornerShape((p * 26f).dp) else RectangleShape,
+        shadowElevation = if (isBackDragging) 12.dp else 0.dp,
         modifier = Modifier
             .fillMaxSize()
             .graphicsLayer {
-                val scale = 1f - (p * 0.085f)
-                scaleX = scale
-                scaleY = scale
-                val dir = if (backSwipeEdge == BackEventCompat.EDGE_RIGHT) -1f else 1f
-                translationX = dir * p * size.width * 0.06f
-                alpha = 1f - (p * 0.14f)
+                if (isBackDragging) {
+                    val scale = 1f - (p * 0.08f)
+                    scaleX = scale
+                    scaleY = scale
+                    val dir = if (backSwipeEdge == BackEventCompat.EDGE_RIGHT) -1f else 1f
+                    translationX = dir * p * size.width * 0.06f
+                    alpha = 1f - (p * 0.18f)
+                }
             },
         color = MaterialTheme.colorScheme.background
     ) {
@@ -253,7 +275,7 @@ fun SettingsSheet(
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(start = 20.dp, end = 12.dp, top = 12.dp, bottom = 8.dp),
+                    .padding(start = 20.dp, end = 10.dp, top = 10.dp, bottom = 4.dp),
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
@@ -285,600 +307,191 @@ fun SettingsSheet(
                 }
             }
 
-            Column(
+            // Quick-Jump Category Strip (1 tap expands & scrolls straight to any section!)
+            LazyRow(
+                contentPadding = PaddingValues(horizontal = 16.dp, vertical = 4.dp),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                itemsIndexed(sections, key = { _, item -> item.name }) { index, section ->
+                    val selected = activeJumpChip == section
+                    val hasUpdateDot = section == SettingsSectionKey.UPDATES &&
+                        uiState.updateState.availableUpdate != null
+                    FilterChip(
+                        selected = selected,
+                        onClick = {
+                            activeJumpChip = section
+                            expandedSections[section] = true
+                            coroutineScope.launch {
+                                listState.animateScrollToItem(index)
+                            }
+                        },
+                        label = {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(5.dp)
+                            ) {
+                                Text(
+                                    text = section.chipLabel,
+                                    fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Normal
+                                )
+                                if (hasUpdateDot) {
+                                    Box(
+                                        modifier = Modifier
+                                            .size(7.dp)
+                                            .clip(CircleShape)
+                                            .background(MaterialTheme.colorScheme.primary)
+                                    )
+                                }
+                            }
+                        }
+                    )
+                }
+            }
+
+            // Virtualized LazyColumn — composes only visible cards for instant, silky scrolling!
+            LazyColumn(
+                state = listState,
+                contentPadding = PaddingValues(horizontal = 16.dp, vertical = 10.dp),
+                verticalArrangement = Arrangement.spacedBy(12.dp),
                 modifier = Modifier
                     .weight(1f)
-                    .verticalScroll(rememberScrollState())
-                    .padding(horizontal = 16.dp, vertical = 8.dp),
-                verticalArrangement = Arrangement.spacedBy(16.dp)
+                    .fillMaxWidth()
             ) {
-                // 0. My House & Multiple Rooms (v3.0!)
-                SettingsSectionCard(
-                    icon = Icons.Rounded.MeetingRoom,
-                    title = "House & Rooms",
-                    subtitle = "Swipe left & right on your home screen to move between rooms"
-                ) {
-                    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                        uiState.rooms.forEachIndexed { idx, room ->
-                            val isCurrent = idx == uiState.safeCurrentRoomIndex
-                            Surface(
-                                shape = RoundedCornerShape(14.dp),
-                                color = if (isCurrent) {
-                                    MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.50f)
-                                } else {
-                                    MaterialTheme.colorScheme.surface
-                                },
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .border(
-                                        width = if (isCurrent) 2.dp else 1.dp,
-                                        color = if (isCurrent) {
-                                            MaterialTheme.colorScheme.primary
-                                        } else {
-                                            MaterialTheme.colorScheme.outlineVariant
-                                        },
-                                        shape = RoundedCornerShape(14.dp)
-                                    )
-                                    .clip(RoundedCornerShape(14.dp))
-                                    .clickable {
-                                        onSelectRoomIndex(idx)
-                                        onDismiss()
-                                    }
-                            ) {
-                                Row(
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .padding(horizontal = 12.dp, vertical = 9.dp),
-                                    verticalAlignment = Alignment.CenterVertically,
-                                    horizontalArrangement = Arrangement.SpaceBetween
-                                ) {
-                                    Column(modifier = Modifier.weight(1f)) {
-                                        Row(
-                                            verticalAlignment = Alignment.CenterVertically,
-                                            horizontalArrangement = Arrangement.spacedBy(6.dp)
-                                        ) {
-                                            Text(
-                                                text = room.name,
-                                                style = MaterialTheme.typography.titleSmall,
-                                                fontWeight = FontWeight.SemiBold,
-                                                color = MaterialTheme.colorScheme.onSurface
-                                            )
-                                            if (isCurrent) {
-                                                Text(
-                                                    text = "Current",
-                                                    style = MaterialTheme.typography.labelSmall,
-                                                    color = MaterialTheme.colorScheme.primary,
-                                                    fontWeight = FontWeight.Bold
-                                                )
-                                            }
-                                        }
-                                        Text(
-                                            text = "${room.type.displayName} • ${room.hotspots.size} objects",
-                                            style = MaterialTheme.typography.bodySmall,
-                                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                                        )
-                                    }
-                                    Row(verticalAlignment = Alignment.CenterVertically) {
-                                        IconButton(
-                                            onClick = { renamingRoom = room },
-                                            modifier = Modifier.size(34.dp)
-                                        ) {
-                                            Icon(
-                                                imageVector = Icons.Rounded.Edit,
-                                                contentDescription = "Rename ${room.name}",
-                                                tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                                                modifier = Modifier.size(18.dp)
-                                            )
-                                        }
-                                        if (uiState.rooms.size > 1) {
-                                            IconButton(
-                                                onClick = { onDeleteRoom(room.id) },
-                                                modifier = Modifier.size(34.dp)
-                                            ) {
-                                                Icon(
-                                                    imageVector = Icons.Rounded.DeleteOutline,
-                                                    contentDescription = "Remove ${room.name}",
-                                                    tint = MaterialTheme.colorScheme.error,
-                                                    modifier = Modifier.size(18.dp)
-                                                )
-                                            }
-                                        }
-                                    }
-                                }
+                // 0. APP UPDATES (Always right at the top!)
+                item(key = SettingsSectionKey.UPDATES.name) {
+                    val upd = uiState.updateState
+                    val statusSummary = when {
+                        upd.isDownloading -> {
+                            if (upd.downloadProgress >= 0f) {
+                                "Downloading update… ${(upd.downloadProgress * 100).toInt()}%"
+                            } else {
+                                "Downloading update…"
                             }
                         }
-
-                        OutlinedButton(
-                            onClick = { showAddRoomDialog = true },
-                            shape = RoundedCornerShape(12.dp),
-                            modifier = Modifier.fillMaxWidth()
-                        ) {
-                            Icon(Icons.Rounded.Add, contentDescription = null, modifier = Modifier.size(18.dp))
-                            Spacer(modifier = Modifier.width(6.dp))
-                            Text("Add Room (Living Room, Kitchen, Gaming…)")
-                        }
+                        upd.isChecking -> "Checking GitHub for new releases…"
+                        upd.availableUpdate != null ->
+                            "New update ready: v${upd.availableUpdate.versionName}!"
+                        upd.errorMessage != null -> upd.errorMessage
+                        upd.isUpToDate -> "Up to date (v${upd.currentVersion})"
+                        else -> "Installed v${upd.currentVersion} • Cooreo/LauncherAPP"
                     }
-                }
 
-                // 1. Distinct Architectural Room Styles
-                SettingsSectionCard(
-                    icon = Icons.Rounded.Home,
-                    title = "Room Style",
-                    subtitle = "Transform your room's architecture, decor, and furniture"
-                ) {
-                    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                        RoomStyleId.entries.forEach { style ->
-                            val selected = uiState.config.roomStyleId == style
-                            Surface(
-                                shape = RoundedCornerShape(14.dp),
-                                color = if (selected) {
-                                    MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.5f)
-                                } else {
-                                    MaterialTheme.colorScheme.surface
-                                },
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .border(
-                                        width = if (selected) 2.dp else 1.dp,
-                                        color = if (selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outlineVariant,
-                                        shape = RoundedCornerShape(14.dp)
-                                    )
-                                    .clip(RoundedCornerShape(14.dp))
-                                    .clickable { onSelectRoomStyle(style) }
-                            ) {
-                                Row(
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .padding(horizontal = 12.dp, vertical = 10.dp),
-                                    horizontalArrangement = Arrangement.SpaceBetween,
-                                    verticalAlignment = Alignment.CenterVertically
-                                ) {
-                                    Column(modifier = Modifier.weight(1f)) {
-                                        Text(
-                                            text = style.displayName,
-                                            style = MaterialTheme.typography.titleSmall,
-                                            fontWeight = FontWeight.SemiBold,
-                                            color = MaterialTheme.colorScheme.onSurface
-                                        )
-                                        Text(
-                                            text = style.description,
-                                            style = MaterialTheme.typography.bodySmall,
-                                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                                        )
-                                    }
-                                    if (selected) {
-                                        Icon(
-                                            imageVector = Icons.Rounded.Check,
-                                            contentDescription = "Selected style",
-                                            tint = MaterialTheme.colorScheme.primary,
-                                            modifier = Modifier.size(20.dp)
-                                        )
-                                    }
-                                }
-                            }
-                        }
-
-                        // Teen Room customizable wall posters!
-                        if (uiState.config.roomStyleId == RoomStyleId.TEEN_ROOM) {
-                            Spacer(modifier = Modifier.height(6.dp))
-                            Text(
-                                text = "Teen Room Wall Posters",
-                                style = MaterialTheme.typography.titleSmall,
-                                fontWeight = FontWeight.SemiBold,
-                                color = MaterialTheme.colorScheme.onSurface
-                            )
-                            Text(
-                                text = "Tape your own band, movie, or anime posters onto the room wall.",
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
+                    SettingsSectionCard(
+                        icon = Icons.Rounded.SystemUpdate,
+                        title = "App Updates",
+                        subtitle = statusSummary,
+                        highlighted = upd.availableUpdate != null
+                    ) {
+                        Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                             Row(
                                 modifier = Modifier.fillMaxWidth(),
                                 horizontalArrangement = Arrangement.spacedBy(8.dp)
                             ) {
-                                OutlinedButton(
-                                    onClick = { leftPosterPickerLauncher.launch("image/*") },
-                                    modifier = Modifier.weight(1f)
-                                ) {
-                                    Text(if (uiState.posterLeftBitmap != null) "Change Left" else "Left Poster")
-                                }
-                                OutlinedButton(
-                                    onClick = { rightPosterPickerLauncher.launch("image/*") },
-                                    modifier = Modifier.weight(1f)
-                                ) {
-                                    Text(if (uiState.posterRightBitmap != null) "Change Right" else "Right Poster")
-                                }
-                            }
-                            if (uiState.posterLeftBitmap != null || uiState.posterRightBitmap != null) {
-                                Row(
-                                    modifier = Modifier.fillMaxWidth(),
-                                    horizontalArrangement = Arrangement.spacedBy(8.dp)
-                                ) {
-                                    if (uiState.posterLeftBitmap != null) {
-                                        OutlinedButton(
-                                            onClick = { onClearTeenPoster(true) },
-                                            modifier = Modifier.weight(1f)
-                                        ) {
-                                            Text("Reset Left")
-                                        }
-                                    }
-                                    if (uiState.posterRightBitmap != null) {
-                                        OutlinedButton(
-                                            onClick = { onClearTeenPoster(false) },
-                                            modifier = Modifier.weight(1f)
-                                        ) {
-                                            Text("Reset Right")
-                                        }
-                                    }
-                                }
-                            }
-                        }
-
-                        // Geometry Dash Extreme Demon Sub-Themes (Sonic Wave, Astral Divinity, Death Corridor)
-                        if (uiState.config.roomStyleId == RoomStyleId.GEOMETRY_DASH) {
-                            Spacer(modifier = Modifier.height(8.dp))
-                            Text(
-                                text = "Geometry Dash Sub-Themes",
-                                style = MaterialTheme.typography.titleSmall,
-                                fontWeight = FontWeight.Bold,
-                                color = MaterialTheme.colorScheme.primary
-                            )
-                            Text(
-                                text = "Pick an iconic Extreme Demon level to transform your room's neon colors, wall art, floor grid, and charging glow.",
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-                            Spacer(modifier = Modifier.height(4.dp))
-                            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                                GeometryDashSubTheme.entries.forEach { subTheme ->
-                                    GeometryDashSubThemeCard(
-                                        subTheme = subTheme,
-                                        selected = uiState.config.geometryDashSubTheme == subTheme,
-                                        onClick = { onSelectGeometryDashSubTheme(subTheme) }
-                                    )
-                                }
-                            }
-                        }
-                    }
-                }
-
-                // 2. Color Palettes (Dynamic Time-of-Day + Light & Dark Themes)
-                SettingsSectionCard(
-                    icon = Icons.Rounded.Palette,
-                    title = "Color Palettes",
-                    subtitle = if (uiState.config.roomStyleId == RoomStyleId.GEOMETRY_DASH) {
-                        "Geometry Dash (${uiState.config.geometryDashSubTheme.displayName}) neon palette is active"
-                    } else {
-                        "Light & dark lighting palettes that combine with any Room Style"
-                    }
-                ) {
-                    val themes = RoomThemeId.entries
-                    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                        // Dynamic Time-of-Day Theme toggle
-                        Surface(
-                            shape = RoundedCornerShape(14.dp),
-                            color = if (uiState.config.dynamicThemeEnabled) {
-                                MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.5f)
-                            } else {
-                                MaterialTheme.colorScheme.surface
-                            },
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .border(
-                                    width = if (uiState.config.dynamicThemeEnabled) 1.5.dp else 1.dp,
-                                    color = if (uiState.config.dynamicThemeEnabled) {
-                                        MaterialTheme.colorScheme.primary
-                                    } else {
-                                        MaterialTheme.colorScheme.outlineVariant
-                                    },
-                                    shape = RoundedCornerShape(14.dp)
-                                )
-                        ) {
-                            Row(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .padding(horizontal = 12.dp, vertical = 10.dp),
-                                verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.SpaceBetween
-                            ) {
-                                Column(modifier = Modifier.weight(1f).padding(end = 10.dp)) {
-                                    Text(
-                                        text = "Dynamic Time-of-Day Theme",
-                                        style = MaterialTheme.typography.titleSmall,
-                                        fontWeight = FontWeight.SemiBold,
-                                        color = MaterialTheme.colorScheme.onSurface
-                                    )
-                                    Text(
-                                        text = if (uiState.config.dynamicThemeEnabled) {
-                                            "Active now: ${uiState.effectiveThemeId.displayName} (6 AM Warm Linen • 3 PM Midnight Cozy • 9 PM OLED Pitch)"
-                                        } else {
-                                            "Day: Warm Linen • 3 PM: Midnight Cozy • Night: OLED Pitch"
-                                        },
-                                        style = MaterialTheme.typography.bodySmall,
-                                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                                    )
-                                }
-                                Switch(
-                                    checked = uiState.config.dynamicThemeEnabled,
-                                    onCheckedChange = onToggleDynamicTheme
-                                )
-                            }
-                        }
-
-                        themes.chunked(2).forEach { rowItems ->
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.spacedBy(10.dp)
-                            ) {
-                                rowItems.forEach { themeId ->
-                                    ThemeSwatchTile(
-                                        themeId = themeId,
-                                        selected = uiState.effectiveThemeId == themeId,
-                                        onClick = { onSelectTheme(themeId) },
-                                        modifier = Modifier.weight(1f)
-                                    )
-                                }
-                            }
-                        }
-                    }
-                }
-
-                // 2. Animations Toggle
-                SettingsSectionCard(
-                    icon = Icons.Rounded.Animation,
-                    title = "Object Animations",
-                    subtitle = "TV power-on zoom, Shelf opening book spread, Trash Can pop-out & more"
-                ) {
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.SpaceBetween
-                    ) {
-                        Column(modifier = Modifier.weight(1f).padding(end = 12.dp)) {
-                            Text(
-                                text = "Quick Animations",
-                                style = MaterialTheme.typography.titleMedium,
-                                fontWeight = FontWeight.SemiBold
-                            )
-                            Text(
-                                text = if (uiState.config.useQuickAnimations) {
-                                    "Using fast simple spring popups for all objects"
-                                } else {
-                                    "Rich per-object animations enabled (TV, Shelf book, Trash Can)"
-                                },
-                                style = MaterialTheme.typography.bodyMedium,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-                        }
-                        Switch(
-                            checked = uiState.config.useQuickAnimations,
-                            onCheckedChange = onToggleQuickAnimations
-                        )
-                    }
-                }
-
-                // 3. Custom Room Charging Animation (when screen is on)
-                SettingsSectionCard(
-                    icon = Icons.Rounded.Bolt,
-                    title = "Charging Animation",
-                    subtitle = "6 custom plug-in animations while screen is on (~5.5s hold, tap to dismiss)"
-                ) {
-                    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.SpaceBetween
-                        ) {
-                            Column(modifier = Modifier.weight(1f).padding(end = 12.dp)) {
-                                Text(
-                                    text = "Custom Charging Animation",
-                                    style = MaterialTheme.typography.titleMedium,
-                                    fontWeight = FontWeight.SemiBold
-                                )
-                                Text(
-                                    text = if (uiState.config.chargingAnimationEnabled) {
-                                        "Style: ${uiState.config.chargingAnimationStyle.displayName}"
-                                    } else {
-                                        "Disabled"
-                                    },
-                                    style = MaterialTheme.typography.bodyMedium,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                                )
-                            }
-                            Switch(
-                                checked = uiState.config.chargingAnimationEnabled,
-                                onCheckedChange = onToggleChargingAnimation
-                            )
-                        }
-
-                        if (uiState.config.chargingAnimationEnabled) {
-                            Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                                ChargingAnimationStyle.entries.chunked(2).forEach { pair ->
-                                    Row(
-                                        modifier = Modifier.fillMaxWidth(),
-                                        horizontalArrangement = Arrangement.spacedBy(8.dp)
-                                    ) {
-                                        pair.forEach { style ->
-                                            val isSelected = uiState.config.chargingAnimationStyle == style
-                                            Surface(
-                                                shape = RoundedCornerShape(12.dp),
-                                                color = if (isSelected) {
-                                                    MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.6f)
-                                                } else {
-                                                    MaterialTheme.colorScheme.surface
-                                                },
-                                                modifier = Modifier
-                                                    .weight(1f)
-                                                    .border(
-                                                        width = if (isSelected) 2.dp else 1.dp,
-                                                        color = if (isSelected) {
-                                                            MaterialTheme.colorScheme.primary
-                                                        } else {
-                                                            MaterialTheme.colorScheme.outlineVariant
-                                                        },
-                                                        shape = RoundedCornerShape(12.dp)
-                                                    )
-                                                    .clip(RoundedCornerShape(12.dp))
-                                                    .clickable { onSelectChargingAnimationStyle(style) }
-                                            ) {
-                                                Column(
-                                                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 8.dp)
-                                                ) {
-                                                    Text(
-                                                        text = style.displayName,
-                                                        style = MaterialTheme.typography.labelLarge,
-                                                        fontWeight = FontWeight.SemiBold,
-                                                        color = MaterialTheme.colorScheme.onSurface
-                                                    )
-                                                    Text(
-                                                        text = style.description,
-                                                        style = MaterialTheme.typography.labelSmall,
-                                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                                        maxLines = 2
-                                                    )
-                                                }
-                                            }
-                                        }
-                                    }
-                                }
-                            }
-                        }
-
-                        OutlinedButton(
-                            onClick = onPreviewChargingAnimation,
-                            modifier = Modifier.fillMaxWidth()
-                        ) {
-                            Icon(
-                                imageVector = Icons.Rounded.Bolt,
-                                contentDescription = null,
-                                modifier = Modifier.size(18.dp)
-                            )
-                            Spacer(modifier = Modifier.width(6.dp))
-                            Text("Preview Charging Animation")
-                        }
-                    }
-                }
-
-                // 3.5 Music Visualizer & Open-Source Synced Lyrics (LRCLIB)
-                SettingsSectionCard(
-                    icon = Icons.Rounded.GraphicEq,
-                    title = "Music Visualizer & Lyrics",
-                    subtitle = "Live song title, progress bar, animated visualizer, and open-source LRCLIB synced lyrics"
-                ) {
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.SpaceBetween
-                    ) {
-                        Column(modifier = Modifier.weight(1f).padding(end = 12.dp)) {
-                            Text(
-                                text = "Show Now-Playing Bar",
-                                style = MaterialTheme.typography.titleMedium,
-                                fontWeight = FontWeight.SemiBold
-                            )
-                            Text(
-                                text = "Automatically appears when Spotify, YouTube Music, or any media player is active",
-                                style = MaterialTheme.typography.bodyMedium,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-                        }
-                        Switch(
-                            checked = uiState.config.musicVisualizerEnabled,
-                            onCheckedChange = onToggleMusicVisualizerEnabled
-                        )
-                    }
-
-                    if (uiState.config.musicVisualizerEnabled) {
-                        Spacer(modifier = Modifier.height(12.dp))
-
-                        // Notification Access Permission Status
-                        Surface(
-                            shape = RoundedCornerShape(14.dp),
-                            color = if (uiState.hasNotificationAccess) {
-                                MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.42f)
-                            } else {
-                                MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.65f)
-                            },
-                            modifier = Modifier.fillMaxWidth()
-                        ) {
-                            Row(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .padding(horizontal = 12.dp, vertical = 10.dp),
-                                verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.SpaceBetween
-                            ) {
-                                Column(modifier = Modifier.weight(1f).padding(end = 10.dp)) {
-                                    Text(
-                                        text = if (uiState.hasNotificationAccess) {
-                                            "Notification Access Connected ✓"
-                                        } else {
-                                            "Notification Access Needed"
-                                        },
-                                        style = MaterialTheme.typography.titleSmall,
-                                        fontWeight = FontWeight.SemiBold,
-                                        color = MaterialTheme.colorScheme.onSurface
-                                    )
-                                    Text(
-                                        text = if (uiState.hasNotificationAccess) {
-                                            "Room Launcher can read active song title, artist, album art & progress."
-                                        } else {
-                                            "Android requires Notification Access so the launcher can detect playing music."
-                                        },
-                                        style = MaterialTheme.typography.bodySmall,
-                                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                                    )
-                                }
-                                if (!uiState.hasNotificationAccess) {
+                                if (upd.availableUpdate != null) {
                                     Button(
-                                        onClick = onOpenNotificationAccess,
-                                        shape = RoundedCornerShape(12.dp)
+                                        onClick = onShowUpdatePopup,
+                                        shape = RoundedCornerShape(12.dp),
+                                        modifier = Modifier.weight(1f)
                                     ) {
                                         Icon(
-                                            imageVector = Icons.Rounded.NotificationsActive,
+                                            imageVector = Icons.Rounded.SystemUpdate,
                                             contentDescription = null,
-                                            modifier = Modifier.size(16.dp)
+                                            modifier = Modifier.size(18.dp)
                                         )
-                                        Spacer(modifier = Modifier.width(5.dp))
-                                        Text("Enable")
+                                        Spacer(modifier = Modifier.width(6.dp))
+                                        Text("Update v${upd.availableUpdate.versionName}")
+                                    }
+                                }
+                                OutlinedButton(
+                                    onClick = onCheckForUpdates,
+                                    enabled = !upd.isChecking && !upd.isDownloading,
+                                    shape = RoundedCornerShape(12.dp),
+                                    modifier = Modifier.weight(1f)
+                                ) {
+                                    if (upd.isChecking) {
+                                        CircularProgressIndicator(
+                                            modifier = Modifier.size(16.dp),
+                                            strokeWidth = 2.dp
+                                        )
+                                        Spacer(modifier = Modifier.width(8.dp))
+                                        Text("Checking…")
+                                    } else {
+                                        Icon(
+                                            imageVector = Icons.Rounded.Refresh,
+                                            contentDescription = null,
+                                            modifier = Modifier.size(18.dp)
+                                        )
+                                        Spacer(modifier = Modifier.width(6.dp))
+                                        Text("Check Now")
                                     }
                                 }
                             }
+
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.SpaceBetween
+                            ) {
+                                Column(modifier = Modifier.weight(1f).padding(end = 10.dp)) {
+                                    Text(
+                                        text = "Auto-Check on GitHub",
+                                        style = MaterialTheme.typography.titleSmall,
+                                        fontWeight = FontWeight.SemiBold
+                                    )
+                                    if (!upd.installedCertFingerprint.isNullOrBlank()) {
+                                        Text(
+                                            text = "Key: ${upd.installedCertFingerprint} • In-place updates",
+                                            style = MaterialTheme.typography.labelSmall,
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                                        )
+                                    }
+                                }
+                                Switch(
+                                    checked = uiState.config.autoCheckUpdatesEnabled,
+                                    onCheckedChange = onToggleAutoCheckUpdates
+                                )
+                            }
                         }
+                    }
+                }
 
-                        Spacer(modifier = Modifier.height(12.dp))
-
-                        // Visualizer Style Picker
-                        Text(
-                            text = "Visualizer Style",
-                            style = MaterialTheme.typography.titleSmall,
-                            fontWeight = FontWeight.SemiBold,
-                            color = MaterialTheme.colorScheme.onSurface
-                        )
-                        Spacer(modifier = Modifier.height(6.dp))
+                // 1. HOUSE & ROOMS
+                item(key = SettingsSectionKey.ROOMS.name) {
+                    val expanded = expandedSections[SettingsSectionKey.ROOMS] == true
+                    CollapsibleSettingsSectionCard(
+                        icon = Icons.Rounded.MeetingRoom,
+                        title = "House & Rooms",
+                        subtitle = "${uiState.rooms.size} rooms • Active: ${uiState.currentRoom.name}",
+                        expanded = expanded,
+                        onToggle = { expandedSections[SettingsSectionKey.ROOMS] = !expanded }
+                    ) {
                         Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                            VisualizerStyle.entries.forEach { style ->
-                                val selected = uiState.config.musicVisualizerStyle == style
+                            uiState.rooms.forEachIndexed { idx, room ->
+                                val isCurrent = idx == uiState.safeCurrentRoomIndex
                                 Surface(
-                                    shape = RoundedCornerShape(12.dp),
-                                    color = if (selected) {
-                                        MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.55f)
+                                    shape = RoundedCornerShape(14.dp),
+                                    color = if (isCurrent) {
+                                        MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.50f)
                                     } else {
                                         MaterialTheme.colorScheme.surface
                                     },
                                     modifier = Modifier
                                         .fillMaxWidth()
                                         .border(
-                                            width = if (selected) 2.dp else 1.dp,
-                                            color = if (selected) {
+                                            width = if (isCurrent) 2.dp else 1.dp,
+                                            color = if (isCurrent) {
                                                 MaterialTheme.colorScheme.primary
                                             } else {
                                                 MaterialTheme.colorScheme.outlineVariant
                                             },
-                                            shape = RoundedCornerShape(12.dp)
+                                            shape = RoundedCornerShape(14.dp)
                                         )
-                                        .clip(RoundedCornerShape(12.dp))
-                                        .clickable { onSelectVisualizerStyle(style) }
+                                        .clip(RoundedCornerShape(14.dp))
+                                        .clickable {
+                                            onSelectRoomIndex(idx)
+                                            onDismiss()
+                                        }
                                 ) {
                                     Row(
                                         modifier = Modifier
@@ -888,15 +501,127 @@ fun SettingsSheet(
                                         horizontalArrangement = Arrangement.SpaceBetween
                                     ) {
                                         Column(modifier = Modifier.weight(1f)) {
+                                            Row(
+                                                verticalAlignment = Alignment.CenterVertically,
+                                                horizontalArrangement = Arrangement.spacedBy(6.dp)
+                                            ) {
+                                                Text(
+                                                    text = room.name,
+                                                    style = MaterialTheme.typography.titleSmall,
+                                                    fontWeight = FontWeight.SemiBold,
+                                                    color = MaterialTheme.colorScheme.onSurface
+                                                )
+                                                if (isCurrent) {
+                                                    Text(
+                                                        text = "Current",
+                                                        style = MaterialTheme.typography.labelSmall,
+                                                        color = MaterialTheme.colorScheme.primary,
+                                                        fontWeight = FontWeight.Bold
+                                                    )
+                                                }
+                                            }
+                                            Text(
+                                                text = "${room.type.displayName} • ${room.hotspots.size} objects",
+                                                style = MaterialTheme.typography.bodySmall,
+                                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                                            )
+                                        }
+                                        Row(verticalAlignment = Alignment.CenterVertically) {
+                                            IconButton(
+                                                onClick = { renamingRoom = room },
+                                                modifier = Modifier.size(34.dp)
+                                            ) {
+                                                Icon(
+                                                    imageVector = Icons.Rounded.Edit,
+                                                    contentDescription = "Rename ${room.name}",
+                                                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                                    modifier = Modifier.size(18.dp)
+                                                )
+                                            }
+                                            if (uiState.rooms.size > 1) {
+                                                IconButton(
+                                                    onClick = { onDeleteRoom(room.id) },
+                                                    modifier = Modifier.size(34.dp)
+                                                ) {
+                                                    Icon(
+                                                        imageVector = Icons.Rounded.DeleteOutline,
+                                                        contentDescription = "Remove ${room.name}",
+                                                        tint = MaterialTheme.colorScheme.error,
+                                                        modifier = Modifier.size(18.dp)
+                                                    )
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+
+                            OutlinedButton(
+                                onClick = { showAddRoomDialog = true },
+                                shape = RoundedCornerShape(12.dp),
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                Icon(Icons.Rounded.Add, contentDescription = null, modifier = Modifier.size(18.dp))
+                                Spacer(modifier = Modifier.width(6.dp))
+                                Text("Add Room (Living Room, Kitchen, Gaming…)")
+                            }
+                        }
+                    }
+                }
+
+                // 2. ROOM STYLE (Cozy, Teen, Kids, Minecraft, Geometry Dash)
+                item(key = SettingsSectionKey.STYLE.name) {
+                    val expanded = expandedSections[SettingsSectionKey.STYLE] == true
+                    val styleSummary = if (uiState.config.roomStyleId == RoomStyleId.GEOMETRY_DASH) {
+                        "Geometry Dash • ${uiState.config.geometryDashSubTheme.displayName}"
+                    } else {
+                        uiState.config.roomStyleId.displayName
+                    }
+
+                    CollapsibleSettingsSectionCard(
+                        icon = Icons.Rounded.Home,
+                        title = "Room Style",
+                        subtitle = styleSummary,
+                        expanded = expanded,
+                        onToggle = { expandedSections[SettingsSectionKey.STYLE] = !expanded }
+                    ) {
+                        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                            RoomStyleId.entries.forEach { style ->
+                                val selected = uiState.config.roomStyleId == style
+                                Surface(
+                                    shape = RoundedCornerShape(14.dp),
+                                    color = if (selected) {
+                                        MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.5f)
+                                    } else {
+                                        MaterialTheme.colorScheme.surface
+                                    },
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .border(
+                                            width = if (selected) 2.dp else 1.dp,
+                                            color = if (selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outlineVariant,
+                                            shape = RoundedCornerShape(14.dp)
+                                        )
+                                        .clip(RoundedCornerShape(14.dp))
+                                        .clickable { onSelectRoomStyle(style) }
+                                ) {
+                                    Row(
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .padding(horizontal = 12.dp, vertical = 10.dp),
+                                        horizontalArrangement = Arrangement.SpaceBetween,
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        Column(modifier = Modifier.weight(1f)) {
                                             Text(
                                                 text = style.displayName,
-                                                style = MaterialTheme.typography.labelLarge,
+                                                style = MaterialTheme.typography.titleSmall,
                                                 fontWeight = FontWeight.SemiBold,
                                                 color = MaterialTheme.colorScheme.onSurface
                                             )
                                             Text(
                                                 text = style.description,
-                                                style = MaterialTheme.typography.labelSmall,
+                                                style = MaterialTheme.typography.bodySmall,
                                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                                             )
                                         }
@@ -905,437 +630,764 @@ fun SettingsSheet(
                                                 imageVector = Icons.Rounded.Check,
                                                 contentDescription = "Selected style",
                                                 tint = MaterialTheme.colorScheme.primary,
-                                                modifier = Modifier.size(18.dp)
+                                                modifier = Modifier.size(20.dp)
                                             )
                                         }
                                     }
                                 }
                             }
-                        }
 
-                        Spacer(modifier = Modifier.height(12.dp))
-
-                        // Default Expanded View: Visualizer vs Lyrics
-                        Text(
-                            text = "Default Expanded View",
-                            style = MaterialTheme.typography.titleSmall,
-                            fontWeight = FontWeight.SemiBold,
-                            color = MaterialTheme.colorScheme.onSurface
-                        )
-                        Spacer(modifier = Modifier.height(6.dp))
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.spacedBy(8.dp)
-                        ) {
-                            MusicDisplayMode.entries.forEach { mode ->
-                                val selected = uiState.config.musicDefaultMode == mode
-                                Surface(
-                                    shape = RoundedCornerShape(12.dp),
-                                    color = if (selected) {
-                                        MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.6f)
-                                    } else {
-                                        MaterialTheme.colorScheme.surface
-                                    },
-                                    modifier = Modifier
-                                        .weight(1f)
-                                        .border(
-                                            width = if (selected) 2.dp else 1.dp,
-                                            color = if (selected) {
-                                                MaterialTheme.colorScheme.primary
-                                            } else {
-                                                MaterialTheme.colorScheme.outlineVariant
-                                            },
-                                            shape = RoundedCornerShape(12.dp)
-                                        )
-                                        .clip(RoundedCornerShape(12.dp))
-                                        .clickable { onSelectMusicDefaultMode(mode) }
+                            if (uiState.config.roomStyleId == RoomStyleId.TEEN_ROOM) {
+                                Spacer(modifier = Modifier.height(6.dp))
+                                Text(
+                                    text = "Teen Room Wall Posters",
+                                    style = MaterialTheme.typography.titleSmall,
+                                    fontWeight = FontWeight.SemiBold,
+                                    color = MaterialTheme.colorScheme.onSurface
+                                )
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.spacedBy(8.dp)
                                 ) {
-                                    Box(
-                                        contentAlignment = Alignment.Center,
-                                        modifier = Modifier.padding(vertical = 10.dp)
+                                    OutlinedButton(
+                                        onClick = { leftPosterPickerLauncher.launch("image/*") },
+                                        modifier = Modifier.weight(1f)
                                     ) {
+                                        Text(if (uiState.posterLeftBitmap != null) "Change Left" else "Left Poster")
+                                    }
+                                    OutlinedButton(
+                                        onClick = { rightPosterPickerLauncher.launch("image/*") },
+                                        modifier = Modifier.weight(1f)
+                                    ) {
+                                        Text(if (uiState.posterRightBitmap != null) "Change Right" else "Right Poster")
+                                    }
+                                }
+                                if (uiState.posterLeftBitmap != null || uiState.posterRightBitmap != null) {
+                                    Row(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                    ) {
+                                        if (uiState.posterLeftBitmap != null) {
+                                            OutlinedButton(
+                                                onClick = { onClearTeenPoster(true) },
+                                                modifier = Modifier.weight(1f)
+                                            ) {
+                                                Text("Reset Left")
+                                            }
+                                        }
+                                        if (uiState.posterRightBitmap != null) {
+                                            OutlinedButton(
+                                                onClick = { onClearTeenPoster(false) },
+                                                modifier = Modifier.weight(1f)
+                                            ) {
+                                                Text("Reset Right")
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+
+                            if (uiState.config.roomStyleId == RoomStyleId.GEOMETRY_DASH) {
+                                Spacer(modifier = Modifier.height(8.dp))
+                                Text(
+                                    text = "Geometry Dash Sub-Themes",
+                                    style = MaterialTheme.typography.titleSmall,
+                                    fontWeight = FontWeight.Bold,
+                                    color = MaterialTheme.colorScheme.primary
+                                )
+                                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                                    GeometryDashSubTheme.entries.forEach { subTheme ->
+                                        GeometryDashSubThemeCard(
+                                            subTheme = subTheme,
+                                            selected = uiState.config.geometryDashSubTheme == subTheme,
+                                            onClick = { onSelectGeometryDashSubTheme(subTheme) }
+                                        )
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+
+                // 3. COLOR PALETTES & DYNAMIC THEME
+                item(key = SettingsSectionKey.THEME.name) {
+                    val expanded = expandedSections[SettingsSectionKey.THEME] == true
+                    val themeSummary = when {
+                        uiState.config.roomStyleId == RoomStyleId.GEOMETRY_DASH ->
+                            "Geometry Dash neon (${uiState.config.geometryDashSubTheme.displayName})"
+                        uiState.config.dynamicThemeEnabled ->
+                            "Dynamic • Now: ${uiState.effectiveThemeId.displayName}"
+                        else -> uiState.effectiveThemeId.displayName
+                    }
+
+                    CollapsibleSettingsSectionCard(
+                        icon = Icons.Rounded.Palette,
+                        title = "Color Palettes",
+                        subtitle = themeSummary,
+                        expanded = expanded,
+                        onToggle = { expandedSections[SettingsSectionKey.THEME] = !expanded }
+                    ) {
+                        val themes = RoomThemeId.entries
+                        Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                            Surface(
+                                shape = RoundedCornerShape(14.dp),
+                                color = if (uiState.config.dynamicThemeEnabled) {
+                                    MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.5f)
+                                } else {
+                                    MaterialTheme.colorScheme.surface
+                                },
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .border(
+                                        width = if (uiState.config.dynamicThemeEnabled) 1.5.dp else 1.dp,
+                                        color = if (uiState.config.dynamicThemeEnabled) {
+                                            MaterialTheme.colorScheme.primary
+                                        } else {
+                                            MaterialTheme.colorScheme.outlineVariant
+                                        },
+                                        shape = RoundedCornerShape(14.dp)
+                                    )
+                            ) {
+                                Row(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(horizontal = 12.dp, vertical = 10.dp),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.SpaceBetween
+                                ) {
+                                    Column(modifier = Modifier.weight(1f).padding(end = 10.dp)) {
                                         Text(
-                                            text = mode.displayName,
-                                            style = MaterialTheme.typography.labelLarge,
+                                            text = "Dynamic Time-of-Day Theme",
+                                            style = MaterialTheme.typography.titleSmall,
                                             fontWeight = FontWeight.SemiBold,
                                             color = MaterialTheme.colorScheme.onSurface
                                         )
+                                        Text(
+                                            text = "6 AM Warm Linen • 3 PM Midnight Cozy • 9 PM OLED Pitch",
+                                            style = MaterialTheme.typography.bodySmall,
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                                        )
+                                    }
+                                    Switch(
+                                        checked = uiState.config.dynamicThemeEnabled,
+                                        onCheckedChange = onToggleDynamicTheme
+                                    )
+                                }
+                            }
+
+                            themes.chunked(2).forEach { rowItems ->
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.spacedBy(10.dp)
+                                ) {
+                                    rowItems.forEach { themeId ->
+                                        ThemeSwatchTile(
+                                            themeId = themeId,
+                                            selected = uiState.effectiveThemeId == themeId,
+                                            onClick = { onSelectTheme(themeId) },
+                                            modifier = Modifier.weight(1f)
+                                        )
                                     }
                                 }
                             }
                         }
+                    }
+                }
 
-                        Spacer(modifier = Modifier.height(12.dp))
+                // 4. OBJECT & CHARGING ANIMATIONS
+                item(key = SettingsSectionKey.ANIMATIONS.name) {
+                    val expanded = expandedSections[SettingsSectionKey.ANIMATIONS] == true
+                    val animSummary = buildString {
+                        append(if (uiState.config.useQuickAnimations) "Quick Popups" else "Rich Object Animations")
+                        append(" • Charging: ")
+                        append(
+                            if (uiState.config.chargingAnimationEnabled) {
+                                uiState.config.chargingAnimationStyle.displayName
+                            } else {
+                                "Off"
+                            }
+                        )
+                    }
 
-                        // Optional Real-Time Audio-Reactive FFT Capture
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.SpaceBetween
-                        ) {
-                            Column(modifier = Modifier.weight(1f).padding(end = 12.dp)) {
+                    CollapsibleSettingsSectionCard(
+                        icon = Icons.Rounded.Animation,
+                        title = "Animations & Charging",
+                        subtitle = animSummary,
+                        expanded = expanded,
+                        onToggle = { expandedSections[SettingsSectionKey.ANIMATIONS] = !expanded }
+                    ) {
+                        Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.SpaceBetween
+                            ) {
+                                Column(modifier = Modifier.weight(1f).padding(end = 12.dp)) {
+                                    Text(
+                                        text = "Quick Animations",
+                                        style = MaterialTheme.typography.titleSmall,
+                                        fontWeight = FontWeight.SemiBold
+                                    )
+                                    Text(
+                                        text = if (uiState.config.useQuickAnimations) {
+                                            "Simple fast popups for all objects"
+                                        } else {
+                                            "Rich TV zoom, Shelf book-open & Trash Can pop-out"
+                                        },
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
+                                }
+                                Switch(
+                                    checked = uiState.config.useQuickAnimations,
+                                    onCheckedChange = onToggleQuickAnimations
+                                )
+                            }
+
+                            HorizontalDivider()
+
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.SpaceBetween
+                            ) {
+                                Column(modifier = Modifier.weight(1f).padding(end = 12.dp)) {
+                                    Text(
+                                        text = "Custom Charging Animation",
+                                        style = MaterialTheme.typography.titleSmall,
+                                        fontWeight = FontWeight.SemiBold
+                                    )
+                                    Text(
+                                        text = "Plays on plug-in while screen is on (~5.5s, tap to dismiss)",
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
+                                }
+                                Switch(
+                                    checked = uiState.config.chargingAnimationEnabled,
+                                    onCheckedChange = onToggleChargingAnimation
+                                )
+                            }
+
+                            if (uiState.config.chargingAnimationEnabled) {
+                                Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                                    ChargingAnimationStyle.entries.chunked(2).forEach { pair ->
+                                        Row(
+                                            modifier = Modifier.fillMaxWidth(),
+                                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                        ) {
+                                            pair.forEach { style ->
+                                                val isSelected = uiState.config.chargingAnimationStyle == style
+                                                Surface(
+                                                    shape = RoundedCornerShape(12.dp),
+                                                    color = if (isSelected) {
+                                                        MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.6f)
+                                                    } else {
+                                                        MaterialTheme.colorScheme.surface
+                                                    },
+                                                    modifier = Modifier
+                                                        .weight(1f)
+                                                        .border(
+                                                            width = if (isSelected) 2.dp else 1.dp,
+                                                            color = if (isSelected) {
+                                                                MaterialTheme.colorScheme.primary
+                                                            } else {
+                                                                MaterialTheme.colorScheme.outlineVariant
+                                                            },
+                                                            shape = RoundedCornerShape(12.dp)
+                                                        )
+                                                        .clip(RoundedCornerShape(12.dp))
+                                                        .clickable { onSelectChargingAnimationStyle(style) }
+                                                ) {
+                                                    Column(
+                                                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 8.dp)
+                                                    ) {
+                                                        Text(
+                                                            text = style.displayName,
+                                                            style = MaterialTheme.typography.labelLarge,
+                                                            fontWeight = FontWeight.SemiBold,
+                                                            color = MaterialTheme.colorScheme.onSurface
+                                                        )
+                                                        Text(
+                                                            text = style.description,
+                                                            style = MaterialTheme.typography.labelSmall,
+                                                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                                            maxLines = 2
+                                                        )
+                                                    }
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+
+                            OutlinedButton(
+                                onClick = onPreviewChargingAnimation,
+                                shape = RoundedCornerShape(12.dp),
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                Icon(Icons.Rounded.Bolt, contentDescription = null, modifier = Modifier.size(18.dp))
+                                Spacer(modifier = Modifier.width(6.dp))
+                                Text("Preview Charging Animation")
+                            }
+                        }
+                    }
+                }
+
+                // 5. MUSIC VISUALIZER & SYNCED LYRICS (Privacy-first: no microphone permission!)
+                item(key = SettingsSectionKey.MUSIC.name) {
+                    val expanded = expandedSections[SettingsSectionKey.MUSIC] == true
+                    val musicSummary = if (uiState.config.musicVisualizerEnabled) {
+                        "${uiState.config.musicVisualizerStyle.displayName} • LRCLIB Synced Lyrics"
+                    } else {
+                        "Disabled"
+                    }
+
+                    CollapsibleSettingsSectionCard(
+                        icon = Icons.Rounded.GraphicEq,
+                        title = "Music Visualizer & Lyrics",
+                        subtitle = musicSummary,
+                        expanded = expanded,
+                        onToggle = { expandedSections[SettingsSectionKey.MUSIC] = !expanded }
+                    ) {
+                        Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.SpaceBetween
+                            ) {
+                                Column(modifier = Modifier.weight(1f).padding(end = 12.dp)) {
+                                    Text(
+                                        text = "Show Now-Playing Bar",
+                                        style = MaterialTheme.typography.titleSmall,
+                                        fontWeight = FontWeight.SemiBold
+                                    )
+                                    Text(
+                                        text = "Appears automatically when Spotify, YouTube Music, or any player is active",
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
+                                }
+                                Switch(
+                                    checked = uiState.config.musicVisualizerEnabled,
+                                    onCheckedChange = onToggleMusicVisualizerEnabled
+                                )
+                            }
+
+                            if (uiState.config.musicVisualizerEnabled) {
+                                Surface(
+                                    shape = RoundedCornerShape(14.dp),
+                                    color = if (uiState.hasNotificationAccess) {
+                                        MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.42f)
+                                    } else {
+                                        MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.65f)
+                                    },
+                                    modifier = Modifier.fillMaxWidth()
+                                ) {
+                                    Row(
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .padding(horizontal = 12.dp, vertical = 10.dp),
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        horizontalArrangement = Arrangement.SpaceBetween
+                                    ) {
+                                        Column(modifier = Modifier.weight(1f).padding(end = 10.dp)) {
+                                            Text(
+                                                text = if (uiState.hasNotificationAccess) {
+                                                    "Notification Access Connected ✓"
+                                                } else {
+                                                    "Notification Access Needed"
+                                                },
+                                                style = MaterialTheme.typography.titleSmall,
+                                                fontWeight = FontWeight.SemiBold
+                                            )
+                                            Text(
+                                                text = if (uiState.hasNotificationAccess) {
+                                                    "Reads active track title, album art & progress (no microphone used)."
+                                                } else {
+                                                    "Required by Android so the launcher can detect playing music."
+                                                },
+                                                style = MaterialTheme.typography.bodySmall,
+                                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                                            )
+                                        }
+                                        if (!uiState.hasNotificationAccess) {
+                                            Button(
+                                                onClick = onOpenNotificationAccess,
+                                                shape = RoundedCornerShape(12.dp)
+                                            ) {
+                                                Icon(
+                                                    imageVector = Icons.Rounded.NotificationsActive,
+                                                    contentDescription = null,
+                                                    modifier = Modifier.size(16.dp)
+                                                )
+                                                Spacer(modifier = Modifier.width(5.dp))
+                                                Text("Enable")
+                                            }
+                                        }
+                                    }
+                                }
+
                                 Text(
-                                    text = "Real-Time Audio Reactive",
+                                    text = "Visualizer Style",
                                     style = MaterialTheme.typography.titleSmall,
                                     fontWeight = FontWeight.SemiBold
                                 )
-                                Text(
-                                    text = "Optional: taps live audio FFT (requires Android audio permission; automatically falls back to smooth ambient waves on Bluetooth/DRM streams)",
-                                    style = MaterialTheme.typography.bodySmall,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                                )
-                            }
-                            Switch(
-                                checked = uiState.config.audioReactiveVisualizerEnabled && uiState.hasAudioPermission,
-                                onCheckedChange = { wantEnabled ->
-                                    if (wantEnabled && !uiState.hasAudioPermission) {
-                                        audioPermissionLauncher.launch(Manifest.permission.RECORD_AUDIO)
-                                    } else {
-                                        onToggleAudioReactiveVisualizer(wantEnabled)
+                                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                                    VisualizerStyle.entries.forEach { style ->
+                                        val selected = uiState.config.musicVisualizerStyle == style
+                                        Surface(
+                                            shape = RoundedCornerShape(12.dp),
+                                            color = if (selected) {
+                                                MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.55f)
+                                            } else {
+                                                MaterialTheme.colorScheme.surface
+                                            },
+                                            modifier = Modifier
+                                                .fillMaxWidth()
+                                                .border(
+                                                    width = if (selected) 2.dp else 1.dp,
+                                                    color = if (selected) {
+                                                        MaterialTheme.colorScheme.primary
+                                                    } else {
+                                                        MaterialTheme.colorScheme.outlineVariant
+                                                    },
+                                                    shape = RoundedCornerShape(12.dp)
+                                                )
+                                                .clip(RoundedCornerShape(12.dp))
+                                                .clickable { onSelectVisualizerStyle(style) }
+                                        ) {
+                                            Row(
+                                                modifier = Modifier
+                                                    .fillMaxWidth()
+                                                    .padding(horizontal = 12.dp, vertical = 9.dp),
+                                                verticalAlignment = Alignment.CenterVertically,
+                                                horizontalArrangement = Arrangement.SpaceBetween
+                                            ) {
+                                                Column(modifier = Modifier.weight(1f)) {
+                                                    Text(
+                                                        text = style.displayName,
+                                                        style = MaterialTheme.typography.labelLarge,
+                                                        fontWeight = FontWeight.SemiBold
+                                                    )
+                                                    Text(
+                                                        text = style.description,
+                                                        style = MaterialTheme.typography.labelSmall,
+                                                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                                                    )
+                                                }
+                                                if (selected) {
+                                                    Icon(
+                                                        imageVector = Icons.Rounded.Check,
+                                                        contentDescription = "Selected style",
+                                                        tint = MaterialTheme.colorScheme.primary,
+                                                        modifier = Modifier.size(18.dp)
+                                                    )
+                                                }
+                                            }
+                                        }
                                     }
                                 }
-                            )
-                        }
 
-                        Spacer(modifier = Modifier.height(12.dp))
-
-                        OutlinedButton(
-                            onClick = onPreviewMusicVisualizer,
-                            shape = RoundedCornerShape(12.dp),
-                            modifier = Modifier.fillMaxWidth()
-                        ) {
-                            Icon(
-                                imageVector = Icons.Rounded.MusicNote,
-                                contentDescription = null,
-                                modifier = Modifier.size(18.dp)
-                            )
-                            Spacer(modifier = Modifier.width(6.dp))
-                            Text("Preview Visualizer & Synced Lyrics")
-                        }
-                    }
-                }
-
-                // 4. Live Weather in Window
-                SettingsSectionCard(
-                    icon = Icons.Rounded.Cloud,
-                    title = "Window Live Weather",
-                    subtitle = "Shows current weather sky & temperature through your room window"
-                ) {
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.SpaceBetween
-                    ) {
-                        Column(modifier = Modifier.weight(1f).padding(end = 12.dp)) {
-                            Text(
-                                text = "Live Weather Sky",
-                                style = MaterialTheme.typography.titleMedium,
-                                fontWeight = FontWeight.SemiBold
-                            )
-                            val weatherSummary = when {
-                                !uiState.config.weatherEnabled -> "Disabled (static clear window)"
-                                !uiState.weatherState.hasLocationPermission -> "Grant coarse location to fetch local weather"
-                                uiState.weatherState.temperatureC != null ->
-                                    "${uiState.weatherState.temperatureC}°C • ${uiState.weatherState.description}"
-                                else -> uiState.weatherState.description
-                            }
-                            Text(
-                                text = weatherSummary,
-                                style = MaterialTheme.typography.bodyMedium,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-                        }
-                        Switch(
-                            checked = uiState.config.weatherEnabled,
-                            onCheckedChange = onToggleWeather
-                        )
-                    }
-
-                    if (uiState.config.weatherEnabled) {
-                        Spacer(modifier = Modifier.height(10.dp))
-                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                            if (!uiState.weatherState.hasLocationPermission) {
-                                Button(
-                                    onClick = {
-                                        locationPermissionLauncher.launch(Manifest.permission.ACCESS_COARSE_LOCATION)
-                                    },
-                                    shape = RoundedCornerShape(12.dp)
+                                Text(
+                                    text = "Default Expanded View",
+                                    style = MaterialTheme.typography.titleSmall,
+                                    fontWeight = FontWeight.SemiBold
+                                )
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.spacedBy(8.dp)
                                 ) {
-                                    Icon(Icons.Rounded.LocationOn, contentDescription = null, modifier = Modifier.size(18.dp))
-                                    Spacer(modifier = Modifier.width(6.dp))
-                                    Text("Enable Location")
+                                    MusicDisplayMode.entries.forEach { mode ->
+                                        val selected = uiState.config.musicDefaultMode == mode
+                                        Surface(
+                                            shape = RoundedCornerShape(12.dp),
+                                            color = if (selected) {
+                                                MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.6f)
+                                            } else {
+                                                MaterialTheme.colorScheme.surface
+                                            },
+                                            modifier = Modifier
+                                                .weight(1f)
+                                                .border(
+                                                    width = if (selected) 2.dp else 1.dp,
+                                                    color = if (selected) {
+                                                        MaterialTheme.colorScheme.primary
+                                                    } else {
+                                                        MaterialTheme.colorScheme.outlineVariant
+                                                    },
+                                                    shape = RoundedCornerShape(12.dp)
+                                                )
+                                                .clip(RoundedCornerShape(12.dp))
+                                                .clickable { onSelectMusicDefaultMode(mode) }
+                                        ) {
+                                            Box(
+                                                contentAlignment = Alignment.Center,
+                                                modifier = Modifier.padding(vertical = 10.dp)
+                                            ) {
+                                                Text(
+                                                    text = mode.displayName,
+                                                    style = MaterialTheme.typography.labelLarge,
+                                                    fontWeight = FontWeight.SemiBold
+                                                )
+                                            }
+                                        }
+                                    }
                                 }
-                            } else {
+
                                 OutlinedButton(
-                                    onClick = onRefreshWeather,
-                                    shape = RoundedCornerShape(12.dp)
+                                    onClick = onPreviewMusicVisualizer,
+                                    shape = RoundedCornerShape(12.dp),
+                                    modifier = Modifier.fillMaxWidth()
                                 ) {
-                                    Icon(Icons.Rounded.Refresh, contentDescription = null, modifier = Modifier.size(18.dp))
+                                    Icon(Icons.Rounded.MusicNote, contentDescription = null, modifier = Modifier.size(18.dp))
                                     Spacer(modifier = Modifier.width(6.dp))
-                                    Text("Refresh Weather")
+                                    Text("Preview Visualizer & Synced Lyrics")
                                 }
                             }
                         }
                     }
                 }
 
-                // 4. Mirror Room Layout to Home Screen Wallpaper (Not Lockscreen)
-                SettingsSectionCard(
-                    icon = Icons.Rounded.Wallpaper,
-                    title = "Home Screen Wallpaper Mirror",
-                    subtitle = "Mirrors your room layout & theme onto Android's Home screen wallpaper only (Lock screen stays untouched)"
-                ) {
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.SpaceBetween
-                    ) {
-                        Column(modifier = Modifier.weight(1f).padding(end = 12.dp)) {
-                            Text(
-                                text = "Auto-Mirror After Edits",
-                                style = MaterialTheme.typography.titleMedium,
-                                fontWeight = FontWeight.SemiBold
-                            )
-                            Text(
-                                text = "Updates Home wallpaper automatically when you change themes or move objects",
-                                style = MaterialTheme.typography.bodyMedium,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-                        }
-                        Switch(
-                            checked = uiState.config.mirrorHomeWallpaper,
-                            onCheckedChange = onToggleMirrorWallpaper
-                        )
-                    }
-                    Spacer(modifier = Modifier.height(10.dp))
-                    Button(
-                        onClick = onSyncWallpaperNow,
-                        enabled = !uiState.isSyncingWallpaper,
-                        shape = RoundedCornerShape(12.dp),
-                        modifier = Modifier.fillMaxWidth()
-                    ) {
-                        if (uiState.isSyncingWallpaper) {
-                            CircularProgressIndicator(
-                                modifier = Modifier.size(18.dp),
-                                strokeWidth = 2.dp,
-                                color = MaterialTheme.colorScheme.onPrimary
-                            )
-                            Spacer(modifier = Modifier.width(8.dp))
-                            Text("Syncing Home Wallpaper…")
-                        } else {
-                            Icon(Icons.Rounded.Wallpaper, contentDescription = null, modifier = Modifier.size(18.dp))
-                            Spacer(modifier = Modifier.width(8.dp))
-                            Text("Mirror Room to Home Wallpaper Now")
-                        }
-                    }
-                }
-
-                // 5. Picture Frame Photo (with transparent note about Android 13+ lockscreen restriction)
-                SettingsSectionCard(
-                    icon = Icons.Rounded.Image,
-                    title = "Picture Frame Photo",
-                    subtitle = "Display any photo (such as your lockscreen wallpaper image) inside the wall frame"
-                ) {
-                    Text(
-                        text = "Note: Android 13+ blocks third-party launchers from reading the system lockscreen wallpaper directly for privacy, so you can pick the image here to display inside the frame.",
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                    Spacer(modifier = Modifier.height(10.dp))
-                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        Button(
-                            onClick = { photoPickerLauncher.launch("image/*") },
-                            shape = RoundedCornerShape(12.dp)
-                        ) {
-                            Icon(Icons.Rounded.Image, contentDescription = null, modifier = Modifier.size(18.dp))
-                            Spacer(modifier = Modifier.width(6.dp))
-                            Text(if (uiState.frameImageBitmap != null) "Change Photo" else "Choose Photo")
-                        }
-                        if (uiState.frameImageBitmap != null) {
-                            OutlinedButton(
-                                onClick = onClearFramePhoto,
-                                shape = RoundedCornerShape(12.dp)
-                            ) {
-                                Icon(Icons.Rounded.DeleteOutline, contentDescription = null, modifier = Modifier.size(18.dp))
-                                Spacer(modifier = Modifier.width(6.dp))
-                                Text("Reset Art")
+                // 6. WEATHER, WALLPAPER MIRROR & PICTURE FRAME
+                item(key = SettingsSectionKey.WEATHER.name) {
+                    val expanded = expandedSections[SettingsSectionKey.WEATHER] == true
+                    val weatherSummary = buildString {
+                        append(
+                            when {
+                                !uiState.config.weatherEnabled -> "Weather Off"
+                                uiState.weatherState.temperatureC != null -> "${uiState.weatherState.temperatureC}°C"
+                                else -> "Weather On"
                             }
-                        }
+                        )
+                        append(" • Wallpaper Mirror: ")
+                        append(if (uiState.config.mirrorHomeWallpaper) "Auto" else "Manual")
                     }
-                }
 
-                // 6. Auto-Updates (GitHub: Cooreo/LauncherAPP)
-                val upd = uiState.updateState
-                SettingsSectionCard(
-                    icon = Icons.Rounded.SystemUpdate,
-                    title = "App Updates",
-                    subtitle = "Checks GitHub (Cooreo/LauncherAPP) for newer Room Launcher releases"
-                ) {
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.SpaceBetween
+                    CollapsibleSettingsSectionCard(
+                        icon = Icons.Rounded.Cloud,
+                        title = "Weather, Wallpaper & Frame",
+                        subtitle = weatherSummary,
+                        expanded = expanded,
+                        onToggle = { expandedSections[SettingsSectionKey.WEATHER] = !expanded }
                     ) {
-                        Column(modifier = Modifier.weight(1f).padding(end = 12.dp)) {
-                            Text(
-                                text = "Auto-Check for Updates",
-                                style = MaterialTheme.typography.titleMedium,
-                                fontWeight = FontWeight.SemiBold
-                            )
-                            val statusText = when {
-                                upd.isDownloading -> {
-                                    if (upd.downloadProgress >= 0f) {
-                                        "Downloading update… ${(upd.downloadProgress * 100).toInt()}%"
-                                    } else {
-                                        "Downloading update…"
+                        Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                            // Weather
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.SpaceBetween
+                            ) {
+                                Column(modifier = Modifier.weight(1f).padding(end = 12.dp)) {
+                                    Text(
+                                        text = "Window Live Weather",
+                                        style = MaterialTheme.typography.titleSmall,
+                                        fontWeight = FontWeight.SemiBold
+                                    )
+                                    val detail = when {
+                                        !uiState.config.weatherEnabled -> "Static clear window"
+                                        !uiState.weatherState.hasLocationPermission -> "Grant coarse location for local weather"
+                                        uiState.weatherState.temperatureC != null ->
+                                            "${uiState.weatherState.temperatureC}°C • ${uiState.weatherState.description}"
+                                        else -> uiState.weatherState.description
+                                    }
+                                    Text(
+                                        text = detail,
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
+                                }
+                                Switch(
+                                    checked = uiState.config.weatherEnabled,
+                                    onCheckedChange = onToggleWeather
+                                )
+                            }
+
+                            if (uiState.config.weatherEnabled) {
+                                if (!uiState.weatherState.hasLocationPermission) {
+                                    Button(
+                                        onClick = {
+                                            locationPermissionLauncher.launch(Manifest.permission.ACCESS_COARSE_LOCATION)
+                                        },
+                                        shape = RoundedCornerShape(12.dp)
+                                    ) {
+                                        Icon(Icons.Rounded.LocationOn, contentDescription = null, modifier = Modifier.size(18.dp))
+                                        Spacer(modifier = Modifier.width(6.dp))
+                                        Text("Enable Location")
+                                    }
+                                } else {
+                                    OutlinedButton(
+                                        onClick = onRefreshWeather,
+                                        shape = RoundedCornerShape(12.dp)
+                                    ) {
+                                        Icon(Icons.Rounded.Refresh, contentDescription = null, modifier = Modifier.size(18.dp))
+                                        Spacer(modifier = Modifier.width(6.dp))
+                                        Text("Refresh Weather")
                                     }
                                 }
-                                upd.isChecking -> "Checking GitHub for new releases…"
-                                upd.availableUpdate != null ->
-                                    "Update available: v${upd.availableUpdate.versionName} (installed v${upd.currentVersion})"
-                                upd.errorMessage != null -> upd.errorMessage
-                                upd.isUpToDate -> "You're up to date (v${upd.currentVersion})"
-                                else -> "Installed version: v${upd.currentVersion}"
                             }
-                            Text(
-                                text = statusText,
-                                style = MaterialTheme.typography.bodyMedium,
-                                color = if (upd.availableUpdate != null) {
-                                    MaterialTheme.colorScheme.primary
-                                } else {
-                                    MaterialTheme.colorScheme.onSurfaceVariant
+
+                            HorizontalDivider()
+
+                            // Home Wallpaper Mirror
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.SpaceBetween
+                            ) {
+                                Column(modifier = Modifier.weight(1f).padding(end = 12.dp)) {
+                                    Text(
+                                        text = "Home Wallpaper Auto-Mirror",
+                                        style = MaterialTheme.typography.titleSmall,
+                                        fontWeight = FontWeight.SemiBold
+                                    )
+                                    Text(
+                                        text = "Syncs Home screen wallpaper only (Lock screen stays untouched)",
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
                                 }
-                            )
-                            if (!upd.installedCertFingerprint.isNullOrBlank()) {
-                                Text(
-                                    text = "Signing key: ${upd.installedCertFingerprint} (in-place upgrades enabled)",
-                                    style = MaterialTheme.typography.labelSmall,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                Switch(
+                                    checked = uiState.config.mirrorHomeWallpaper,
+                                    onCheckedChange = onToggleMirrorWallpaper
                                 )
                             }
-                        }
-                        Switch(
-                            checked = uiState.config.autoCheckUpdatesEnabled,
-                            onCheckedChange = onToggleAutoCheckUpdates
-                        )
-                    }
 
-                    Spacer(modifier = Modifier.height(10.dp))
-
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(8.dp)
-                    ) {
-                        OutlinedButton(
-                            onClick = onCheckForUpdates,
-                            enabled = !upd.isChecking && !upd.isDownloading,
-                            shape = RoundedCornerShape(12.dp),
-                            modifier = Modifier.weight(1f)
-                        ) {
-                            if (upd.isChecking) {
-                                CircularProgressIndicator(
-                                    modifier = Modifier.size(16.dp),
-                                    strokeWidth = 2.dp
-                                )
-                                Spacer(modifier = Modifier.width(8.dp))
-                                Text("Checking…")
-                            } else {
-                                Icon(
-                                    imageVector = Icons.Rounded.Refresh,
-                                    contentDescription = null,
-                                    modifier = Modifier.size(18.dp)
-                                )
-                                Spacer(modifier = Modifier.width(6.dp))
-                                Text("Check for Updates")
-                            }
-                        }
-
-                        if (upd.availableUpdate != null) {
                             Button(
-                                onClick = onShowUpdatePopup,
-                                shape = RoundedCornerShape(12.dp)
+                                onClick = onSyncWallpaperNow,
+                                enabled = !uiState.isSyncingWallpaper,
+                                shape = RoundedCornerShape(12.dp),
+                                modifier = Modifier.fillMaxWidth()
                             ) {
-                                Icon(
-                                    imageVector = Icons.Rounded.SystemUpdate,
-                                    contentDescription = null,
-                                    modifier = Modifier.size(18.dp)
-                                )
-                                Spacer(modifier = Modifier.width(6.dp))
-                                Text("Update v${upd.availableUpdate.versionName}")
+                                if (uiState.isSyncingWallpaper) {
+                                    CircularProgressIndicator(
+                                        modifier = Modifier.size(18.dp),
+                                        strokeWidth = 2.dp,
+                                        color = MaterialTheme.colorScheme.onPrimary
+                                    )
+                                    Spacer(modifier = Modifier.width(8.dp))
+                                    Text("Syncing Home Wallpaper…")
+                                } else {
+                                    Icon(Icons.Rounded.Wallpaper, contentDescription = null, modifier = Modifier.size(18.dp))
+                                    Spacer(modifier = Modifier.width(8.dp))
+                                    Text("Mirror Room to Home Wallpaper Now")
+                                }
+                            }
+
+                            HorizontalDivider()
+
+                            // Picture Frame Photo
+                            Text(
+                                text = "Picture Frame Photo",
+                                style = MaterialTheme.typography.titleSmall,
+                                fontWeight = FontWeight.SemiBold
+                            )
+                            Text(
+                                text = "Pick any photo to display inside your wall Picture Frame.",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                Button(
+                                    onClick = { photoPickerLauncher.launch("image/*") },
+                                    shape = RoundedCornerShape(12.dp)
+                                ) {
+                                    Icon(Icons.Rounded.Image, contentDescription = null, modifier = Modifier.size(18.dp))
+                                    Spacer(modifier = Modifier.width(6.dp))
+                                    Text(if (uiState.frameImageBitmap != null) "Change Photo" else "Choose Photo")
+                                }
+                                if (uiState.frameImageBitmap != null) {
+                                    OutlinedButton(
+                                        onClick = onClearFramePhoto,
+                                        shape = RoundedCornerShape(12.dp)
+                                    ) {
+                                        Icon(Icons.Rounded.DeleteOutline, contentDescription = null, modifier = Modifier.size(18.dp))
+                                        Spacer(modifier = Modifier.width(6.dp))
+                                        Text("Reset Art")
+                                    }
+                                }
                             }
                         }
                     }
                 }
 
-                // 7. Room & Launcher Controls
-                SettingsSectionCard(
-                    icon = Icons.Rounded.Tune,
-                    title = "Room & Setup",
-                    subtitle = "Customize furniture positions or revisit permissions"
-                ) {
-                    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                        OutlinedButton(
-                            onClick = {
-                                onDismiss()
-                                onEnterEditMode()
-                            },
-                            shape = RoundedCornerShape(12.dp),
-                            modifier = Modifier.fillMaxWidth()
-                        ) {
-                            Icon(Icons.Rounded.Edit, contentDescription = null, modifier = Modifier.size(18.dp))
-                            Spacer(modifier = Modifier.width(8.dp))
-                            Text("Rearrange Room Objects (Edit Mode)")
-                        }
-                        OutlinedButton(
-                            onClick = onReopenOnboarding,
-                            shape = RoundedCornerShape(12.dp),
-                            modifier = Modifier.fillMaxWidth()
-                        ) {
-                            Icon(Icons.Rounded.Tune, contentDescription = null, modifier = Modifier.size(18.dp))
-                            Spacer(modifier = Modifier.width(8.dp))
-                            Text("Open Setup & Permissions Guide")
-                        }
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.spacedBy(8.dp)
-                        ) {
+                // 7. BACKUP, CHANGELOG & SETUP
+                item(key = SettingsSectionKey.BACKUP.name) {
+                    val expanded = expandedSections[SettingsSectionKey.BACKUP] == true
+                    CollapsibleSettingsSectionCard(
+                        icon = Icons.Rounded.Tune,
+                        title = "Backup, Edit & Setup",
+                        subtitle = "Edit Mode, Export/Restore Backup, Changelog & Reset",
+                        expanded = expanded,
+                        onToggle = { expandedSections[SettingsSectionKey.BACKUP] = !expanded }
+                    ) {
+                        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                             OutlinedButton(
-                                onClick = { exportBackupLauncher.launch("roomlauncher-backup.json") },
+                                onClick = {
+                                    onDismiss()
+                                    onEnterEditMode()
+                                },
                                 shape = RoundedCornerShape(12.dp),
-                                modifier = Modifier.weight(1f)
+                                modifier = Modifier.fillMaxWidth()
                             ) {
-                                Text("Export Backup")
+                                Icon(Icons.Rounded.Edit, contentDescription = null, modifier = Modifier.size(18.dp))
+                                Spacer(modifier = Modifier.width(8.dp))
+                                Text("Rearrange Room Objects (Edit Mode)")
                             }
                             OutlinedButton(
-                                onClick = { importBackupLauncher.launch(arrayOf("application/json", "*/*")) },
+                                onClick = onReopenOnboarding,
                                 shape = RoundedCornerShape(12.dp),
-                                modifier = Modifier.weight(1f)
+                                modifier = Modifier.fillMaxWidth()
                             ) {
-                                Text("Restore Backup")
+                                Icon(Icons.Rounded.Tune, contentDescription = null, modifier = Modifier.size(18.dp))
+                                Spacer(modifier = Modifier.width(8.dp))
+                                Text("Open Setup & Permissions Guide")
                             }
-                        }
-                        OutlinedButton(
-                            onClick = onOpenChangelog,
-                            shape = RoundedCornerShape(12.dp),
-                            modifier = Modifier.fillMaxWidth()
-                        ) {
-                            Icon(Icons.Rounded.AutoAwesome, contentDescription = null, modifier = Modifier.size(18.dp))
-                            Spacer(modifier = Modifier.width(8.dp))
-                            Text("View Changelog (What's New in v${uiState.updateState.currentVersion})")
-                        }
-                        OutlinedButton(
-                            onClick = onResetRoom,
-                            shape = RoundedCornerShape(12.dp),
-                            modifier = Modifier.fillMaxWidth()
-                        ) {
-                            Icon(Icons.Rounded.RestartAlt, contentDescription = null, modifier = Modifier.size(18.dp))
-                            Spacer(modifier = Modifier.width(8.dp))
-                            Text("Reset Default Room Layout")
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                            ) {
+                                OutlinedButton(
+                                    onClick = { exportBackupLauncher.launch("roomlauncher-backup.json") },
+                                    shape = RoundedCornerShape(12.dp),
+                                    modifier = Modifier.weight(1f)
+                                ) {
+                                    Text("Export Backup")
+                                }
+                                OutlinedButton(
+                                    onClick = { importBackupLauncher.launch(arrayOf("application/json", "*/*")) },
+                                    shape = RoundedCornerShape(12.dp),
+                                    modifier = Modifier.weight(1f)
+                                ) {
+                                    Text("Restore Backup")
+                                }
+                            }
+                            OutlinedButton(
+                                onClick = onOpenChangelog,
+                                shape = RoundedCornerShape(12.dp),
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                Icon(Icons.Rounded.AutoAwesome, contentDescription = null, modifier = Modifier.size(18.dp))
+                                Spacer(modifier = Modifier.width(8.dp))
+                                Text("View Changelog (v${uiState.updateState.currentVersion})")
+                            }
+                            OutlinedButton(
+                                onClick = onResetRoom,
+                                shape = RoundedCornerShape(12.dp),
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                Icon(Icons.Rounded.RestartAlt, contentDescription = null, modifier = Modifier.size(18.dp))
+                                Spacer(modifier = Modifier.width(8.dp))
+                                Text("Reset Default House Layout")
+                            }
                         }
                     }
                 }
 
-                Spacer(modifier = Modifier.height(16.dp))
+                item(key = "bottom_spacer") {
+                    Spacer(modifier = Modifier.height(16.dp))
+                }
             }
         }
     }
@@ -1521,7 +1573,7 @@ fun SettingsSheet(
                             shape = RoundedCornerShape(10.dp),
                             modifier = Modifier.fillMaxWidth()
                         ) {
-                            Text("3. Uninstall Old Build, Then Open Downloads")
+                            Text("3. Open App Info to Uninstall Old Build")
                         }
                     } else {
                         if (availableUpdate.releaseNotes.isNotBlank()) {
@@ -1627,18 +1679,33 @@ private fun SettingsSectionCard(
     icon: ImageVector,
     title: String,
     subtitle: String,
+    highlighted: Boolean = false,
     content: @Composable () -> Unit
 ) {
     Card(
         shape = RoundedCornerShape(22.dp),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-        modifier = Modifier.fillMaxWidth()
+        colors = CardDefaults.cardColors(
+            containerColor = if (highlighted) {
+                MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.42f)
+            } else {
+                MaterialTheme.colorScheme.surface
+            }
+        ),
+        modifier = Modifier
+            .fillMaxWidth()
+            .then(
+                if (highlighted) {
+                    Modifier.border(
+                        1.5.dp,
+                        MaterialTheme.colorScheme.primary.copy(alpha = 0.65f),
+                        RoundedCornerShape(22.dp)
+                    )
+                } else {
+                    Modifier
+                }
+            )
     ) {
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(16.dp)
-        ) {
+        Column(modifier = Modifier.padding(16.dp)) {
             Row(
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(10.dp)
@@ -1657,21 +1724,91 @@ private fun SettingsSectionCard(
                         modifier = Modifier.size(20.dp)
                     )
                 }
-                Column {
+                Column(modifier = Modifier.weight(1f)) {
                     Text(
                         text = title,
-                        style = MaterialTheme.typography.titleLarge,
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.Bold,
                         color = MaterialTheme.colorScheme.onSurface
                     )
                     Text(
                         text = subtitle,
-                        style = MaterialTheme.typography.bodyMedium,
+                        style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 }
             }
-            Spacer(modifier = Modifier.height(14.dp))
+            Spacer(modifier = Modifier.height(12.dp))
             content()
+        }
+    }
+}
+
+@Composable
+private fun CollapsibleSettingsSectionCard(
+    icon: ImageVector,
+    title: String,
+    subtitle: String,
+    expanded: Boolean,
+    onToggle: () -> Unit,
+    content: @Composable () -> Unit
+) {
+    Card(
+        shape = RoundedCornerShape(22.dp),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+        modifier = Modifier.fillMaxWidth()
+    ) {
+        Column(modifier = Modifier.fillMaxWidth()) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clickable(onClick = onToggle)
+                    .padding(horizontal = 16.dp, vertical = 14.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(10.dp)
+            ) {
+                Box(
+                    contentAlignment = Alignment.Center,
+                    modifier = Modifier
+                        .size(36.dp)
+                        .clip(RoundedCornerShape(11.dp))
+                        .background(MaterialTheme.colorScheme.primaryContainer)
+                ) {
+                    Icon(
+                        imageVector = icon,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.size(20.dp)
+                    )
+                }
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        text = title,
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.onSurface
+                    )
+                    Text(
+                        text = subtitle,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+                Icon(
+                    imageVector = if (expanded) Icons.Rounded.ExpandLess else Icons.Rounded.ExpandMore,
+                    contentDescription = if (expanded) "Collapse $title" else "Expand $title",
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+            if (expanded) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(start = 16.dp, end = 16.dp, bottom = 16.dp)
+                ) {
+                    content()
+                }
+            }
         }
     }
 }
@@ -1683,48 +1820,51 @@ private fun ThemeSwatchTile(
     onClick: () -> Unit,
     modifier: Modifier = Modifier
 ) {
-    val preview = RoomThemes.paletteFor(themeId)
-    val borderColor = if (selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outline
+    val palette = RoomThemes.paletteFor(themeId)
+    val borderColor = if (selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outlineVariant
 
-    Column(
+    Surface(
+        shape = RoundedCornerShape(16.dp),
+        color = if (selected) {
+            MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.45f)
+        } else {
+            MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.45f)
+        },
         modifier = modifier
-            .clip(RoundedCornerShape(16.dp))
-            .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.55f))
             .border(if (selected) 2.dp else 1.dp, borderColor, RoundedCornerShape(16.dp))
+            .clip(RoundedCornerShape(16.dp))
             .clickable(onClick = onClick)
-            .padding(10.dp),
-        verticalArrangement = Arrangement.spacedBy(8.dp)
     ) {
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            // Color swatch preview: wall + floor + duvet + accent
-            Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                SwatchDot(preview.wallMain)
-                SwatchDot(preview.floorMain)
-                SwatchDot(preview.duvetPrimary)
-                SwatchDot(preview.throwBlanket)
-            }
-            if (selected) {
-                Box(
-                    contentAlignment = Alignment.Center,
-                    modifier = Modifier
-                        .size(20.dp)
-                        .clip(CircleShape)
-                        .background(MaterialTheme.colorScheme.primary)
-                ) {
-                    Icon(
-                        imageVector = Icons.Rounded.Check,
-                        contentDescription = "Selected",
-                        tint = MaterialTheme.colorScheme.onPrimary,
-                        modifier = Modifier.size(13.dp)
-                    )
+        Column(modifier = Modifier.padding(10.dp)) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                    SwatchDot(palette.wallMain)
+                    SwatchDot(palette.floorMain)
+                    SwatchDot(palette.bedBlanket)
+                    SwatchDot(palette.accent)
+                }
+                if (selected) {
+                    Box(
+                        contentAlignment = Alignment.Center,
+                        modifier = Modifier
+                            .size(20.dp)
+                            .clip(CircleShape)
+                            .background(MaterialTheme.colorScheme.primary)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Rounded.Check,
+                            contentDescription = "Selected",
+                            tint = MaterialTheme.colorScheme.onPrimary,
+                            modifier = Modifier.size(13.dp)
+                        )
+                    }
                 }
             }
-        }
-        Column {
+            Spacer(modifier = Modifier.height(6.dp))
             Text(
                 text = themeId.displayName,
                 style = MaterialTheme.typography.labelLarge,
@@ -1772,7 +1912,6 @@ private fun GeometryDashSubThemeCard(
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(12.dp)
         ) {
-            // Level artwork thumbnail preview
             Box(
                 modifier = Modifier
                     .size(width = 92.dp, height = 58.dp)

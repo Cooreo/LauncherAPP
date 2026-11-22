@@ -2,21 +2,8 @@ package com.roomlauncher.app.ui.allapps
 
 import androidx.activity.BackEventCompat
 import androidx.activity.compose.PredictiveBackHandler
-import androidx.compose.animation.AnimatedContent
-import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.Animatable
-import androidx.compose.animation.core.Spring
-import androidx.compose.animation.core.animateFloatAsState
-import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
-import androidx.compose.animation.fadeIn
-import androidx.compose.animation.fadeOut
-import androidx.compose.animation.scaleIn
-import androidx.compose.animation.scaleOut
-import androidx.compose.animation.slideInVertically
-import androidx.compose.animation.slideOutVertically
-import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -30,11 +17,13 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.asPaddingValues
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.imePadding
+import androidx.compose.foundation.layout.ime
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
@@ -70,7 +59,6 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.Immutable
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableIntStateOf
@@ -81,8 +69,8 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.RectangleShape
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.input.pointer.pointerInput
@@ -91,7 +79,6 @@ import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
-import kotlin.coroutines.cancellation.CancellationException
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontWeight
@@ -104,8 +91,8 @@ import com.roomlauncher.app.data.AppInfo
 import com.roomlauncher.app.data.RoomHotspot
 import com.roomlauncher.app.system.SystemIntentHelper
 import com.roomlauncher.app.ui.components.AppIconView
-import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import kotlin.coroutines.cancellation.CancellationException
 import kotlin.math.abs
 import kotlin.math.roundToInt
 
@@ -140,13 +127,15 @@ fun AllAppsSheet(
     var searchQuery by remember { mutableStateOf("") }
     var selectedAppForMenu by remember { mutableStateOf<AppInfo?>(null) }
 
-    val dismissCleanly: () -> Unit = {
-        focusManager.clearFocus(force = true)
-        keyboardController?.hide()
-        onDismiss()
+    val dismissCleanly: () -> Unit = remember(onDismiss) {
+        {
+            focusManager.clearFocus(force = true)
+            keyboardController?.hide()
+            onDismiss()
+        }
     }
 
-    // Silky live Predictive Back gesture + hardware Back button handler for All Apps
+    // Silky live Predictive Back gesture + hardware Back button handler
     val backProgress = remember { Animatable(0f) }
     var backSwipeEdge by remember { mutableIntStateOf(BackEventCompat.EDGE_LEFT) }
 
@@ -156,36 +145,25 @@ fun AllAppsSheet(
                 backSwipeEdge = event.swipeEdge
                 backProgress.snapTo(event.progress.coerceIn(0f, 1f))
             }
-            when {
-                selectedAppForMenu != null -> {
-                    backProgress.snapTo(0f)
-                    selectedAppForMenu = null
-                }
-                else -> {
-                    dismissCleanly()
-                }
+            if (selectedAppForMenu != null) {
+                backProgress.snapTo(0f)
+                selectedAppForMenu = null
+            } else {
+                // Keep backProgress at its final position while fading out — zero snap-back glitch!
+                dismissCleanly()
             }
         } catch (e: CancellationException) {
-            backProgress.animateTo(0f, tween(160))
+            backProgress.animateTo(0f, tween(140))
             throw e
         }
     }
 
-    // A–Z scrubber animation states
+    // Lightweight A–Z scrubber state (zero idle spring coroutines!)
     var activeScrubLetter by remember { mutableStateOf<String?>(null) }
     var scrubFractionY by remember { mutableFloatStateOf(0.5f) }
-    var highlightedLetter by remember { mutableStateOf<String?>(null) }
 
     val listState = rememberLazyListState()
     val coroutineScope = rememberCoroutineScope()
-
-    // Automatically clear section highlight pulse shortly after releasing the A–Z rail
-    LaunchedEffect(highlightedLetter, activeScrubLetter) {
-        if (highlightedLetter != null && activeScrubLetter == null) {
-            delay(650L)
-            highlightedLetter = null
-        }
-    }
 
     val trimmedQuery = searchQuery.trim()
     val filteredApps = remember(installedApps, trimmedQuery) {
@@ -194,18 +172,17 @@ fun AllAppsSheet(
         } else {
             val q = trimmedQuery.lowercase()
             installedApps.filter {
-                it.label.lowercase().contains(q) || it.packageName.lowercase().contains(q)
+                it.label.contains(q, ignoreCase = true) || it.packageName.contains(q, ignoreCase = true)
             }
         }
     }
 
-    // Flatten into a single fast, stable list with precomputed letter-to-index & letter-count maps
+    // Flatten into a single stable list with precomputed letter-to-index & counts
     val listModel = remember(filteredApps, packageOwnerLabels, defaultUnsortedLabel) {
         val entries = ArrayList<AllAppsEntry>(filteredApps.size + 32)
         val letterToIndex = LinkedHashMap<String, Int>()
         val letterCounts = LinkedHashMap<String, Int>()
 
-        // Pre-count per letter for crisp section headers & floating bubble count
         for (app in filteredApps) {
             val firstChar = app.label.firstOrNull()?.uppercaseChar() ?: '#'
             val letter = if (firstChar in 'A'..'Z') firstChar.toString() else "#"
@@ -234,20 +211,23 @@ fun AllAppsSheet(
     val sectionLetters = remember(letterIndexMap) { letterIndexMap.keys.toList() }
 
     val p = backProgress.value
-    val cornerDp = (p * 26f).dp
+    val isBackDragging = p > 0.002f
+    val imeBottomPadding = WindowInsets.ime.asPaddingValues().calculateBottomPadding()
 
     Surface(
-        shape = RoundedCornerShape(cornerDp),
-        shadowElevation = if (p > 0.01f) 14.dp else 0.dp,
+        shape = if (isBackDragging) RoundedCornerShape((p * 26f).dp) else RectangleShape,
+        shadowElevation = if (isBackDragging) 12.dp else 0.dp,
         modifier = Modifier
             .fillMaxSize()
             .graphicsLayer {
-                val scale = 1f - (p * 0.085f)
-                scaleX = scale
-                scaleY = scale
-                val dir = if (backSwipeEdge == BackEventCompat.EDGE_RIGHT) -1f else 1f
-                translationX = dir * p * size.width * 0.06f
-                alpha = 1f - (p * 0.14f)
+                if (isBackDragging) {
+                    val scale = 1f - (p * 0.08f)
+                    scaleX = scale
+                    scaleY = scale
+                    val dir = if (backSwipeEdge == BackEventCompat.EDGE_RIGHT) -1f else 1f
+                    translationX = dir * p * size.width * 0.06f
+                    alpha = 1f - (p * 0.18f)
+                }
             },
         color = MaterialTheme.colorScheme.background
     ) {
@@ -256,9 +236,8 @@ fun AllAppsSheet(
                 .fillMaxSize()
                 .statusBarsPadding()
                 .navigationBarsPadding()
-                .imePadding()
         ) {
-            // Top swipe-down pill + Header (dragging down smoothly dismisses back to the Room!)
+            // Top swipe-down pill + Header (dragging down cleanly dismisses back to the Room!)
             var headerDragSum by remember { mutableFloatStateOf(0f) }
             Column(
                 modifier = Modifier
@@ -268,7 +247,7 @@ fun AllAppsSheet(
                             onDragStart = { headerDragSum = 0f },
                             onVerticalDrag = { _, dragAmount ->
                                 headerDragSum += dragAmount
-                                if (headerDragSum > 75f) {
+                                if (headerDragSum > 72f) {
                                     headerDragSum = 0f
                                     dismissCleanly()
                                 }
@@ -333,18 +312,14 @@ fun AllAppsSheet(
                 }
             }
 
-            // Search bar with animated clear button
+            // Lightweight Search bar (no extra animated subcompositions)
             OutlinedTextField(
                 value = searchQuery,
                 onValueChange = { searchQuery = it },
                 placeholder = { Text("Search apps by name…") },
                 leadingIcon = { Icon(Icons.Rounded.Search, contentDescription = null) },
                 trailingIcon = {
-                    androidx.compose.animation.AnimatedVisibility(
-                        visible = searchQuery.isNotEmpty(),
-                        enter = scaleIn(spring(stiffness = Spring.StiffnessMedium)) + fadeIn(),
-                        exit = scaleOut(tween(120)) + fadeOut(tween(120))
-                    ) {
+                    if (searchQuery.isNotEmpty()) {
                         IconButton(onClick = { searchQuery = "" }) {
                             Icon(Icons.Rounded.Close, contentDescription = "Clear search")
                         }
@@ -361,7 +336,7 @@ fun AllAppsSheet(
                     .padding(horizontal = 16.dp, vertical = 6.dp)
             )
 
-            // Fast App List + Animated Wave A-Z Fast Scroller Rail + Finger-Following Bubble
+            // Fast App List + Zero-Overhead A–Z Fast Scroller Rail + Floating Letter Bubble
             BoxWithConstraints(
                 modifier = Modifier
                     .weight(1f)
@@ -396,7 +371,7 @@ fun AllAppsSheet(
                             start = 16.dp,
                             end = 42.dp,
                             top = 4.dp,
-                            bottom = 28.dp
+                            bottom = 28.dp + imeBottomPadding
                         ),
                         modifier = Modifier.fillMaxSize()
                     ) {
@@ -419,10 +394,10 @@ fun AllAppsSheet(
                         ) { entry ->
                             when (entry) {
                                 is AllAppsEntry.Header -> {
-                                    AnimatedLetterHeader(
+                                    FastLetterHeader(
                                         letter = entry.letter,
                                         count = entry.count,
-                                        isHighlighted = highlightedLetter == entry.letter
+                                        isHighlighted = activeScrubLetter == entry.letter
                                     )
                                 }
                                 is AllAppsEntry.AppItem -> {
@@ -442,24 +417,19 @@ fun AllAppsSheet(
                         }
                     }
 
-                    // Responsive Wave-Magnifying A–Z Fast Scroller Rail
+                    // Ultra-Lightweight A–Z Fast Scroller Rail (0 running springs when idle!)
                     if (sectionLetters.size > 1 && trimmedQuery.isEmpty()) {
                         AlphabetFastScrollerRail(
                             letters = sectionLetters,
                             activeLetter = activeScrubLetter,
-                            onLetterSelected = { letter, yFraction, isSingleTap ->
+                            onLetterSelected = { letter, yFraction ->
                                 scrubFractionY = yFraction
-                                highlightedLetter = letter
                                 if (letter != activeScrubLetter) {
                                     activeScrubLetter = letter
                                     haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
                                     letterIndexMap[letter]?.let { targetIdx ->
                                         coroutineScope.launch {
-                                            if (isSingleTap) {
-                                                listState.animateScrollToItem(targetIdx)
-                                            } else {
-                                                listState.scrollToItem(targetIdx)
-                                            }
+                                            listState.scrollToItem(targetIdx)
                                         }
                                     }
                                 }
@@ -472,34 +442,11 @@ fun AllAppsSheet(
                         )
                     }
 
-                    // Finger-Following Animated Teardrop Letter Bubble!
-                    val bubbleTargetY by animateFloatAsState(
-                        targetValue = (scrubFractionY * (containerHeightPx - with(density) { 80.dp.toPx() }))
-                            .coerceIn(0f, (containerHeightPx - with(density) { 80.dp.toPx() }).coerceAtLeast(0f)),
-                        animationSpec = spring(
-                            dampingRatio = 0.78f,
-                            stiffness = Spring.StiffnessMedium
-                        ),
-                        label = "bubble_y"
-                    )
-
-                    androidx.compose.animation.AnimatedVisibility(
-                        visible = activeScrubLetter != null,
-                        enter = scaleIn(
-                            initialScale = 0.55f,
-                            animationSpec = spring(dampingRatio = 0.65f, stiffness = Spring.StiffnessMedium)
-                        ) + fadeIn(tween(110)),
-                        exit = scaleOut(targetScale = 0.65f, animationSpec = tween(130)) + fadeOut(tween(130)),
-                        modifier = Modifier
-                            .align(Alignment.TopEnd)
-                            .offset {
-                                IntOffset(
-                                    x = -with(density) { 54.dp.toPx() }.roundToInt(),
-                                    y = bubbleTargetY.roundToInt()
-                                )
-                            }
-                    ) {
-                        val shownLetter = activeScrubLetter ?: ""
+                    // Instant Finger-Following Letter Bubble (only composed while scrubbing!)
+                    val shownLetter = activeScrubLetter
+                    if (shownLetter != null) {
+                        val bubbleMaxY = (containerHeightPx - with(density) { 80.dp.toPx() }).coerceAtLeast(0f)
+                        val bubbleY = (scrubFractionY * bubbleMaxY).coerceIn(0f, bubbleMaxY)
                         val shownCount = letterCounts[shownLetter] ?: 0
                         Surface(
                             shape = RoundedCornerShape(
@@ -509,29 +456,28 @@ fun AllAppsSheet(
                                 bottomEnd = 8.dp
                             ),
                             color = MaterialTheme.colorScheme.primary,
-                            shadowElevation = 10.dp,
-                            modifier = Modifier.size(66.dp)
+                            shadowElevation = 8.dp,
+                            modifier = Modifier
+                                .align(Alignment.TopEnd)
+                                .offset {
+                                    IntOffset(
+                                        x = -with(density) { 54.dp.toPx() }.roundToInt(),
+                                        y = bubbleY.roundToInt()
+                                    )
+                                }
+                                .size(64.dp)
                         ) {
                             Column(
                                 horizontalAlignment = Alignment.CenterHorizontally,
                                 verticalArrangement = Arrangement.Center,
                                 modifier = Modifier.fillMaxSize()
                             ) {
-                                AnimatedContent(
-                                    targetState = shownLetter,
-                                    transitionSpec = {
-                                        (slideInVertically { it / 3 } + fadeIn(tween(90)))
-                                            .togetherWith(slideOutVertically { -it / 3 } + fadeOut(tween(70)))
-                                    },
-                                    label = "scrub_letter_flip"
-                                ) { targetChar ->
-                                    Text(
-                                        text = targetChar,
-                                        style = MaterialTheme.typography.headlineMedium,
-                                        color = MaterialTheme.colorScheme.onPrimary,
-                                        fontWeight = FontWeight.ExtraBold
-                                    )
-                                }
+                                Text(
+                                    text = shownLetter,
+                                    style = MaterialTheme.typography.headlineMedium,
+                                    color = MaterialTheme.colorScheme.onPrimary,
+                                    fontWeight = FontWeight.ExtraBold
+                                )
                                 Text(
                                     text = "$shownCount",
                                     fontSize = 10.sp,
@@ -546,7 +492,7 @@ fun AllAppsSheet(
         }
     }
 
-    // Single shared App Actions dialog (replaces 80+ per-row DropdownMenus for huge perf gain!)
+    // Shared App Actions dialog
     val menuApp = selectedAppForMenu
     if (menuApp != null) {
         AlertDialog(
@@ -651,34 +597,16 @@ fun AllAppsSheet(
 }
 
 @Composable
-private fun AnimatedLetterHeader(
+private fun FastLetterHeader(
     letter: String,
     count: Int,
     isHighlighted: Boolean
 ) {
-    val pillBg by animateColorAsState(
-        targetValue = if (isHighlighted) {
-            MaterialTheme.colorScheme.primaryContainer
-        } else {
-            Color.Transparent
-        },
-        animationSpec = tween(durationMillis = 220),
-        label = "letter_hdr_bg"
-    )
-    val scale by animateFloatAsState(
-        targetValue = if (isHighlighted) 1.04f else 1f,
-        animationSpec = spring(dampingRatio = 0.65f, stiffness = Spring.StiffnessMedium),
-        label = "letter_hdr_scale"
-    )
-
+    val pillBg = if (isHighlighted) MaterialTheme.colorScheme.primaryContainer else Color.Transparent
     Row(
         modifier = Modifier
             .fillMaxWidth()
             .padding(top = 10.dp, bottom = 3.dp)
-            .graphicsLayer {
-                scaleX = scale
-                scaleY = scale
-            }
             .background(pillBg, RoundedCornerShape(10.dp))
             .padding(horizontal = 8.dp, vertical = 3.dp),
         verticalAlignment = Alignment.CenterVertically,
@@ -708,10 +636,10 @@ private fun FastAllAppRow(
     onOpenMenu: () -> Unit
 ) {
     val primaryColor = MaterialTheme.colorScheme.primary
-    val displayTitle = remember(app.label, highlightQuery, primaryColor) {
-        if (highlightQuery.isEmpty()) {
-            null
-        } else {
+    val displayTitle = if (highlightQuery.isEmpty()) {
+        null
+    } else {
+        remember(app.label, highlightQuery, primaryColor) {
             val matchStart = app.label.indexOf(highlightQuery, ignoreCase = true)
             if (matchStart >= 0) {
                 val matchEnd = (matchStart + highlightQuery.length).coerceAtMost(app.label.length)
@@ -791,7 +719,7 @@ private fun FastAllAppRow(
 private fun AlphabetFastScrollerRail(
     letters: List<String>,
     activeLetter: String?,
-    onLetterSelected: (letter: String, yFraction: Float, isSingleTap: Boolean) -> Unit,
+    onLetterSelected: (letter: String, yFraction: Float) -> Unit,
     onScrubEnd: () -> Unit,
     modifier: Modifier = Modifier
 ) {
@@ -802,20 +730,18 @@ private fun AlphabetFastScrollerRail(
         return letters[index] to fraction
     }
 
-    val activeIdx = remember(letters, activeLetter) {
-        if (activeLetter == null) -1 else letters.indexOf(activeLetter)
-    }
+    val activeIdx = if (activeLetter == null) -1 else letters.indexOf(activeLetter)
 
     Column(
         modifier = modifier
-            .width(32.dp)
-            .clip(RoundedCornerShape(16.dp))
+            .width(30.dp)
+            .clip(RoundedCornerShape(15.dp))
             .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.62f))
             .pointerInput(letters) {
                 detectTapGestures(
                     onPress = { offset ->
                         letterAndFractionAtY(offset.y, size.height)?.let { (letter, frac) ->
-                            onLetterSelected(letter, frac, true)
+                            onLetterSelected(letter, frac)
                         }
                         tryAwaitRelease()
                         onScrubEnd()
@@ -826,13 +752,13 @@ private fun AlphabetFastScrollerRail(
                 detectVerticalDragGestures(
                     onDragStart = { offset ->
                         letterAndFractionAtY(offset.y, size.height)?.let { (letter, frac) ->
-                            onLetterSelected(letter, frac, false)
+                            onLetterSelected(letter, frac)
                         }
                     },
                     onVerticalDrag = { change, _ ->
                         change.consume()
                         letterAndFractionAtY(change.position.y, size.height)?.let { (letter, frac) ->
-                            onLetterSelected(letter, frac, false)
+                            onLetterSelected(letter, frac)
                         }
                     },
                     onDragEnd = { onScrubEnd() },
@@ -844,17 +770,11 @@ private fun AlphabetFastScrollerRail(
     ) {
         letters.forEachIndexed { idx, letter ->
             val distance = if (activeIdx >= 0) abs(idx - activeIdx) else 99
-            val targetScale = when (distance) {
-                0 -> 1.42f
-                1 -> 1.18f
-                2 -> 1.06f
+            val scale = when (distance) {
+                0 -> 1.38f
+                1 -> 1.16f
                 else -> 1f
             }
-            val animScale by animateFloatAsState(
-                targetValue = targetScale,
-                animationSpec = spring(dampingRatio = 0.72f, stiffness = Spring.StiffnessMedium),
-                label = "rail_scale_$letter"
-            )
             val isActive = distance == 0
             Box(
                 contentAlignment = Alignment.Center,
@@ -862,8 +782,10 @@ private fun AlphabetFastScrollerRail(
                     .weight(1f)
                     .fillMaxWidth()
                     .graphicsLayer {
-                        scaleX = animScale
-                        scaleY = animScale
+                        if (scale != 1f) {
+                            scaleX = scale
+                            scaleY = scale
+                        }
                     }
             ) {
                 Text(
@@ -918,7 +840,7 @@ private fun SettingsDeckCard(onClick: () -> Unit) {
                     color = MaterialTheme.colorScheme.onSurface
                 )
                 Text(
-                    text = "Room styles, themes, charging animation & wallpaper",
+                    text = "Updates, rooms, styles, themes & wallpaper",
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )

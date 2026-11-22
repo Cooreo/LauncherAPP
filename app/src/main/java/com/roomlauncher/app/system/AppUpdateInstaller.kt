@@ -342,7 +342,8 @@ object AppUpdateInstaller {
     }
 
     fun launchUninstallCurrentApp(context: Context) {
-        val intent = Intent(Intent.ACTION_DELETE).apply {
+        // Uses standard App Info screen instead of ACTION_DELETE so REQUEST_DELETE_PACKAGES is not needed
+        val intent = Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS).apply {
             data = Uri.parse("package:${context.packageName}")
             addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
         }

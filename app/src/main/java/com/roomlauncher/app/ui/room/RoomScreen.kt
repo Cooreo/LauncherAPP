@@ -10,7 +10,6 @@ import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.slideInVertically
-import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -292,7 +291,7 @@ fun RoomScreen(
                 activeHotspot == null &&
                 !uiState.isMusicExpanded &&
                 zoomScale <= 1.02f,
-            beyondViewportPageCount = 1,
+            beyondViewportPageCount = 0,
             modifier = Modifier.fillMaxSize()
         ) { pageIndex ->
             val roomPage = rooms.getOrElse(pageIndex) { uiState.currentRoom }
@@ -702,18 +701,15 @@ fun RoomScreen(
                 )
             }
 
-        // Smooth slide-up A–Z Searchable All Apps Drawer + Settings Card (instant Back reveal!)
+        // Smooth A–Z Searchable All Apps Drawer + clean zero-glitch exit!
         val isAllAppsVisible = uiState.showAllAppsSheet && !uiState.showSettingsSheet
         AnimatedVisibility(
             visible = isAllAppsVisible,
             enter = slideInVertically(
-                animationSpec = tween(durationMillis = 220, easing = FastOutSlowInEasing),
-                initialOffsetY = { it / 6 }
-            ) + fadeIn(tween(180)),
-            exit = slideOutVertically(
-                animationSpec = tween(durationMillis = 170, easing = FastOutSlowInEasing),
-                targetOffsetY = { it / 6 }
-            ) + fadeOut(tween(140))
+                animationSpec = tween(durationMillis = 190, easing = FastOutSlowInEasing),
+                initialOffsetY = { it / 10 }
+            ) + fadeIn(tween(150)),
+            exit = fadeOut(tween(130))
         ) {
             AllAppsSheet(
                 isVisible = isAllAppsVisible,
@@ -731,17 +727,14 @@ fun RoomScreen(
             )
         }
 
-        // Smooth slide-up Room Launcher Settings Screen
+        // Smooth Room Launcher Settings Screen + clean zero-glitch exit!
         AnimatedVisibility(
             visible = uiState.showSettingsSheet,
             enter = slideInVertically(
-                animationSpec = tween(durationMillis = 230, easing = FastOutSlowInEasing),
-                initialOffsetY = { it / 5 }
-            ) + fadeIn(tween(190)),
-            exit = slideOutVertically(
                 animationSpec = tween(durationMillis = 190, easing = FastOutSlowInEasing),
-                targetOffsetY = { it / 5 }
-            ) + fadeOut(tween(150))
+                initialOffsetY = { it / 10 }
+            ) + fadeIn(tween(150)),
+            exit = fadeOut(tween(130))
         ) {
             SettingsSheet(
                 uiState = uiState,
