@@ -23,6 +23,9 @@
     <!-- Allows downloading & installing Room Launcher updates directly from GitHub releases -->
     <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
 
+    <!-- Allows one-tap uninstalling apps directly from the redesigned All Apps drawer -->
+    <uses-permission android:name="android.permission.REQUEST_DELETE_PACKAGES" />
+
     <queries>
         <intent>
             <action android:name="android.intent.action.MAIN" />

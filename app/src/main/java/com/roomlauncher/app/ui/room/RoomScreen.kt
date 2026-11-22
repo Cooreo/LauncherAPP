@@ -141,6 +141,10 @@ fun RoomScreen(
     onDeleteWebShortcut: (String) -> Unit,
     onOpenAllApps: () -> Unit,
     onCloseAllApps: () -> Unit,
+    onToggleAllAppsGridMode: (Boolean) -> Unit,
+    onTogglePinApp: (String) -> Unit,
+    onRecordAppLaunch: (String) -> Unit,
+    onUninstallApp: (String) -> Unit,
     onOpenSettings: () -> Unit,
     onCloseSettings: () -> Unit,
     onSelectRoomStyle: (RoomStyleId) -> Unit,
@@ -676,6 +680,7 @@ fun RoomScreen(
                     useQuickAnimations = uiState.config.useQuickAnimations,
                     onLaunchApp = { app ->
                         onHotspotPanelClose()
+                        onRecordAppLaunch(app.packageName)
                         SystemIntentHelper.launchApp(context, app.packageName)
                     },
                     onOpenWebShortcut = { shortcut ->
@@ -701,23 +706,29 @@ fun RoomScreen(
                 )
             }
 
-        // Pure-GPU opaque All Apps Drawer (self-managed slide-up / finger-following swipe-down / glitch-free close!)
+        // Pre-warmed, persistently mounted All Apps Drawer (loaded on boot, zero mount/unmount hitch!)
         val isAllAppsVisible = uiState.showAllAppsSheet && !uiState.showSettingsSheet
-        if (isAllAppsVisible) {
-            AllAppsSheet(
-                installedApps = uiState.installedApps,
-                packageOwnerLabels = uiState.packageOwnerLabels,
-                defaultUnsortedLabel = uiState.defaultUnsortedLabel,
-                panelHotspotChoices = uiState.panelHotspotChoices,
-                onLaunchApp = { app ->
-                    onCloseAllApps()
-                    SystemIntentHelper.launchApp(context, app.packageName)
-                },
-                onMoveApp = onMoveAppToHotspot,
-                onOpenSettings = onOpenSettings,
-                onDismiss = onCloseAllApps
-            )
-        }
+        AllAppsSheet(
+            isVisible = isAllAppsVisible,
+            installedApps = uiState.installedApps,
+            pinnedPackages = uiState.config.pinnedAppPackages,
+            recentPackages = uiState.config.recentAppPackages,
+            isGridMode = uiState.config.allAppsGridMode,
+            packageOwnerLabels = uiState.packageOwnerLabels,
+            defaultUnsortedLabel = uiState.defaultUnsortedLabel,
+            panelHotspotChoices = uiState.panelHotspotChoices,
+            onLaunchApp = { app ->
+                onCloseAllApps()
+                onRecordAppLaunch(app.packageName)
+                SystemIntentHelper.launchApp(context, app.packageName)
+            },
+            onToggleGridMode = onToggleAllAppsGridMode,
+            onTogglePinApp = onTogglePinApp,
+            onMoveApp = onMoveAppToHotspot,
+            onUninstallApp = onUninstallApp,
+            onOpenSettings = onOpenSettings,
+            onDismiss = onCloseAllApps
+        )
 
         // Smooth Room Launcher Settings Screen + clean opaque exit!
         AnimatedVisibility(

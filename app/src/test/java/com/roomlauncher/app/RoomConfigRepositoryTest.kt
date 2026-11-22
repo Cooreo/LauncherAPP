@@ -73,6 +73,9 @@ class RoomConfigRepositoryTest {
             mirrorHomeWallpaper = true,
             posterLeftPath = "/tmp/poster_left.jpg",
             posterRightPath = "/tmp/poster_right.jpg",
+            allAppsGridMode = false,
+            pinnedAppPackages = listOf("com.google.android.youtube", "com.spotify.music"),
+            recentAppPackages = listOf("com.android.chrome"),
             webShortcuts = listOf(WebShortcut("w1", "GitHub", "https://github.com"))
         )
         repo.saveConfig(initial)
@@ -232,9 +235,9 @@ class RoomConfigRepositoryTest {
 
     @Test
     fun changelogStartsWithLatestVersion() {
-        assertEquals("3.0.2", ChangelogData.CURRENT_VERSION)
+        assertEquals("3.1.0", ChangelogData.CURRENT_VERSION)
         assertTrue(ChangelogData.entries.isNotEmpty())
-        assertEquals("3.0.2", ChangelogData.entries.first().version)
+        assertEquals("3.1.0", ChangelogData.entries.first().version)
         assertTrue(ChangelogData.entries.first().highlights.size >= 3)
     }
 

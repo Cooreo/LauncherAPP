@@ -2,8 +2,16 @@
 
 **Room Launcher** is a minimalist Android home screen launcher built with **Kotlin** and **Jetpack Compose**. Instead of a traditional grid of icons, your home screen is a customizable, illustrated room where every piece of furniture is an interactive, movable object.
 
-## Features (v3.0.2 — App Drawer Swipe-Close Fix)
+## Features (v3.1.0 — Redesigned All Apps, Boot-Cached Speed, Interactive Onboarding & Large Window Temp)
 
+- **Redesigned All Apps Drawer with 1-Tap Uninstall & Pinning (v3.1.0)**:
+  - **4-Column Icon Grid & List View Toggle** (persisted), **Pinned Favorites dock strip**, interactive **Filter Chips** (*All*, *Pinned*, *Recent*, *Games*, *Unsorted*), **Sort Mode Switcher** (*A–Z*, *Newest*, *Recent*), **Enter-to-Launch Search**, A–Z Fast-Scroll Alphabet Rail working across both views, and a rich **Long-Press App Actions Modal** with **Open**, **Pin / Unpin**, **App Info**, **1-Tap Uninstall** (`REQUEST_DELETE_PACKAGES`), and **Room Object Assignment**.
+- **Boot-Cached & Pre-Warmed Instant Performance (v3.1.0)**:
+  - Loads all installed apps and crisp `96px` rounded icons **once on launcher boot**, keeps the All Apps sheet persistently warm off-screen (moving its layout bounds below viewport when closed so there is **zero** mount/unmount hitch and zero touch leakage), and updates incrementally in milliseconds **only** when apps are installed or uninstalled (`PackageChangeReceiver`).
+- **Interactive Visual Onboarding (v3.1.0)**:
+  - Upgraded the 4-step setup with a **Live Miniature Illustrated Room Preview**, interactive **Room Style & Theme Palette pickers**, **Live Window Weather toggle**, boot-cache readiness status, and Oppo/ColorOS battery & Default Home setup.
+- **Bold, Readable Window Temperature Badge (v3.1.0)**:
+  - Enlarged the room window temperature pill (`13.5sp`–`15sp` bold high-contrast frosted glass pill with weather glyph & `°C` unit) and mirrored it onto Home Screen wallpapers.
 - **Glitch-Free App Drawer Open & Swipe-Close (v3.0.2)**:
   - Replaced frame-by-frame Predictive Back `Surface` shape/shadow thrashing and `AnimatedVisibility` alpha bleed-through with a pure-GPU 100% opaque vertical slide (`translationY` only, 0 recompositions during drag/close), 1:1 finger-following swipe-down with flick detection, pointer-blocking during exit, and clean `BackHandler` dispatch compatible with ColorOS / Oppo gesture navigation.
 - **Buttery-Smooth All Apps Drawer & Zero-Glitch Close (v3.0.1)**:

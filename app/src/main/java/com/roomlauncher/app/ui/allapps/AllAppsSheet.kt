@@ -6,6 +6,7 @@ import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.gestures.detectTapGestures
@@ -23,6 +24,7 @@ import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.ime
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.offset
@@ -31,21 +33,41 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.foundation.lazy.grid.GridCells
+import androidx.compose.foundation.lazy.grid.GridItemSpan
+import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
+import androidx.compose.foundation.lazy.grid.items as gridItems
+import androidx.compose.foundation.lazy.grid.rememberLazyGridState
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.KeyboardActions
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.rounded.Apps
 import androidx.compose.material.icons.rounded.ChevronRight
 import androidx.compose.material.icons.rounded.Close
+import androidx.compose.material.icons.rounded.DeleteOutline
 import androidx.compose.material.icons.rounded.DriveFileMove
+import androidx.compose.material.icons.rounded.GridView
+import androidx.compose.material.icons.rounded.History
 import androidx.compose.material.icons.rounded.Info
 import androidx.compose.material.icons.rounded.MoreVert
+import androidx.compose.material.icons.rounded.NewReleases
+import androidx.compose.material.icons.rounded.OpenInNew
+import androidx.compose.material.icons.rounded.PushPin
 import androidx.compose.material.icons.rounded.Search
 import androidx.compose.material.icons.rounded.Settings
-import androidx.compose.material3.AlertDialog
+import androidx.compose.material.icons.rounded.SortByAlpha
+import androidx.compose.material.icons.rounded.SportsEsports
+import androidx.compose.material.icons.rounded.Star
+import androidx.compose.material.icons.rounded.StarOutline
+import androidx.compose.material.icons.rounded.ViewList
+import androidx.compose.material.icons.rounded.Workspaces
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.HorizontalDivider
@@ -71,8 +93,10 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.layout.layout
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalFocusManager
@@ -81,11 +105,15 @@ import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.window.Dialog
+import androidx.compose.ui.window.DialogProperties
 import com.roomlauncher.app.data.AppInfo
 import com.roomlauncher.app.data.RoomHotspot
 import com.roomlauncher.app.system.SystemIntentHelper
@@ -94,25 +122,61 @@ import kotlinx.coroutines.launch
 import kotlin.math.abs
 import kotlin.math.roundToInt
 
+private enum class AllAppsFilter(val label: String, val icon: ImageVector) {
+    ALL("All", Icons.Rounded.Apps),
+    PINNED("Pinned", Icons.Rounded.Star),
+    RECENT("Recent", Icons.Rounded.History),
+    GAMES("Games", Icons.Rounded.SportsEsports),
+    UNSORTED("Unsorted", Icons.Rounded.Workspaces)
+}
+
+private enum class AllAppsSort(val label: String, val icon: ImageVector) {
+    AZ("A–Z", Icons.Rounded.SortByAlpha),
+    NEWEST("Newest", Icons.Rounded.NewReleases),
+    RECENT("Recent", Icons.Rounded.History)
+}
+
 @Immutable
 private sealed interface AllAppsEntry {
+    @Immutable
+    data class PinnedDock(val apps: List<AppInfo>) : AllAppsEntry
+
     @Immutable
     data class Header(val letter: String, val count: Int) : AllAppsEntry
 
     @Immutable
-    data class AppItem(val app: AppInfo, val ownerLabel: String) : AllAppsEntry
+    data class AppItem(
+        val app: AppInfo,
+        val ownerLabel: String,
+        val isPinned: Boolean,
+        val isAssignedToRoom: Boolean
+    ) : AllAppsEntry
 
     data object SettingsCard : AllAppsEntry
 }
 
+/**
+ * Redesigned, boot-warmed All Apps Drawer.
+ *
+ * Kept persistently composed in memory while off-screen (placed below viewport bounds with
+ * alpha 0 when settled closed) so opening and closing perform ZERO composition/teardown work
+ * and animate strictly via pure-GPU translationY.
+ */
 @Composable
 fun AllAppsSheet(
+    isVisible: Boolean,
     installedApps: List<AppInfo>,
+    pinnedPackages: List<String>,
+    recentPackages: List<String>,
+    isGridMode: Boolean,
     packageOwnerLabels: Map<String, String>,
     defaultUnsortedLabel: String,
     panelHotspotChoices: List<Pair<String, RoomHotspot>>,
     onLaunchApp: (AppInfo) -> Unit,
+    onToggleGridMode: (Boolean) -> Unit,
+    onTogglePinApp: (String) -> Unit,
     onMoveApp: (packageName: String, targetHotspotId: String) -> Unit,
+    onUninstallApp: (String) -> Unit,
     onOpenSettings: () -> Unit,
     onDismiss: () -> Unit
 ) {
@@ -124,85 +188,204 @@ fun AllAppsSheet(
     val coroutineScope = rememberCoroutineScope()
 
     var searchQuery by remember { mutableStateOf("") }
+    var activeFilter by remember { mutableStateOf(AllAppsFilter.ALL) }
+    var activeSort by remember { mutableStateOf(AllAppsSort.AZ) }
     var selectedAppForMenu by remember { mutableStateOf<AppInfo?>(null) }
     var isClosing by remember { mutableStateOf(false) }
+    var isAnimating by remember { mutableStateOf(false) }
 
     // Pure-GPU vertical slide progress: 0f = fully open, 1f = completely off-screen below.
-    // Read ONLY inside Modifier.graphicsLayer so opening, dragging, and closing cause 0 recompositions!
-    val slideOffsetFraction = remember { Animatable(1f) }
+    val slideOffsetFraction = remember { Animatable(if (isVisible) 0f else 1f) }
 
-    LaunchedEffect(Unit) {
-        slideOffsetFraction.animateTo(
-            targetValue = 0f,
-            animationSpec = tween(durationMillis = 200, easing = FastOutSlowInEasing)
-        )
+    LaunchedEffect(isVisible) {
+        if (isVisible) {
+            isClosing = false
+            isAnimating = true
+            slideOffsetFraction.animateTo(
+                targetValue = 0f,
+                animationSpec = tween(durationMillis = 195, easing = FastOutSlowInEasing)
+            )
+            isAnimating = false
+        } else {
+            selectedAppForMenu = null
+            focusManager.clearFocus(force = true)
+            keyboardController?.hide()
+            if (slideOffsetFraction.value < 0.999f) {
+                isAnimating = true
+                slideOffsetFraction.animateTo(
+                    targetValue = 1f,
+                    animationSpec = tween(durationMillis = 160, easing = FastOutSlowInEasing)
+                )
+                isAnimating = false
+            }
+            isClosing = false
+            // Reset transient search state silently once completely off-screen
+            searchQuery = ""
+        }
     }
+
+    val isSettledClosed = !isVisible && !isAnimating
 
     val animateCloseAndDismiss: () -> Unit = remember(onDismiss) {
         {
-            if (!isClosing) {
+            if (!isClosing && isVisible) {
                 isClosing = true
                 selectedAppForMenu = null
                 focusManager.clearFocus(force = true)
                 keyboardController?.hide()
                 coroutineScope.launch {
+                    isAnimating = true
                     slideOffsetFraction.animateTo(
                         targetValue = 1f,
-                        animationSpec = tween(durationMillis = 165, easing = FastOutSlowInEasing)
+                        animationSpec = tween(durationMillis = 160, easing = FastOutSlowInEasing)
                     )
+                    isAnimating = false
                     onDismiss()
                 }
             }
         }
     }
 
-    // Rock-solid single-fire Back handler (zero ColorOS predictive-back spike or snap-back glitches!)
-    BackHandler(enabled = !isClosing) {
-        if (selectedAppForMenu != null) {
-            selectedAppForMenu = null
-        } else {
-            animateCloseAndDismiss()
+    // Single-fire Back handler active ONLY when drawer is visible
+    BackHandler(enabled = isVisible && !isClosing) {
+        when {
+            selectedAppForMenu != null -> selectedAppForMenu = null
+            searchQuery.isNotEmpty() -> {
+                searchQuery = ""
+                focusManager.clearFocus(force = true)
+                keyboardController?.hide()
+            }
+            activeFilter != AllAppsFilter.ALL -> activeFilter = AllAppsFilter.ALL
+            else -> animateCloseAndDismiss()
         }
     }
 
     var activeScrubLetter by remember { mutableStateOf<String?>(null) }
     var scrubFractionY by remember { mutableFloatStateOf(0.5f) }
     val listState = rememberLazyListState()
+    val gridState = rememberLazyGridState()
+
+    val pinnedSet = remember(pinnedPackages) { pinnedPackages.toHashSet() }
+    val recentRank = remember(recentPackages) {
+        recentPackages.withIndex().associate { it.value to it.index }
+    }
+    val appsByPackage = remember(installedApps) {
+        installedApps.associateBy { it.packageName }
+    }
+    val pinnedApps = remember(pinnedPackages, appsByPackage) {
+        pinnedPackages.mapNotNull { appsByPackage[it] }
+    }
+    val gamesCount = remember(installedApps) { installedApps.count { it.isGame } }
+    val unsortedCount = remember(installedApps, packageOwnerLabels) {
+        installedApps.count { it.packageName !in packageOwnerLabels }
+    }
 
     val trimmedQuery = searchQuery.trim()
-    val filteredApps = remember(installedApps, trimmedQuery) {
-        if (trimmedQuery.isEmpty()) {
-            installedApps
+    val filteredApps = remember(
+        installedApps,
+        trimmedQuery,
+        activeFilter,
+        activeSort,
+        pinnedSet,
+        recentRank,
+        packageOwnerLabels
+    ) {
+        val base = when (activeFilter) {
+            AllAppsFilter.ALL -> installedApps
+            AllAppsFilter.PINNED -> installedApps.filter { it.packageName in pinnedSet }
+            AllAppsFilter.RECENT -> installedApps
+                .filter { it.packageName in recentRank }
+                .sortedBy { recentRank[it.packageName] ?: Int.MAX_VALUE }
+            AllAppsFilter.GAMES -> installedApps.filter { it.isGame }
+            AllAppsFilter.UNSORTED -> installedApps.filter { it.packageName !in packageOwnerLabels }
+        }
+
+        val queried = if (trimmedQuery.isEmpty()) {
+            base
         } else {
             val q = trimmedQuery.lowercase()
-            installedApps.filter {
-                it.label.contains(q, ignoreCase = true) || it.packageName.contains(q, ignoreCase = true)
+            base.filter {
+                it.label.contains(q, ignoreCase = true) ||
+                    it.packageName.contains(q, ignoreCase = true)
+            }.sortedByDescending { it.label.startsWith(q, ignoreCase = true) }
+        }
+
+        if (activeFilter == AllAppsFilter.RECENT && trimmedQuery.isEmpty()) {
+            queried
+        } else {
+            when (activeSort) {
+                AllAppsSort.AZ -> queried
+                AllAppsSort.NEWEST -> queried.sortedByDescending { it.firstInstallTime }
+                AllAppsSort.RECENT -> queried.sortedWith(
+                    compareBy<AppInfo> { recentRank[it.packageName] ?: Int.MAX_VALUE }
+                        .thenBy { it.label.lowercase() }
+                )
             }
         }
     }
 
-    val listModel = remember(filteredApps, packageOwnerLabels, defaultUnsortedLabel) {
-        val entries = ArrayList<AllAppsEntry>(filteredApps.size + 32)
+    val showAlphabetHeaders = activeSort == AllAppsSort.AZ &&
+        activeFilter != AllAppsFilter.RECENT &&
+        trimmedQuery.isEmpty()
+
+    val showPinnedDock = activeFilter == AllAppsFilter.ALL &&
+        trimmedQuery.isEmpty() &&
+        pinnedApps.isNotEmpty()
+
+    val listModel = remember(
+        filteredApps,
+        pinnedApps,
+        pinnedSet,
+        showPinnedDock,
+        showAlphabetHeaders,
+        packageOwnerLabels,
+        defaultUnsortedLabel
+    ) {
+        val entries = ArrayList<AllAppsEntry>(filteredApps.size + 36)
         val letterToIndex = LinkedHashMap<String, Int>()
         val letterCounts = LinkedHashMap<String, Int>()
 
-        for (app in filteredApps) {
-            val firstChar = app.label.firstOrNull()?.uppercaseChar() ?: '#'
-            val letter = if (firstChar in 'A'..'Z') firstChar.toString() else "#"
-            letterCounts[letter] = (letterCounts[letter] ?: 0) + 1
+        if (showPinnedDock) {
+            entries.add(AllAppsEntry.PinnedDock(pinnedApps))
         }
 
-        var lastLetter: String? = null
-        for (app in filteredApps) {
-            val firstChar = app.label.firstOrNull()?.uppercaseChar() ?: '#'
-            val letter = if (firstChar in 'A'..'Z') firstChar.toString() else "#"
-            if (letter != lastLetter) {
-                letterToIndex[letter] = entries.size
-                entries.add(AllAppsEntry.Header(letter, letterCounts[letter] ?: 0))
-                lastLetter = letter
+        if (showAlphabetHeaders) {
+            for (app in filteredApps) {
+                val letter = app.indexLetter
+                letterCounts[letter] = (letterCounts[letter] ?: 0) + 1
             }
-            val owner = packageOwnerLabels[app.packageName] ?: defaultUnsortedLabel
-            entries.add(AllAppsEntry.AppItem(app, owner))
+            var lastLetter: String? = null
+            for (app in filteredApps) {
+                val letter = app.indexLetter
+                if (letter != lastLetter) {
+                    letterToIndex[letter] = entries.size
+                    entries.add(AllAppsEntry.Header(letter, letterCounts[letter] ?: 0))
+                    lastLetter = letter
+                }
+                val isAssigned = app.packageName in packageOwnerLabels
+                val owner = packageOwnerLabels[app.packageName] ?: defaultUnsortedLabel
+                entries.add(
+                    AllAppsEntry.AppItem(
+                        app = app,
+                        ownerLabel = owner,
+                        isPinned = app.packageName in pinnedSet,
+                        isAssignedToRoom = isAssigned
+                    )
+                )
+            }
+        } else {
+            for (app in filteredApps) {
+                val isAssigned = app.packageName in packageOwnerLabels
+                val owner = packageOwnerLabels[app.packageName] ?: defaultUnsortedLabel
+                entries.add(
+                    AllAppsEntry.AppItem(
+                        app = app,
+                        ownerLabel = owner,
+                        isPinned = app.packageName in pinnedSet,
+                        isAssignedToRoom = isAssigned
+                    )
+                )
+            }
         }
         entries.add(AllAppsEntry.SettingsCard)
         Triple(entries, letterToIndex, letterCounts)
@@ -213,21 +396,33 @@ fun AllAppsSheet(
     val letterCounts = listModel.third
     val sectionLetters = remember(letterIndexMap) { letterIndexMap.keys.toList() }
 
-    val imeBottomPadding = if (isClosing) {
+    val imeBottomPadding = if (isClosing || isSettledClosed) {
         0.dp
     } else {
         WindowInsets.ime.asPaddingValues().calculateBottomPadding()
     }
 
-    // 100% opaque GPU-translated full-screen drawer (zero alpha bleed-through, zero shape rebuilds!)
+    val showScrubRail = sectionLetters.size > 1 && showAlphabetHeaders
+
     BoxWithConstraints(
         modifier = Modifier
             .fillMaxSize()
+            .layout { measurable, constraints ->
+                val placeable = measurable.measure(constraints)
+                layout(placeable.width, placeable.height) {
+                    // Place completely below viewport when settled closed so hit-testing NEVER steals room touches
+                    if (isSettledClosed) {
+                        placeable.place(0, constraints.maxHeight)
+                    } else {
+                        placeable.place(0, 0)
+                    }
+                }
+            }
             .graphicsLayer {
                 translationY = slideOffsetFraction.value * size.height
+                alpha = if (isSettledClosed) 0f else 1f
             }
             .background(MaterialTheme.colorScheme.background)
-            // Absorb all touches while sliding out so nothing bleeds through to the Room
             .then(
                 if (isClosing) {
                     Modifier.pointerInput(Unit) {
@@ -250,12 +445,12 @@ fun AllAppsSheet(
                 .statusBarsPadding()
                 .navigationBarsPadding()
         ) {
-            // Finger-following swipe-down header (1:1 GPU translationY, zero recompositions!)
+            // Finger-following swipe-down header (1:1 GPU translationY, 0 recompositions)
             var lastDragDelta by remember { mutableFloatStateOf(0f) }
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .pointerInput(sheetHeightPx) {
+                    .pointerInput(sheetHeightPx, isVisible) {
                         detectVerticalDragGestures(
                             onDragStart = {
                                 lastDragDelta = 0f
@@ -263,7 +458,7 @@ fun AllAppsSheet(
                                 keyboardController?.hide()
                             },
                             onVerticalDrag = { change, dragAmount ->
-                                if (isClosing) return@detectVerticalDragGestures
+                                if (isClosing || !isVisible) return@detectVerticalDragGestures
                                 change.consume()
                                 lastDragDelta = dragAmount
                                 val deltaFraction = dragAmount / sheetHeightPx
@@ -273,7 +468,7 @@ fun AllAppsSheet(
                                 }
                             },
                             onDragEnd = {
-                                if (isClosing) return@detectVerticalDragGestures
+                                if (isClosing || !isVisible) return@detectVerticalDragGestures
                                 val shouldDismiss = slideOffsetFraction.value > 0.14f ||
                                     (lastDragDelta > 16f && slideOffsetFraction.value > 0.03f)
                                 if (shouldDismiss) {
@@ -288,7 +483,7 @@ fun AllAppsSheet(
                                 }
                             },
                             onDragCancel = {
-                                if (!isClosing) {
+                                if (!isClosing && isVisible) {
                                     coroutineScope.launch {
                                         slideOffsetFraction.animateTo(
                                             targetValue = 0f,
@@ -304,7 +499,7 @@ fun AllAppsSheet(
                     modifier = Modifier
                         .align(Alignment.CenterHorizontally)
                         .padding(top = 8.dp, bottom = 2.dp)
-                        .width(42.dp)
+                        .width(44.dp)
                         .height(4.dp)
                         .clip(CircleShape)
                         .background(MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.30f))
@@ -313,27 +508,93 @@ fun AllAppsSheet(
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(start = 20.dp, end = 8.dp, top = 4.dp, bottom = 6.dp),
+                        .padding(start = 18.dp, end = 8.dp, top = 4.dp, bottom = 4.dp),
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Column {
+                    Column(modifier = Modifier.weight(1f)) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            Text(
+                                text = "All Apps",
+                                style = MaterialTheme.typography.headlineMedium,
+                                fontWeight = FontWeight.Bold,
+                                color = MaterialTheme.colorScheme.onBackground
+                            )
+                            Surface(
+                                shape = CircleShape,
+                                color = MaterialTheme.colorScheme.primaryContainer
+                            ) {
+                                Text(
+                                    text = "${filteredApps.size}",
+                                    style = MaterialTheme.typography.labelMedium,
+                                    fontWeight = FontWeight.Bold,
+                                    color = MaterialTheme.colorScheme.onPrimaryContainer,
+                                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp)
+                                )
+                            }
+                        }
                         Text(
-                            text = "All Apps",
-                            style = MaterialTheme.typography.headlineMedium,
-                            color = MaterialTheme.colorScheme.onBackground
-                        )
-                        Text(
-                            text = if (trimmedQuery.isEmpty()) {
-                                "${filteredApps.size} installed • A–Z"
-                            } else {
-                                "${filteredApps.size} matching \"$trimmedQuery\""
+                            text = when {
+                                trimmedQuery.isNotEmpty() -> "Matching \"$trimmedQuery\" • Enter to launch"
+                                activeFilter != AllAppsFilter.ALL -> "${activeFilter.label} • Long-press any app for actions"
+                                else -> "${activeSort.label} • Long-press any app to pin, move or uninstall"
                             },
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
                         )
                     }
+
                     Row(verticalAlignment = Alignment.CenterVertically) {
+                        // Sort Cycle Pill (A-Z -> Newest -> Recent)
+                        Surface(
+                            shape = RoundedCornerShape(12.dp),
+                            color = MaterialTheme.colorScheme.surfaceVariant,
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(12.dp))
+                                .clickable {
+                                    val all = AllAppsSort.entries
+                                    activeSort = all[(activeSort.ordinal + 1) % all.size]
+                                }
+                        ) {
+                            Row(
+                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 6.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(4.dp)
+                            ) {
+                                Icon(
+                                    imageVector = activeSort.icon,
+                                    contentDescription = "Sort mode",
+                                    tint = MaterialTheme.colorScheme.primary,
+                                    modifier = Modifier.size(16.dp)
+                                )
+                                Text(
+                                    text = activeSort.label,
+                                    style = MaterialTheme.typography.labelSmall,
+                                    fontWeight = FontWeight.SemiBold,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
+                        }
+
+                        // Grid / List Toggle
+                        IconButton(
+                            onClick = { onToggleGridMode(!isGridMode) },
+                            modifier = Modifier.size(38.dp)
+                        ) {
+                            Icon(
+                                imageVector = if (isGridMode) Icons.Rounded.ViewList else Icons.Rounded.GridView,
+                                contentDescription = if (isGridMode) "Switch to list view" else "Switch to grid view",
+                                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                modifier = Modifier.size(21.dp)
+                            )
+                        }
+
+                        // Settings
                         IconButton(
                             onClick = {
                                 if (!isClosing) {
@@ -341,30 +602,44 @@ fun AllAppsSheet(
                                     keyboardController?.hide()
                                     onOpenSettings()
                                 }
-                            }
+                            },
+                            modifier = Modifier.size(38.dp)
                         ) {
                             Icon(
                                 imageVector = Icons.Rounded.Settings,
                                 contentDescription = "Room Launcher Settings",
-                                tint = MaterialTheme.colorScheme.primary
+                                tint = MaterialTheme.colorScheme.primary,
+                                modifier = Modifier.size(21.dp)
                             )
                         }
-                        IconButton(onClick = animateCloseAndDismiss) {
+
+                        // Close
+                        IconButton(
+                            onClick = animateCloseAndDismiss,
+                            modifier = Modifier.size(38.dp)
+                        ) {
                             Icon(
                                 imageVector = Icons.Rounded.Close,
-                                contentDescription = "Close all apps"
+                                contentDescription = "Close all apps",
+                                modifier = Modifier.size(21.dp)
                             )
                         }
                     }
                 }
             }
 
-            // Search bar
+            // Modern Pill Search Bar with Instant Enter-to-Launch
             OutlinedTextField(
                 value = searchQuery,
                 onValueChange = { searchQuery = it },
-                placeholder = { Text("Search apps by name…") },
-                leadingIcon = { Icon(Icons.Rounded.Search, contentDescription = null) },
+                placeholder = { Text("Search apps, packages…") },
+                leadingIcon = {
+                    Icon(
+                        imageVector = Icons.Rounded.Search,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.primary
+                    )
+                },
                 trailingIcon = {
                     if (searchQuery.isNotEmpty()) {
                         IconButton(onClick = { searchQuery = "" }) {
@@ -373,17 +648,94 @@ fun AllAppsSheet(
                     }
                 },
                 singleLine = true,
-                shape = RoundedCornerShape(16.dp),
+                keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
+                keyboardActions = KeyboardActions(
+                    onSearch = {
+                        val firstMatch = filteredApps.firstOrNull()
+                        if (firstMatch != null && !isClosing) {
+                            focusManager.clearFocus(force = true)
+                            keyboardController?.hide()
+                            onLaunchApp(firstMatch)
+                        }
+                    }
+                ),
+                shape = RoundedCornerShape(26.dp),
                 colors = OutlinedTextFieldDefaults.colors(
                     focusedContainerColor = MaterialTheme.colorScheme.surface,
-                    unfocusedContainerColor = MaterialTheme.colorScheme.surface
+                    unfocusedContainerColor = MaterialTheme.colorScheme.surface,
+                    unfocusedBorderColor = MaterialTheme.colorScheme.outline.copy(alpha = 0.45f)
                 ),
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(horizontal = 16.dp, vertical = 6.dp)
+                    .padding(horizontal = 16.dp, vertical = 4.dp)
             )
 
-            // Fast App List + Zero-Overhead A–Z Fast Scroller Rail + Floating Letter Bubble
+            // Interactive Filter Pill Strip
+            LazyRow(
+                contentPadding = PaddingValues(horizontal = 16.dp, vertical = 6.dp),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                items(AllAppsFilter.entries, key = { it.name }) { filter ->
+                    val selected = activeFilter == filter
+                    val countBadge = when (filter) {
+                        AllAppsFilter.ALL -> null
+                        AllAppsFilter.PINNED -> pinnedApps.size
+                        AllAppsFilter.RECENT -> recentPackages.count { it in appsByPackage }
+                        AllAppsFilter.GAMES -> gamesCount
+                        AllAppsFilter.UNSORTED -> unsortedCount
+                    }
+                    Surface(
+                        shape = RoundedCornerShape(14.dp),
+                        color = if (selected) {
+                            MaterialTheme.colorScheme.primary
+                        } else {
+                            MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.72f)
+                        },
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(14.dp))
+                            .clickable {
+                                activeFilter = filter
+                                coroutineScope.launch {
+                                    if (isGridMode) gridState.scrollToItem(0) else listState.scrollToItem(0)
+                                }
+                            }
+                    ) {
+                        Row(
+                            modifier = Modifier.padding(horizontal = 12.dp, vertical = 7.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(6.dp)
+                        ) {
+                            Icon(
+                                imageVector = filter.icon,
+                                contentDescription = null,
+                                tint = if (selected) {
+                                    MaterialTheme.colorScheme.onPrimary
+                                } else {
+                                    MaterialTheme.colorScheme.primary
+                                },
+                                modifier = Modifier.size(15.dp)
+                            )
+                            Text(
+                                text = if (countBadge != null && countBadge > 0) {
+                                    "${filter.label} ($countBadge)"
+                                } else {
+                                    filter.label
+                                },
+                                style = MaterialTheme.typography.labelMedium,
+                                fontWeight = if (selected) FontWeight.Bold else FontWeight.Medium,
+                                color = if (selected) {
+                                    MaterialTheme.colorScheme.onPrimary
+                                } else {
+                                    MaterialTheme.colorScheme.onSurfaceVariant
+                                }
+                            )
+                        }
+                    }
+                }
+            }
+
+            // Main Content: 4-Column Grid or Enhanced List + A–Z Fast-Scroll Rail
             BoxWithConstraints(
                 modifier = Modifier
                     .weight(1f)
@@ -399,77 +751,217 @@ fun AllAppsSheet(
                         horizontalAlignment = Alignment.CenterHorizontally,
                         verticalArrangement = Arrangement.Center
                     ) {
-                        Text(
-                            text = if (trimmedQuery.isNotEmpty()) {
-                                "No apps matching \"$trimmedQuery\""
-                            } else {
-                                "No launchable apps found"
-                            },
-                            style = MaterialTheme.typography.bodyLarge,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        Icon(
+                            imageVector = activeFilter.icon,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.primary.copy(alpha = 0.55f),
+                            modifier = Modifier.size(44.dp)
                         )
+                        Spacer(modifier = Modifier.height(10.dp))
+                        Text(
+                            text = when {
+                                trimmedQuery.isNotEmpty() -> "No apps matching \"$trimmedQuery\""
+                                activeFilter == AllAppsFilter.PINNED -> "No pinned apps yet"
+                                activeFilter == AllAppsFilter.RECENT -> "No recently launched apps yet"
+                                activeFilter == AllAppsFilter.GAMES -> "No games detected"
+                                activeFilter == AllAppsFilter.UNSORTED -> "All apps are neatly organized in rooms!"
+                                else -> "Loading your apps…"
+                            },
+                            style = MaterialTheme.typography.titleMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            textAlign = TextAlign.Center
+                        )
+                        if (activeFilter == AllAppsFilter.PINNED) {
+                            Spacer(modifier = Modifier.height(4.dp))
+                            Text(
+                                text = "Long-press any app in All Apps to pin it here for 1-tap access.",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.78f),
+                                textAlign = TextAlign.Center
+                            )
+                        }
+                        if (activeFilter != AllAppsFilter.ALL || trimmedQuery.isNotEmpty()) {
+                            Spacer(modifier = Modifier.height(12.dp))
+                            TextButton(
+                                onClick = {
+                                    searchQuery = ""
+                                    activeFilter = AllAppsFilter.ALL
+                                }
+                            ) {
+                                Text("Show All Apps")
+                            }
+                        }
                         Spacer(modifier = Modifier.height(20.dp))
-                        SettingsDeckCard(onClick = onOpenSettings)
+                        SettingsDeckCard(onClick = { if (!isClosing) onOpenSettings() })
                     }
                 } else {
-                    LazyColumn(
-                        state = listState,
-                        contentPadding = PaddingValues(
-                            start = 16.dp,
-                            end = 42.dp,
-                            top = 4.dp,
-                            bottom = 28.dp + imeBottomPadding
-                        ),
-                        modifier = Modifier.fillMaxSize()
-                    ) {
-                        items(
-                            items = flatEntries,
-                            key = { entry ->
-                                when (entry) {
-                                    is AllAppsEntry.Header -> "hdr_${entry.letter}"
-                                    is AllAppsEntry.AppItem -> entry.app.packageName
-                                    AllAppsEntry.SettingsCard -> "footer_settings"
+                    val endContentPad = if (showScrubRail) 40.dp else 14.dp
+
+                    if (isGridMode) {
+                        LazyVerticalGrid(
+                            columns = GridCells.Fixed(4),
+                            state = gridState,
+                            contentPadding = PaddingValues(
+                                start = 14.dp,
+                                end = endContentPad,
+                                top = 4.dp,
+                                bottom = 28.dp + imeBottomPadding
+                            ),
+                            horizontalArrangement = Arrangement.spacedBy(6.dp),
+                            verticalArrangement = Arrangement.spacedBy(6.dp),
+                            modifier = Modifier.fillMaxSize()
+                        ) {
+                            gridItems(
+                                items = flatEntries,
+                                key = { entry ->
+                                    when (entry) {
+                                        is AllAppsEntry.PinnedDock -> "pinned_dock"
+                                        is AllAppsEntry.Header -> "hdr_${entry.letter}"
+                                        is AllAppsEntry.AppItem -> entry.app.packageName
+                                        AllAppsEntry.SettingsCard -> "footer_settings"
+                                    }
+                                },
+                                span = { entry ->
+                                    when (entry) {
+                                        is AllAppsEntry.AppItem -> GridItemSpan(1)
+                                        else -> GridItemSpan(maxLineSpan)
+                                    }
+                                },
+                                contentType = { entry ->
+                                    when (entry) {
+                                        is AllAppsEntry.PinnedDock -> "pinned_dock"
+                                        is AllAppsEntry.Header -> "header"
+                                        is AllAppsEntry.AppItem -> "grid_app"
+                                        AllAppsEntry.SettingsCard -> "settings"
+                                    }
                                 }
-                            },
-                            contentType = { entry ->
+                            ) { entry ->
                                 when (entry) {
-                                    is AllAppsEntry.Header -> "header"
-                                    is AllAppsEntry.AppItem -> "app"
-                                    AllAppsEntry.SettingsCard -> "settings"
+                                    is AllAppsEntry.PinnedDock -> {
+                                        PinnedAppsDockCard(
+                                            pinnedApps = entry.apps,
+                                            onLaunch = { if (!isClosing) onLaunchApp(it) },
+                                            onLongPress = {
+                                                if (!isClosing) {
+                                                    haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                                                    selectedAppForMenu = it
+                                                }
+                                            }
+                                        )
+                                    }
+                                    is AllAppsEntry.Header -> {
+                                        FastLetterHeader(
+                                            letter = entry.letter,
+                                            count = entry.count,
+                                            isHighlighted = activeScrubLetter == entry.letter
+                                        )
+                                    }
+                                    is AllAppsEntry.AppItem -> {
+                                        GridAppTile(
+                                            app = entry.app,
+                                            isPinned = entry.isPinned,
+                                            isAssignedToRoom = entry.isAssignedToRoom,
+                                            highlightQuery = trimmedQuery,
+                                            onLaunch = {
+                                                if (!isClosing) onLaunchApp(entry.app)
+                                            },
+                                            onLongPress = {
+                                                if (!isClosing) {
+                                                    haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                                                    selectedAppForMenu = entry.app
+                                                }
+                                            }
+                                        )
+                                    }
+                                    AllAppsEntry.SettingsCard -> {
+                                        Box(modifier = Modifier.padding(top = 14.dp)) {
+                                            SettingsDeckCard(onClick = { if (!isClosing) onOpenSettings() })
+                                        }
+                                    }
                                 }
                             }
-                        ) { entry ->
-                            when (entry) {
-                                is AllAppsEntry.Header -> {
-                                    FastLetterHeader(
-                                        letter = entry.letter,
-                                        count = entry.count,
-                                        isHighlighted = activeScrubLetter == entry.letter
-                                    )
+                        }
+                    } else {
+                        LazyColumn(
+                            state = listState,
+                            contentPadding = PaddingValues(
+                                start = 14.dp,
+                                end = endContentPad,
+                                top = 4.dp,
+                                bottom = 28.dp + imeBottomPadding
+                            ),
+                            modifier = Modifier.fillMaxSize()
+                        ) {
+                            items(
+                                items = flatEntries,
+                                key = { entry ->
+                                    when (entry) {
+                                        is AllAppsEntry.PinnedDock -> "pinned_dock"
+                                        is AllAppsEntry.Header -> "hdr_${entry.letter}"
+                                        is AllAppsEntry.AppItem -> entry.app.packageName
+                                        AllAppsEntry.SettingsCard -> "footer_settings"
+                                    }
+                                },
+                                contentType = { entry ->
+                                    when (entry) {
+                                        is AllAppsEntry.PinnedDock -> "pinned_dock"
+                                        is AllAppsEntry.Header -> "header"
+                                        is AllAppsEntry.AppItem -> "list_app"
+                                        AllAppsEntry.SettingsCard -> "settings"
+                                    }
                                 }
-                                is AllAppsEntry.AppItem -> {
-                                    FastAllAppRow(
-                                        app = entry.app,
-                                        ownerLabel = entry.ownerLabel,
-                                        highlightQuery = trimmedQuery,
-                                        onLaunch = {
-                                            if (!isClosing) onLaunchApp(entry.app)
-                                        },
-                                        onOpenMenu = {
-                                            if (!isClosing) selectedAppForMenu = entry.app
-                                        }
-                                    )
-                                }
-                                AllAppsEntry.SettingsCard -> {
-                                    Spacer(modifier = Modifier.height(16.dp))
-                                    SettingsDeckCard(onClick = { if (!isClosing) onOpenSettings() })
+                            ) { entry ->
+                                when (entry) {
+                                    is AllAppsEntry.PinnedDock -> {
+                                        PinnedAppsDockCard(
+                                            pinnedApps = entry.apps,
+                                            onLaunch = { if (!isClosing) onLaunchApp(it) },
+                                            onLongPress = {
+                                                if (!isClosing) {
+                                                    haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                                                    selectedAppForMenu = it
+                                                }
+                                            }
+                                        )
+                                    }
+                                    is AllAppsEntry.Header -> {
+                                        FastLetterHeader(
+                                            letter = entry.letter,
+                                            count = entry.count,
+                                            isHighlighted = activeScrubLetter == entry.letter
+                                        )
+                                    }
+                                    is AllAppsEntry.AppItem -> {
+                                        FastAllAppRow(
+                                            app = entry.app,
+                                            ownerLabel = entry.ownerLabel,
+                                            isPinned = entry.isPinned,
+                                            highlightQuery = trimmedQuery,
+                                            onLaunch = {
+                                                if (!isClosing) onLaunchApp(entry.app)
+                                            },
+                                            onTogglePin = {
+                                                if (!isClosing) onTogglePinApp(entry.app.packageName)
+                                            },
+                                            onOpenMenu = {
+                                                if (!isClosing) {
+                                                    haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                                                    selectedAppForMenu = entry.app
+                                                }
+                                            }
+                                        )
+                                    }
+                                    AllAppsEntry.SettingsCard -> {
+                                        Spacer(modifier = Modifier.height(16.dp))
+                                        SettingsDeckCard(onClick = { if (!isClosing) onOpenSettings() })
+                                    }
                                 }
                             }
                         }
                     }
 
-                    // Ultra-Lightweight A–Z Fast Scroller Rail
-                    if (sectionLetters.size > 1 && trimmedQuery.isEmpty()) {
+                    // Ultra-Lightweight A–Z Fast Scroller Rail (works in BOTH Grid and List mode!)
+                    if (showScrubRail) {
                         AlphabetFastScrollerRail(
                             letters = sectionLetters,
                             activeLetter = activeScrubLetter,
@@ -480,7 +972,11 @@ fun AllAppsSheet(
                                     haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
                                     letterIndexMap[letter]?.let { targetIdx ->
                                         coroutineScope.launch {
-                                            listState.scrollToItem(targetIdx)
+                                            if (isGridMode) {
+                                                gridState.scrollToItem(targetIdx)
+                                            } else {
+                                                listState.scrollToItem(targetIdx)
+                                            }
                                         }
                                     }
                                 }
@@ -489,7 +985,7 @@ fun AllAppsSheet(
                             modifier = Modifier
                                 .align(Alignment.CenterEnd)
                                 .fillMaxHeight()
-                                .padding(end = 6.dp, top = 8.dp, bottom = 12.dp)
+                                .padding(end = 5.dp, top = 6.dp, bottom = 10.dp)
                         )
                     }
 
@@ -511,7 +1007,7 @@ fun AllAppsSheet(
                                 .align(Alignment.TopEnd)
                                 .offset {
                                     IntOffset(
-                                        x = -with(density) { 54.dp.toPx() }.roundToInt(),
+                                        x = -with(density) { 52.dp.toPx() }.roundToInt(),
                                         y = bubbleY.roundToInt()
                                     )
                                 }
@@ -542,107 +1038,448 @@ fun AllAppsSheet(
         }
     }
 
-    // Shared App Actions dialog
+    // Modern App Actions Modal (Open, Pin, App Info, Uninstall + Quick Room Assignment)
     val menuApp = selectedAppForMenu
-    if (menuApp != null && !isClosing) {
-        AlertDialog(
-            onDismissRequest = { selectedAppForMenu = null },
-            title = {
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(12.dp)
+    if (menuApp != null && isVisible && !isClosing) {
+        AppActionsModal(
+            app = menuApp,
+            ownerLabel = packageOwnerLabels[menuApp.packageName] ?: defaultUnsortedLabel,
+            isPinned = menuApp.packageName in pinnedSet,
+            panelHotspotChoices = panelHotspotChoices,
+            onLaunch = {
+                selectedAppForMenu = null
+                onLaunchApp(menuApp)
+            },
+            onTogglePin = {
+                onTogglePinApp(menuApp.packageName)
+            },
+            onOpenAppInfo = {
+                val pkg = menuApp.packageName
+                selectedAppForMenu = null
+                SystemIntentHelper.openAppInfoSettings(context, pkg)
+            },
+            onUninstall = {
+                val pkg = menuApp.packageName
+                selectedAppForMenu = null
+                onUninstallApp(pkg)
+            },
+            onMoveToHotspot = { hotspotId ->
+                onMoveApp(menuApp.packageName, hotspotId)
+                selectedAppForMenu = null
+            },
+            onDismiss = { selectedAppForMenu = null }
+        )
+    }
+}
+
+@OptIn(ExperimentalFoundationApi::class)
+@Composable
+private fun PinnedAppsDockCard(
+    pinnedApps: List<AppInfo>,
+    onLaunch: (AppInfo) -> Unit,
+    onLongPress: (AppInfo) -> Unit
+) {
+    Surface(
+        shape = RoundedCornerShape(22.dp),
+        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.62f),
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(top = 4.dp, bottom = 8.dp)
+            .border(
+                width = 1.dp,
+                color = MaterialTheme.colorScheme.outline.copy(alpha = 0.25f),
+                shape = RoundedCornerShape(22.dp)
+            )
+    ) {
+        Column(
+            modifier = Modifier.padding(vertical = 10.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            Row(
+                modifier = Modifier.padding(horizontal = 14.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(6.dp)
+            ) {
+                Icon(
+                    imageVector = Icons.Rounded.Star,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.secondary,
+                    modifier = Modifier.size(15.dp)
+                )
+                Text(
+                    text = "Pinned Favorites",
+                    style = MaterialTheme.typography.labelLarge,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.onSurface
+                )
+            }
+            LazyRow(
+                contentPadding = PaddingValues(horizontal = 12.dp),
+                horizontalArrangement = Arrangement.spacedBy(10.dp)
+            ) {
+                items(pinnedApps, key = { "pin_${it.packageName}" }) { app ->
+                    Column(
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        modifier = Modifier
+                            .width(66.dp)
+                            .clip(RoundedCornerShape(14.dp))
+                            .combinedClickable(
+                                onClick = { onLaunch(app) },
+                                onLongClick = { onLongPress(app) }
+                            )
+                            .padding(vertical = 4.dp, horizontal = 2.dp)
+                    ) {
+                        AppIconView(app = app, size = 48.dp)
+                        Spacer(modifier = Modifier.height(5.dp))
+                        Text(
+                            text = app.label,
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.onSurface,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                            textAlign = TextAlign.Center
+                        )
+                    }
+                }
+            }
+        }
+    }
+}
+
+@OptIn(ExperimentalFoundationApi::class)
+@Composable
+private fun GridAppTile(
+    app: AppInfo,
+    isPinned: Boolean,
+    isAssignedToRoom: Boolean,
+    highlightQuery: String,
+    onLaunch: () -> Unit,
+    onLongPress: () -> Unit
+) {
+    val primaryColor = MaterialTheme.colorScheme.primary
+    val highlightedLabel = rememberHighlightedLabel(app.label, highlightQuery, primaryColor)
+
+    Column(
+        horizontalAlignment = Alignment.CenterHorizontally,
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(16.dp))
+            .combinedClickable(
+                onClick = onLaunch,
+                onLongClick = onLongPress
+            )
+            .padding(horizontal = 4.dp, vertical = 8.dp)
+    ) {
+        Box(contentAlignment = Alignment.Center) {
+            AppIconView(app = app, size = 54.dp)
+            if (isPinned) {
+                Box(
+                    contentAlignment = Alignment.Center,
+                    modifier = Modifier
+                        .align(Alignment.TopEnd)
+                        .offset(x = 3.dp, y = (-3).dp)
+                        .size(18.dp)
+                        .clip(CircleShape)
+                        .background(MaterialTheme.colorScheme.secondary)
                 ) {
-                    AppIconView(app = menuApp, size = 36.dp)
-                    Text(
-                        text = menuApp.label,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis
+                    Icon(
+                        imageVector = Icons.Rounded.Star,
+                        contentDescription = "Pinned",
+                        tint = MaterialTheme.colorScheme.onSecondary,
+                        modifier = Modifier.size(11.dp)
                     )
                 }
-            },
-            text = {
-                Column(
+            } else if (isAssignedToRoom) {
+                Box(
                     modifier = Modifier
-                        .fillMaxWidth()
-                        .height(340.dp)
-                        .verticalScroll(rememberScrollState()),
-                    verticalArrangement = Arrangement.spacedBy(4.dp)
+                        .align(Alignment.BottomEnd)
+                        .offset(x = 2.dp, y = 2.dp)
+                        .size(9.dp)
+                        .clip(CircleShape)
+                        .background(MaterialTheme.colorScheme.background)
+                        .padding(1.5.dp)
+                        .clip(CircleShape)
+                        .background(MaterialTheme.colorScheme.primary)
+                )
+            }
+        }
+
+        Spacer(modifier = Modifier.height(6.dp))
+
+        if (highlightedLabel != null) {
+            Text(
+                text = highlightedLabel,
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onBackground,
+                maxLines = 2,
+                lineHeight = 13.5.sp,
+                overflow = TextOverflow.Ellipsis,
+                textAlign = TextAlign.Center
+            )
+        } else {
+            Text(
+                text = app.label,
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onBackground,
+                maxLines = 2,
+                lineHeight = 13.5.sp,
+                overflow = TextOverflow.Ellipsis,
+                textAlign = TextAlign.Center
+            )
+        }
+    }
+}
+
+@Composable
+private fun rememberHighlightedLabel(
+    label: String,
+    highlightQuery: String,
+    primaryColor: Color
+) = if (highlightQuery.isEmpty()) {
+    null
+} else {
+    remember(label, highlightQuery, primaryColor) {
+        val matchStart = label.indexOf(highlightQuery, ignoreCase = true)
+        if (matchStart >= 0) {
+            val matchEnd = (matchStart + highlightQuery.length).coerceAtMost(label.length)
+            buildAnnotatedString {
+                append(label.substring(0, matchStart))
+                withStyle(
+                    SpanStyle(
+                        color = primaryColor,
+                        fontWeight = FontWeight.ExtraBold
+                    )
                 ) {
+                    append(label.substring(matchStart, matchEnd))
+                }
+                append(label.substring(matchEnd))
+            }
+        } else {
+            null
+        }
+    }
+}
+
+@Composable
+private fun AppActionsModal(
+    app: AppInfo,
+    ownerLabel: String,
+    isPinned: Boolean,
+    panelHotspotChoices: List<Pair<String, RoomHotspot>>,
+    onLaunch: () -> Unit,
+    onTogglePin: () -> Unit,
+    onOpenAppInfo: () -> Unit,
+    onUninstall: () -> Unit,
+    onMoveToHotspot: (String) -> Unit,
+    onDismiss: () -> Unit
+) {
+    Dialog(
+        onDismissRequest = onDismiss,
+        properties = DialogProperties(usePlatformDefaultWidth = false)
+    ) {
+        Surface(
+            shape = RoundedCornerShape(28.dp),
+            color = MaterialTheme.colorScheme.surface,
+            tonalElevation = 8.dp,
+            shadowElevation = 16.dp,
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 20.dp)
+        ) {
+            Column(
+                modifier = Modifier.padding(20.dp),
+                verticalArrangement = Arrangement.spacedBy(14.dp)
+            ) {
+                // Header: Icon + Name + Package + Current Room Badge
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(14.dp)
+                ) {
+                    AppIconView(app = app, size = 52.dp)
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            text = app.label,
+                            style = MaterialTheme.typography.titleLarge,
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.onSurface,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                        Text(
+                            text = app.packageName,
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                        Spacer(modifier = Modifier.height(4.dp))
+                        Surface(
+                            shape = RoundedCornerShape(8.dp),
+                            color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.8f)
+                        ) {
+                            Text(
+                                text = ownerLabel,
+                                style = MaterialTheme.typography.labelSmall,
+                                fontWeight = FontWeight.SemiBold,
+                                color = MaterialTheme.colorScheme.onPrimaryContainer,
+                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp)
+                            )
+                        }
+                    }
+                    IconButton(onClick = onDismiss) {
+                        Icon(Icons.Rounded.Close, contentDescription = "Close actions")
+                    }
+                }
+
+                // 4 Prominent Quick Actions (Open, Pin, App Info, Uninstall)
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    QuickActionTile(
+                        icon = Icons.Rounded.OpenInNew,
+                        label = "Open",
+                        containerColor = MaterialTheme.colorScheme.primaryContainer,
+                        contentColor = MaterialTheme.colorScheme.onPrimaryContainer,
+                        onClick = onLaunch,
+                        modifier = Modifier.weight(1f)
+                    )
+                    QuickActionTile(
+                        icon = if (isPinned) Icons.Rounded.Star else Icons.Rounded.PushPin,
+                        label = if (isPinned) "Unpin" else "Pin",
+                        containerColor = if (isPinned) {
+                            MaterialTheme.colorScheme.secondaryContainer
+                        } else {
+                            MaterialTheme.colorScheme.surfaceVariant
+                        },
+                        contentColor = if (isPinned) {
+                            MaterialTheme.colorScheme.onSecondaryContainer
+                        } else {
+                            MaterialTheme.colorScheme.onSurfaceVariant
+                        },
+                        onClick = onTogglePin,
+                        modifier = Modifier.weight(1f)
+                    )
+                    QuickActionTile(
+                        icon = Icons.Rounded.Info,
+                        label = "App Info",
+                        containerColor = MaterialTheme.colorScheme.surfaceVariant,
+                        contentColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                        onClick = onOpenAppInfo,
+                        modifier = Modifier.weight(1f)
+                    )
+                    QuickActionTile(
+                        icon = Icons.Rounded.DeleteOutline,
+                        label = if (app.isSystemApp) "Disable" else "Uninstall",
+                        containerColor = MaterialTheme.colorScheme.errorContainer,
+                        contentColor = MaterialTheme.colorScheme.onErrorContainer,
+                        onClick = if (app.isSystemApp) onOpenAppInfo else onUninstall,
+                        modifier = Modifier.weight(1f)
+                    )
+                }
+
+                HorizontalDivider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.25f))
+
+                // Move / Assign to any Room Object
+                Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
                     Text(
                         text = "Move to Room Object",
                         style = MaterialTheme.typography.labelLarge,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        modifier = Modifier.padding(bottom = 4.dp)
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
-                    panelHotspotChoices.forEach { (roomName, target) ->
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .clip(RoundedCornerShape(12.dp))
-                                .clickable {
-                                    onMoveApp(menuApp.packageName, target.id)
-                                    selectedAppForMenu = null
-                                }
-                                .padding(horizontal = 10.dp, vertical = 9.dp),
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(12.dp)
-                        ) {
-                            Icon(
-                                imageVector = Icons.Rounded.DriveFileMove,
-                                contentDescription = null,
-                                tint = MaterialTheme.colorScheme.primary,
-                                modifier = Modifier.size(20.dp)
-                            )
-                            Column(modifier = Modifier.weight(1f)) {
-                                Text(
-                                    text = target.label,
-                                    style = MaterialTheme.typography.bodyLarge
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .heightIn(max = 250.dp)
+                            .verticalScroll(rememberScrollState()),
+                        verticalArrangement = Arrangement.spacedBy(4.dp)
+                    ) {
+                        panelHotspotChoices.forEach { (roomName, target) ->
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clip(RoundedCornerShape(14.dp))
+                                    .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.45f))
+                                    .clickable { onMoveToHotspot(target.id) }
+                                    .padding(horizontal = 12.dp, vertical = 10.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(12.dp)
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Rounded.DriveFileMove,
+                                    contentDescription = null,
+                                    tint = MaterialTheme.colorScheme.primary,
+                                    modifier = Modifier.size(19.dp)
                                 )
-                                Text(
-                                    text = if (target.subtitle.isNotBlank()) {
-                                        "$roomName • ${target.subtitle}"
-                                    } else {
-                                        roomName
-                                    },
-                                    style = MaterialTheme.typography.labelSmall,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                Column(modifier = Modifier.weight(1f)) {
+                                    Text(
+                                        text = target.label,
+                                        style = MaterialTheme.typography.bodyMedium,
+                                        fontWeight = FontWeight.SemiBold,
+                                        color = MaterialTheme.colorScheme.onSurface
+                                    )
+                                    Text(
+                                        text = if (target.subtitle.isNotBlank()) {
+                                            "$roomName • ${target.subtitle}"
+                                        } else {
+                                            roomName
+                                        },
+                                        style = MaterialTheme.typography.labelSmall,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
+                                }
+                                Icon(
+                                    imageVector = Icons.Rounded.ChevronRight,
+                                    contentDescription = null,
+                                    tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f),
+                                    modifier = Modifier.size(18.dp)
                                 )
                             }
                         }
                     }
-                    HorizontalDivider(modifier = Modifier.padding(vertical = 6.dp))
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .clip(RoundedCornerShape(12.dp))
-                            .clickable {
-                                val pkg = menuApp.packageName
-                                selectedAppForMenu = null
-                                SystemIntentHelper.openAppInfoSettings(context, pkg)
-                            }
-                            .padding(horizontal = 10.dp, vertical = 10.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(12.dp)
-                    ) {
-                        Icon(
-                            imageVector = Icons.Rounded.Info,
-                            contentDescription = null,
-                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                            modifier = Modifier.size(20.dp)
-                        )
-                        Text(
-                            text = "App Info",
-                            style = MaterialTheme.typography.bodyLarge
-                        )
-                    }
-                }
-            },
-            confirmButton = {
-                TextButton(onClick = { selectedAppForMenu = null }) {
-                    Text("Close")
                 }
             }
-        )
+        }
+    }
+}
+
+@Composable
+private fun QuickActionTile(
+    icon: ImageVector,
+    label: String,
+    containerColor: Color,
+    contentColor: Color,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    Surface(
+        shape = RoundedCornerShape(16.dp),
+        color = containerColor,
+        modifier = modifier
+            .clip(RoundedCornerShape(16.dp))
+            .clickable(onClick = onClick)
+    ) {
+        Column(
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.spacedBy(4.dp),
+            modifier = Modifier.padding(vertical = 11.dp, horizontal = 4.dp)
+        ) {
+            Icon(
+                imageVector = icon,
+                contentDescription = label,
+                tint = contentColor,
+                modifier = Modifier.size(21.dp)
+            )
+            Text(
+                text = label,
+                style = MaterialTheme.typography.labelSmall,
+                fontWeight = FontWeight.SemiBold,
+                color = contentColor,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
+        }
     }
 }
 
@@ -656,7 +1493,7 @@ private fun FastLetterHeader(
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(top = 10.dp, bottom = 3.dp)
+            .padding(top = 8.dp, bottom = 2.dp)
             .background(pillBg, RoundedCornerShape(10.dp))
             .padding(horizontal = 8.dp, vertical = 3.dp),
         verticalAlignment = Alignment.CenterVertically,
@@ -681,39 +1518,19 @@ private fun FastLetterHeader(
 private fun FastAllAppRow(
     app: AppInfo,
     ownerLabel: String,
+    isPinned: Boolean,
     highlightQuery: String,
     onLaunch: () -> Unit,
+    onTogglePin: () -> Unit,
     onOpenMenu: () -> Unit
 ) {
     val primaryColor = MaterialTheme.colorScheme.primary
-    val displayTitle = if (highlightQuery.isEmpty()) {
-        null
-    } else {
-        remember(app.label, highlightQuery, primaryColor) {
-            val matchStart = app.label.indexOf(highlightQuery, ignoreCase = true)
-            if (matchStart >= 0) {
-                val matchEnd = (matchStart + highlightQuery.length).coerceAtMost(app.label.length)
-                buildAnnotatedString {
-                    append(app.label.substring(0, matchStart))
-                    withStyle(
-                        SpanStyle(
-                            color = primaryColor,
-                            fontWeight = FontWeight.ExtraBold
-                        )
-                    ) {
-                        append(app.label.substring(matchStart, matchEnd))
-                    }
-                    append(app.label.substring(matchEnd))
-                }
-            } else {
-                null
-            }
-        }
-    }
+    val displayTitle = rememberHighlightedLabel(app.label, highlightQuery, primaryColor)
 
     Row(
         modifier = Modifier
             .fillMaxWidth()
+            .clip(RoundedCornerShape(14.dp))
             .combinedClickable(
                 onClick = onLaunch,
                 onLongClick = onOpenMenu
@@ -721,7 +1538,7 @@ private fun FastAllAppRow(
             .padding(horizontal = 6.dp, vertical = 7.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        AppIconView(app = app, size = 40.dp)
+        AppIconView(app = app, size = 44.dp)
         Spacer(modifier = Modifier.width(12.dp))
         Column(modifier = Modifier.weight(1f)) {
             if (displayTitle != null) {
@@ -749,10 +1566,26 @@ private fun FastAllAppRow(
                 overflow = TextOverflow.Ellipsis
             )
         }
+        IconButton(
+            onClick = onTogglePin,
+            modifier = Modifier.size(34.dp)
+        ) {
+            Icon(
+                imageVector = if (isPinned) Icons.Rounded.Star else Icons.Rounded.StarOutline,
+                contentDescription = if (isPinned) "Unpin app" else "Pin app",
+                tint = if (isPinned) {
+                    MaterialTheme.colorScheme.secondary
+                } else {
+                    MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.48f)
+                },
+                modifier = Modifier.size(19.dp)
+            )
+        }
         Box(
             contentAlignment = Alignment.Center,
             modifier = Modifier
-                .size(36.dp)
+                .size(34.dp)
+                .clip(CircleShape)
                 .clickable(onClick = onOpenMenu)
         ) {
             Icon(
@@ -784,8 +1617,8 @@ private fun AlphabetFastScrollerRail(
 
     Column(
         modifier = modifier
-            .width(30.dp)
-            .clip(RoundedCornerShape(15.dp))
+            .width(28.dp)
+            .clip(RoundedCornerShape(14.dp))
             .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.62f))
             .pointerInput(letters) {
                 detectTapGestures(

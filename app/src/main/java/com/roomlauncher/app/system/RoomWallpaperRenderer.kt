@@ -410,6 +410,35 @@ object RoomWallpaperRenderer {
                 paint.style = Paint.Style.FILL
                 paint.color = p.woodMid.toArgb()
                 canvas.drawRoundRect(RectF(r.left + w * 0.02f, r.bottom - h * 0.13f, r.right - w * 0.02f, r.bottom - h * 0.04f), 4f, 4f, paint)
+                if (tempC != null) {
+                    val label = "${tempC}°C"
+                    val textPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                        color = 0xFFFFFFFF.toInt()
+                        textSize = (min(w, h) * 0.17f).coerceIn(22f, 52f)
+                        isFakeBoldText = true
+                        textAlign = Paint.Align.CENTER
+                    }
+                    val textW = textPaint.measureText(label)
+                    val fm = textPaint.fontMetrics
+                    val pillH = (fm.descent - fm.ascent) + textPaint.textSize * 0.42f
+                    val pillW = textW + textPaint.textSize * 0.95f
+                    val pillBottom = pane.bottom - h * 0.04f
+                    val pillRect = RectF(
+                        pane.centerX() - pillW / 2f,
+                        pillBottom - pillH,
+                        pane.centerX() + pillW / 2f,
+                        pillBottom
+                    )
+                    paint.color = when {
+                        tempC < 0 -> 0xE0113B5E.toInt()
+                        tempC < 10 -> 0xDB233E57.toInt()
+                        tempC >= 28 -> 0xDB593112.toInt()
+                        else -> 0xD9101621.toInt()
+                    }
+                    canvas.drawRoundRect(pillRect, pillH * 0.45f, pillH * 0.45f, paint)
+                    val textY = pillRect.centerY() - (fm.ascent + fm.descent) / 2f
+                    canvas.drawText(label, pillRect.centerX(), textY, textPaint)
+                }
             }
 
             RoomObjectVisual.PAINTING -> {
