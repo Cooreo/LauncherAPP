@@ -90,11 +90,15 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import androidx.compose.ui.input.nestedscroll.NestedScrollConnection
+import androidx.compose.ui.input.nestedscroll.NestedScrollSource
+import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.layout
 import androidx.compose.ui.platform.LocalContext
@@ -111,6 +115,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.IntOffset
+import androidx.compose.ui.unit.Velocity
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
@@ -195,6 +200,11 @@ fun AllAppsSheet(
     var isClosing by remember { mutableStateOf(false) }
     var isAnimating by remember { mutableStateOf(false) }
 
+    var activeScrubLetter by remember { mutableStateOf<String?>(null) }
+    var scrubFractionY by remember { mutableFloatStateOf(0.5f) }
+    val listState = rememberLazyListState()
+    val gridState = rememberLazyGridState()
+
     // Pure-GPU vertical slide progress: 0f = fully open, 1f = completely off-screen below.
     val slideOffsetFraction = remember { Animatable(if (isVisible) 0f else 1f) }
 
@@ -220,8 +230,10 @@ fun AllAppsSheet(
                 isAnimating = false
             }
             isClosing = false
-            // Reset transient search state silently once completely off-screen
+            // Reset transient search & scroll position silently once completely off-screen
             searchQuery = ""
+            runCatching { gridState.scrollToItem(0) }
+            runCatching { listState.scrollToItem(0) }
         }
     }
 
@@ -260,11 +272,6 @@ fun AllAppsSheet(
             else -> animateCloseAndDismiss()
         }
     }
-
-    var activeScrubLetter by remember { mutableStateOf<String?>(null) }
-    var scrubFractionY by remember { mutableFloatStateOf(0.5f) }
-    val listState = rememberLazyListState()
-    val gridState = rememberLazyGridState()
 
     val pinnedSet = remember(pinnedPackages) { pinnedPackages.toHashSet() }
     val recentRank = remember(recentPackages) {
@@ -315,7 +322,7 @@ fun AllAppsSheet(
             queried
         } else {
             when (activeSort) {
-                AllAppsSort.AZ -> queried
+                AllAppsSort.AZ -> queried.sortedBy { it.label.lowercase() }
                 AllAppsSort.NEWEST -> queried.sortedByDescending { it.firstInstallTime }
                 AllAppsSort.RECENT -> queried.sortedWith(
                     compareBy<AppInfo> { recentRank[it.packageName] ?: Int.MAX_VALUE }
@@ -329,9 +336,8 @@ fun AllAppsSheet(
         activeFilter != AllAppsFilter.RECENT &&
         trimmedQuery.isEmpty()
 
-    // In Grid View, keep a clean continuous 4-column grid (no mid-grid letter header breaks leaving gaps!).
-    // In List View, render full-width A–Z letter headers. Both modes support the A–Z fast-scroll rail!
-    val insertSectionHeaders = showAlphabetIndex && !isGridMode
+    // Show crisp A–Z letter headers in BOTH Grid View and List View so alphabetical sorting is always clear!
+    val insertSectionHeaders = showAlphabetIndex
 
     val showPinnedDock = activeFilter == AllAppsFilter.ALL &&
         trimmedQuery.isEmpty() &&
@@ -447,13 +453,69 @@ fun AllAppsSheet(
     ) {
         val sheetHeightPx = with(density) { maxHeight.toPx() }.coerceAtLeast(1f)
 
+        // Full-drawer nested-scroll swipe-down-to-close:
+        // Pulling down anywhere on the app grid/list when at the top smoothly slides the drawer closed!
+        val dismissNestedScroll = remember(sheetHeightPx, isVisible) {
+            object : NestedScrollConnection {
+                override fun onPreScroll(available: Offset, source: NestedScrollSource): Offset {
+                    if (isClosing || !isVisible || source != NestedScrollSource.UserInput) return Offset.Zero
+                    val current = slideOffsetFraction.value
+                    if (current > 0f && available.y != 0f) {
+                        val next = (current + available.y / sheetHeightPx).coerceIn(0f, 1f)
+                        val consumedY = (next - current) * sheetHeightPx
+                        coroutineScope.launch { slideOffsetFraction.snapTo(next) }
+                        return Offset(0f, consumedY)
+                    }
+                    return Offset.Zero
+                }
+
+                override fun onPostScroll(
+                    consumed: Offset,
+                    available: Offset,
+                    source: NestedScrollSource
+                ): Offset {
+                    if (isClosing || !isVisible || source != NestedScrollSource.UserInput) return Offset.Zero
+                    if (available.y > 0f) {
+                        val current = slideOffsetFraction.value
+                        val next = (current + available.y / sheetHeightPx).coerceIn(0f, 1f)
+                        val consumedY = (next - current) * sheetHeightPx
+                        if (current == 0f) {
+                            focusManager.clearFocus(force = true)
+                            keyboardController?.hide()
+                        }
+                        coroutineScope.launch { slideOffsetFraction.snapTo(next) }
+                        return Offset(0f, consumedY)
+                    }
+                    return Offset.Zero
+                }
+
+                override suspend fun onPreFling(available: Velocity): Velocity {
+                    if (isClosing || !isVisible) return Velocity.Zero
+                    val current = slideOffsetFraction.value
+                    if (current > 0f) {
+                        val shouldDismiss = current > 0.11f || (available.y > 650f && current > 0.02f)
+                        if (shouldDismiss) {
+                            animateCloseAndDismiss()
+                        } else {
+                            slideOffsetFraction.animateTo(
+                                targetValue = 0f,
+                                animationSpec = tween(durationMillis = 150, easing = FastOutSlowInEasing)
+                            )
+                        }
+                        return available
+                    }
+                    return Velocity.Zero
+                }
+            }
+        }
+
         Column(
             modifier = Modifier
                 .fillMaxSize()
                 .statusBarsPadding()
                 .navigationBarsPadding()
         ) {
-            // Finger-following swipe-down header (1:1 GPU translationY, 0 recompositions)
+            // Finger-following swipe-down chrome (header + search bar + filter strip close immediately from any scroll depth!)
             var lastDragDelta by remember { mutableFloatStateOf(0f) }
             Column(
                 modifier = Modifier
@@ -467,18 +529,20 @@ fun AllAppsSheet(
                             },
                             onVerticalDrag = { change, dragAmount ->
                                 if (isClosing || !isVisible) return@detectVerticalDragGestures
-                                change.consume()
-                                lastDragDelta = dragAmount
-                                val deltaFraction = dragAmount / sheetHeightPx
-                                val next = (slideOffsetFraction.value + deltaFraction).coerceIn(0f, 1f)
-                                coroutineScope.launch {
-                                    slideOffsetFraction.snapTo(next)
+                                if (dragAmount > 0f || slideOffsetFraction.value > 0f) {
+                                    change.consume()
+                                    lastDragDelta = dragAmount
+                                    val deltaFraction = dragAmount / sheetHeightPx
+                                    val next = (slideOffsetFraction.value + deltaFraction).coerceIn(0f, 1f)
+                                    coroutineScope.launch {
+                                        slideOffsetFraction.snapTo(next)
+                                    }
                                 }
                             },
                             onDragEnd = {
                                 if (isClosing || !isVisible) return@detectVerticalDragGestures
-                                val shouldDismiss = slideOffsetFraction.value > 0.14f ||
-                                    (lastDragDelta > 16f && slideOffsetFraction.value > 0.03f)
+                                val shouldDismiss = slideOffsetFraction.value > 0.11f ||
+                                    (lastDragDelta > 14f && slideOffsetFraction.value > 0.02f)
                                 if (shouldDismiss) {
                                     animateCloseAndDismiss()
                                 } else {
@@ -640,153 +704,154 @@ fun AllAppsSheet(
                         }
                     }
                 }
-            }
 
-            // Sleek Compact Pill Search Bar with Instant Enter-to-Launch
-            Surface(
-                shape = RoundedCornerShape(22.dp),
-                color = MaterialTheme.colorScheme.surface,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 14.dp, vertical = 4.dp)
-                    .height(44.dp)
-                    .border(
-                        width = 1.dp,
-                        color = MaterialTheme.colorScheme.outline.copy(alpha = 0.42f),
-                        shape = RoundedCornerShape(22.dp)
-                    )
-            ) {
-                Row(
+                // Sleek Compact Pill Search Bar with Instant Enter-to-Launch (also part of swipe-down chrome!)
+                Surface(
+                    shape = RoundedCornerShape(22.dp),
+                    color = MaterialTheme.colorScheme.surface,
                     modifier = Modifier
-                        .fillMaxSize()
-                        .padding(horizontal = 14.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(10.dp)
+                        .fillMaxWidth()
+                        .padding(horizontal = 14.dp, vertical = 4.dp)
+                        .height(44.dp)
+                        .border(
+                            width = 1.dp,
+                            color = MaterialTheme.colorScheme.outline.copy(alpha = 0.42f),
+                            shape = RoundedCornerShape(22.dp)
+                        )
                 ) {
-                    Icon(
-                        imageVector = Icons.Rounded.Search,
-                        contentDescription = null,
-                        tint = MaterialTheme.colorScheme.primary,
-                        modifier = Modifier.size(19.dp)
-                    )
-                    Box(
-                        modifier = Modifier.weight(1f),
-                        contentAlignment = Alignment.CenterStart
+                    Row(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .padding(horizontal = 14.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(10.dp)
                     ) {
-                        if (searchQuery.isEmpty()) {
-                            Text(
-                                text = "Search apps…",
-                                style = MaterialTheme.typography.bodyMedium,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.72f)
+                        Icon(
+                            imageVector = Icons.Rounded.Search,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.primary,
+                            modifier = Modifier.size(19.dp)
+                        )
+                        Box(
+                            modifier = Modifier.weight(1f),
+                            contentAlignment = Alignment.CenterStart
+                        ) {
+                            if (searchQuery.isEmpty()) {
+                                Text(
+                                    text = "Search apps…",
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.72f)
+                                )
+                            }
+                            BasicTextField(
+                                value = searchQuery,
+                                onValueChange = { searchQuery = it },
+                                singleLine = true,
+                                textStyle = MaterialTheme.typography.bodyMedium.copy(
+                                    color = MaterialTheme.colorScheme.onSurface
+                                ),
+                                cursorBrush = SolidColor(MaterialTheme.colorScheme.primary),
+                                keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
+                                keyboardActions = KeyboardActions(
+                                    onSearch = {
+                                        val firstMatch = filteredApps.firstOrNull()
+                                        if (firstMatch != null && !isClosing) {
+                                            focusManager.clearFocus(force = true)
+                                            keyboardController?.hide()
+                                            onLaunchApp(firstMatch)
+                                        }
+                                    }
+                                ),
+                                modifier = Modifier.fillMaxWidth()
                             )
                         }
-                        BasicTextField(
-                            value = searchQuery,
-                            onValueChange = { searchQuery = it },
-                            singleLine = true,
-                            textStyle = MaterialTheme.typography.bodyMedium.copy(
-                                color = MaterialTheme.colorScheme.onSurface
-                            ),
-                            cursorBrush = SolidColor(MaterialTheme.colorScheme.primary),
-                            keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
-                            keyboardActions = KeyboardActions(
-                                onSearch = {
-                                    val firstMatch = filteredApps.firstOrNull()
-                                    if (firstMatch != null && !isClosing) {
-                                        focusManager.clearFocus(force = true)
-                                        keyboardController?.hide()
-                                        onLaunchApp(firstMatch)
+                        if (searchQuery.isNotEmpty()) {
+                            IconButton(
+                                onClick = { searchQuery = "" },
+                                modifier = Modifier.size(28.dp)
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Rounded.Close,
+                                    contentDescription = "Clear search",
+                                    modifier = Modifier.size(17.dp)
+                                )
+                            }
+                        }
+                    }
+                }
+
+                // Compact Interactive Filter Pill Strip (vertical downward swipes here also dismiss!)
+                LazyRow(
+                    contentPadding = PaddingValues(horizontal = 14.dp, vertical = 4.dp),
+                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    items(AllAppsFilter.entries, key = { it.name }) { filter ->
+                        val selected = activeFilter == filter
+                        val countBadge = when (filter) {
+                            AllAppsFilter.ALL -> null
+                            AllAppsFilter.PINNED -> pinnedApps.size
+                            AllAppsFilter.RECENT -> recentPackages.count { it in appsByPackage }
+                            AllAppsFilter.GAMES -> gamesCount
+                            AllAppsFilter.UNSORTED -> unsortedCount
+                        }
+                        Surface(
+                            shape = RoundedCornerShape(12.dp),
+                            color = if (selected) {
+                                MaterialTheme.colorScheme.primary
+                            } else {
+                                MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.72f)
+                            },
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(12.dp))
+                                .clickable {
+                                    activeFilter = filter
+                                    coroutineScope.launch {
+                                        if (isGridMode) gridState.scrollToItem(0) else listState.scrollToItem(0)
                                     }
                                 }
-                            ),
-                            modifier = Modifier.fillMaxWidth()
-                        )
-                    }
-                    if (searchQuery.isNotEmpty()) {
-                        IconButton(
-                            onClick = { searchQuery = "" },
-                            modifier = Modifier.size(28.dp)
                         ) {
-                            Icon(
-                                imageVector = Icons.Rounded.Close,
-                                contentDescription = "Clear search",
-                                modifier = Modifier.size(17.dp)
-                            )
-                        }
-                    }
-                }
-            }
-
-            // Compact Interactive Filter Pill Strip
-            LazyRow(
-                contentPadding = PaddingValues(horizontal = 14.dp, vertical = 4.dp),
-                horizontalArrangement = Arrangement.spacedBy(6.dp),
-                modifier = Modifier.fillMaxWidth()
-            ) {
-                items(AllAppsFilter.entries, key = { it.name }) { filter ->
-                    val selected = activeFilter == filter
-                    val countBadge = when (filter) {
-                        AllAppsFilter.ALL -> null
-                        AllAppsFilter.PINNED -> pinnedApps.size
-                        AllAppsFilter.RECENT -> recentPackages.count { it in appsByPackage }
-                        AllAppsFilter.GAMES -> gamesCount
-                        AllAppsFilter.UNSORTED -> unsortedCount
-                    }
-                    Surface(
-                        shape = RoundedCornerShape(12.dp),
-                        color = if (selected) {
-                            MaterialTheme.colorScheme.primary
-                        } else {
-                            MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.72f)
-                        },
-                        modifier = Modifier
-                            .clip(RoundedCornerShape(12.dp))
-                            .clickable {
-                                activeFilter = filter
-                                coroutineScope.launch {
-                                    if (isGridMode) gridState.scrollToItem(0) else listState.scrollToItem(0)
-                                }
+                            Row(
+                                modifier = Modifier.padding(horizontal = 10.dp, vertical = 5.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(5.dp)
+                            ) {
+                                Icon(
+                                    imageVector = filter.icon,
+                                    contentDescription = null,
+                                    tint = if (selected) {
+                                        MaterialTheme.colorScheme.onPrimary
+                                    } else {
+                                        MaterialTheme.colorScheme.primary
+                                    },
+                                    modifier = Modifier.size(13.5.dp)
+                                )
+                                Text(
+                                    text = if (countBadge != null && countBadge > 0) {
+                                        "${filter.label} ($countBadge)"
+                                    } else {
+                                        filter.label
+                                    },
+                                    fontSize = 11.5.sp,
+                                    fontWeight = if (selected) FontWeight.Bold else FontWeight.Medium,
+                                    color = if (selected) {
+                                        MaterialTheme.colorScheme.onPrimary
+                                    } else {
+                                        MaterialTheme.colorScheme.onSurfaceVariant
+                                    }
+                                )
                             }
-                    ) {
-                        Row(
-                            modifier = Modifier.padding(horizontal = 10.dp, vertical = 5.dp),
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(5.dp)
-                        ) {
-                            Icon(
-                                imageVector = filter.icon,
-                                contentDescription = null,
-                                tint = if (selected) {
-                                    MaterialTheme.colorScheme.onPrimary
-                                } else {
-                                    MaterialTheme.colorScheme.primary
-                                },
-                                modifier = Modifier.size(13.5.dp)
-                            )
-                            Text(
-                                text = if (countBadge != null && countBadge > 0) {
-                                    "${filter.label} ($countBadge)"
-                                } else {
-                                    filter.label
-                                },
-                                fontSize = 11.5.sp,
-                                fontWeight = if (selected) FontWeight.Bold else FontWeight.Medium,
-                                color = if (selected) {
-                                    MaterialTheme.colorScheme.onPrimary
-                                } else {
-                                    MaterialTheme.colorScheme.onSurfaceVariant
-                                }
-                            )
                         }
                     }
                 }
             }
 
-            // Main Content: 4-Column Grid or Enhanced List + A–Z Fast-Scroll Rail
+            // Main Content: 4-Column Grid or Enhanced List + A–Z Fast-Scroll Rail + Swipe-Down Nested Scroll
             BoxWithConstraints(
                 modifier = Modifier
                     .weight(1f)
                     .fillMaxWidth()
+                    .nestedScroll(dismissNestedScroll)
             ) {
                 val containerHeightPx = with(density) { maxHeight.toPx() }
 

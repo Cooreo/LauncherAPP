@@ -13,8 +13,8 @@ android {
         applicationId = "com.roomlauncher.app"
         minSdk = 26
         targetSdk = 35
-        versionCode = 17
-        versionName = "3.1.2"
+        versionCode = 18
+        versionName = "3.1.3"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         vectorDrawables {

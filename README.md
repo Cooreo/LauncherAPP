@@ -2,8 +2,11 @@
 
 **Room Launcher** is a minimalist Android home screen launcher built with **Kotlin** and **Jetpack Compose**. Instead of a traditional grid of icons, your home screen is a customizable, illustrated room where every piece of furniture is an interactive, movable object.
 
-## Features (v3.1.2 — Native DPI Restore, Clean Grid Alignment & All Apps Pill Fix)
+## Features (v3.1.3 — Restored A–Z Sorting & Full-Drawer Swipe-Down Close)
 
+- **Restored A–Z Sorting Headers & Swipe-Down-To-Close Everywhere (v3.1.3)**:
+  - Restored visible A–Z alphabetical section headers in Grid View (alongside List View and A–Z / Newest / Recent sorting) while keeping uniform `30dp` label boxes and crisp `46–50dp` aligned icons.
+  - Added full-drawer nested-scroll swipe-down-to-close: pulling down anywhere on the App Grid or List when at the top smoothly slides the drawer closed with velocity flick support, and swiping down on the header, search bar, or filter chips closes it immediately from any scroll depth.
 - **Native DPI, Aligned App Grid & Bottom Pill Fix (v3.1.2)**:
   - Restored 100% native system DPI (removed the global `LocalDensity` override that shrunk UI too far) while keeping a gentle `0.93×` room breathing margin.
   - Fixed the bottom **All Apps** button clipping on 3-button & gesture navigation bars by applying `navigationBarsPadding()` outside the unconstrained bottom bar container.
