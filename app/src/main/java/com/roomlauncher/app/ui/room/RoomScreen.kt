@@ -701,18 +701,10 @@ fun RoomScreen(
                 )
             }
 
-        // Smooth A–Z Searchable All Apps Drawer + clean zero-glitch exit!
+        // Pure-GPU opaque All Apps Drawer (self-managed slide-up / finger-following swipe-down / glitch-free close!)
         val isAllAppsVisible = uiState.showAllAppsSheet && !uiState.showSettingsSheet
-        AnimatedVisibility(
-            visible = isAllAppsVisible,
-            enter = slideInVertically(
-                animationSpec = tween(durationMillis = 190, easing = FastOutSlowInEasing),
-                initialOffsetY = { it / 10 }
-            ) + fadeIn(tween(150)),
-            exit = fadeOut(tween(130))
-        ) {
+        if (isAllAppsVisible) {
             AllAppsSheet(
-                isVisible = isAllAppsVisible,
                 installedApps = uiState.installedApps,
                 packageOwnerLabels = uiState.packageOwnerLabels,
                 defaultUnsortedLabel = uiState.defaultUnsortedLabel,
@@ -727,7 +719,7 @@ fun RoomScreen(
             )
         }
 
-        // Smooth Room Launcher Settings Screen + clean zero-glitch exit!
+        // Smooth Room Launcher Settings Screen + clean opaque exit!
         AnimatedVisibility(
             visible = uiState.showSettingsSheet,
             enter = slideInVertically(

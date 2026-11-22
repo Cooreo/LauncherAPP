@@ -11,9 +11,19 @@ data class ChangelogEntry(
 )
 
 object ChangelogData {
-    const val CURRENT_VERSION = "3.0.1"
+    const val CURRENT_VERSION = "3.0.2"
 
     val entries: List<ChangelogEntry> = listOf(
+        ChangelogEntry(
+            version = "3.0.2",
+            title = "App Drawer Swipe-Close Glitch Fix",
+            tag = "BUGFIX",
+            highlights = listOf(
+                "Completely eliminated the App Drawer close glitch when using swipe gestures (including on ColorOS / Oppo devices): replaced frame-by-frame Predictive Back shape/shadow thrashing with a pure-GPU 100% opaque vertical slide (0 recompositions during drag or close).",
+                "Added smooth 1:1 finger-following swipe-down on the All Apps header with velocity flick support and pointer-blocking during exit so touches never leak or bounce back.",
+                "Switched both All Apps and Settings to clean single-fire BackHandler dispatch without ColorOS enableOnBackInvokedCallback window-scale conflicts."
+            )
+        ),
         ChangelogEntry(
             version = "3.0.1",
             title = "Smooth All Apps, Fast Settings & Play Protect Cleanup",
