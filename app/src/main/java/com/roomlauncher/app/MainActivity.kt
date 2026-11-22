@@ -223,6 +223,7 @@ private fun RoomLauncherRoot(
                 onOpenActiveMusicApp = viewModel::openActiveMusicApp,
                 onRetryLyrics = viewModel::retryFetchLyrics,
                 onToggleAutoCheckUpdates = viewModel::setAutoCheckUpdatesEnabled,
+                onToggleIncludeAlphaUpdates = viewModel::setIncludeAlphaUpdates,
                 onCheckForUpdates = { viewModel.checkForUpdates(userInitiated = true) },
                 onShowUpdatePopup = viewModel::showUpdatePopup,
                 onDismissUpdatePopup = viewModel::dismissUpdatePopup,

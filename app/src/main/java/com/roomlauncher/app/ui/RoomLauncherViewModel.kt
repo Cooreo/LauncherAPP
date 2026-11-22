@@ -950,6 +950,23 @@ class RoomLauncherViewModel(application: Application) : AndroidViewModel(applica
         }
     }
 
+    fun setIncludeAlphaUpdates(enabled: Boolean) {
+        if (_uiState.value.config.includeAlphaUpdates == enabled) return
+        updateConfig { it.copy(includeAlphaUpdates = enabled) }
+        dismissedUpdateVersion = null
+        if (!enabled && _uiState.value.updateState.availableUpdate?.isPreRelease == true) {
+            _uiState.update { state ->
+                state.copy(
+                    updateState = state.updateState.copy(
+                        availableUpdate = null,
+                        showUpdateDialog = false
+                    )
+                )
+            }
+        }
+        checkForUpdates(userInitiated = false)
+    }
+
     fun checkForUpdates(userInitiated: Boolean) {
         if (_uiState.value.updateState.isChecking || _uiState.value.updateState.isDownloading) return
         if (userInitiated) {
@@ -957,6 +974,7 @@ class RoomLauncherViewModel(application: Application) : AndroidViewModel(applica
         }
 
         val currentVersion = _uiState.value.updateState.currentVersion.ifBlank { BuildConfig.VERSION_NAME }
+        val includeAlphas = _uiState.value.config.includeAlphaUpdates
         _uiState.update {
             it.copy(
                 updateState = it.updateState.copy(
@@ -968,7 +986,10 @@ class RoomLauncherViewModel(application: Application) : AndroidViewModel(applica
 
         updateCheckJob?.cancel()
         updateCheckJob = viewModelScope.launch {
-            val result = appUpdateRepository.checkForUpdate(currentVersion)
+            val result = appUpdateRepository.checkForUpdate(
+                currentVersion = currentVersion,
+                includePreReleases = includeAlphas
+            )
             val now = System.currentTimeMillis()
             when (result) {
                 is UpdateCheckResult.UpdateAvailable -> {
