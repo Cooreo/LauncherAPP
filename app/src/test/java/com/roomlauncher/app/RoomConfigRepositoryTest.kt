@@ -231,11 +231,11 @@ class RoomConfigRepositoryTest {
     }
 
     @Test
-    fun changelogStartsWithVersion3() {
-        assertEquals("3.0", ChangelogData.CURRENT_VERSION)
+    fun changelogStartsWithLatestVersion() {
+        assertEquals("3.0.1", ChangelogData.CURRENT_VERSION)
         assertTrue(ChangelogData.entries.isNotEmpty())
-        assertEquals("3.0", ChangelogData.entries.first().version)
-        assertTrue(ChangelogData.entries.first().highlights.size >= 4)
+        assertEquals("3.0.1", ChangelogData.entries.first().version)
+        assertTrue(ChangelogData.entries.first().highlights.size >= 3)
     }
 
     @Test

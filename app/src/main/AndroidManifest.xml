@@ -20,14 +20,8 @@
     <!-- Allows mirroring the current room layout onto the Home screen wallpaper (not Lock screen) -->
     <uses-permission android:name="android.permission.SET_WALLPAPER" />
 
-    <!-- Optional: only requested if user enables Real-Time Audio-Reactive FFT Visualizer -->
-    <uses-permission android:name="android.permission.RECORD_AUDIO" />
-
     <!-- Allows downloading & installing Room Launcher updates directly from GitHub releases -->
     <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
-
-    <!-- Allows launching Android's uninstall prompt only if user initiates a key-conflict migration -->
-    <uses-permission android:name="android.permission.REQUEST_DELETE_PACKAGES" />
 
     <queries>
         <intent>
