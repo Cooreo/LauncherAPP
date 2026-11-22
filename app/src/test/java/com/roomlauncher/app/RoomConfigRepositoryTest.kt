@@ -74,6 +74,7 @@ class RoomConfigRepositoryTest {
             posterLeftPath = "/tmp/poster_left.jpg",
             posterRightPath = "/tmp/poster_right.jpg",
             allAppsGridMode = false,
+            allAppsScalePercent = 125,
             pinnedAppPackages = listOf("com.google.android.youtube", "com.spotify.music"),
             recentAppPackages = listOf("com.android.chrome"),
             webShortcuts = listOf(WebShortcut("w1", "GitHub", "https://github.com"))
@@ -235,10 +236,20 @@ class RoomConfigRepositoryTest {
 
     @Test
     fun changelogStartsWithLatestVersion() {
-        assertEquals("3.1.3", ChangelogData.CURRENT_VERSION)
+        assertEquals("3.1.4", ChangelogData.CURRENT_VERSION)
         assertTrue(ChangelogData.entries.isNotEmpty())
-        assertEquals("3.1.3", ChangelogData.entries.first().version)
+        assertEquals("3.1.4", ChangelogData.entries.first().version)
         assertTrue(ChangelogData.entries.first().highlights.size >= 3)
+    }
+
+    @Test
+    fun appDrawerScalePercentDefaultsTo115AndClampsSafely() {
+        val defaultConfig = RoomConfigRepository.createDefaultRoomConfig()
+        assertEquals(115, defaultConfig.allAppsScalePercent)
+        assertEquals(115, defaultConfig.safeAllAppsScalePercent)
+        assertEquals(75, RoomConfig.clampAllAppsScalePercent(40))
+        assertEquals(140, RoomConfig.clampAllAppsScalePercent(250))
+        assertEquals(100, RoomConfig.clampAllAppsScalePercent(100))
     }
 
     @Test

@@ -272,7 +272,7 @@ class AppRepository(
     }
 
     companion object {
-        // 144px keeps app icons razor-sharp on 3.0x/480dpi high-density AMOLED screens (e.g. Oppo Reno 6 5G)
-        private const val ICON_SIZE_PX = 144
+        // 180px keeps app icons razor-sharp on high-density AMOLED screens even when App Drawer DPI is scaled up to 140%
+        private const val ICON_SIZE_PX = 180
     }
 }
