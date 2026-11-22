@@ -2,8 +2,11 @@
 
 **Room Launcher** is a minimalist Android home screen launcher built with **Kotlin** and **Jetpack Compose**. Instead of a traditional grid of icons, your home screen is a customizable, illustrated room where every piece of furniture is an interactive, movable object.
 
-## Features (v3.1.4 — Larger App Drawer DPI & Simple % Scale Setting)
+## Features (v3.1.5 — Reliable App Drawer Swipe-Down Auto-Close)
 
+- **Instant App Drawer Swipe-Down Auto-Close Fix (v3.1.5)**:
+  - Fixed a stale `isVisible` closure inside the boot-warmed `AllAppsSheet` close handler that stopped downward swipes from automatically finishing the dismiss animation.
+  - Upgraded both top-chrome and nested-scroll swipe-down tracking to synchronous 1:1 GPU translation with cumulative screen-space `VelocityTracker` flick detection and pre-overscroll interception at the top of the Grid/List.
 - **Larger App Drawer Scale (DPI) & Percentage Setting (v3.1.4)**:
   - Increased the default App Drawer DPI scale to **115%** (scoped strictly to the App Drawer so your home screen & navigation bar insets stay at native 100% DPI), backed by sharper `180px` cached icons and adaptive `5 / 4 / 3` grid columns.
   - Added **Settings → App Drawer → Drawer Size (DPI Scale)** in plain **`%`** (`75%`–`140%` in `5%` increments, 1-tap `85% / 100% / 115% / 130%` presets, and a live visual icon preview) so adjusting drawer size is effortless and never confusing.

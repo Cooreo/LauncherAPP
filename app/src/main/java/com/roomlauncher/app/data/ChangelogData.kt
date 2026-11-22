@@ -11,9 +11,19 @@ data class ChangelogEntry(
 )
 
 object ChangelogData {
-    const val CURRENT_VERSION = "3.1.4"
+    const val CURRENT_VERSION = "3.1.5"
 
     val entries: List<ChangelogEntry> = listOf(
+        ChangelogEntry(
+            version = "3.1.5",
+            title = "Fixed App Drawer Auto-Close on Swipe Down",
+            tag = "BUGFIX",
+            highlights = listOf(
+                "Fixed a stale visibility closure in the pre-warmed All Apps drawer that prevented swipe-down gestures (and close triggers) from automatically finishing the close animation.",
+                "Upgraded top-edge and nested-scroll swipe-down dismissal to track finger motion synchronously at full refresh rate with accurate screen-space velocity detection and pre-overscroll interception at the top of the app grid/list.",
+                "Tuned auto-close threshold (8% pull or quick downward flick) so swiping down from the top effortlessly glides the drawer all the way closed every time."
+            )
+        ),
         ChangelogEntry(
             version = "3.1.4",
             title = "Larger App Drawer Scale (DPI) & Simple % Size Setting",

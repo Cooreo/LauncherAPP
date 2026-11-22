@@ -87,6 +87,7 @@ import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -101,6 +102,7 @@ import androidx.compose.ui.input.nestedscroll.NestedScrollConnection
 import androidx.compose.ui.input.nestedscroll.NestedScrollSource
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.input.pointer.util.VelocityTracker
 import androidx.compose.ui.layout.layout
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
@@ -216,10 +218,19 @@ fun AllAppsSheet(
     val listState = rememberLazyListState()
     val gridState = rememberLazyGridState()
 
+    // Always read live visibility/callbacks inside remembered gesture & close lambdas
+    val currentIsVisible by rememberUpdatedState(isVisible)
+    val currentOnDismiss by rememberUpdatedState(onDismiss)
+    val currentIsGridMode by rememberUpdatedState(isGridMode)
+
     // Pure-GPU vertical slide progress: 0f = fully open, 1f = completely off-screen below.
     val slideOffsetFraction = remember { Animatable(if (isVisible) 0f else 1f) }
+    var isUserDragging by remember { mutableStateOf(false) }
+    var activeDragFraction by remember { mutableFloatStateOf(0f) }
 
     LaunchedEffect(isVisible) {
+        isUserDragging = false
+        activeDragFraction = 0f
         if (isVisible) {
             isClosing = false
             isAnimating = true
@@ -250,22 +261,55 @@ fun AllAppsSheet(
 
     val isSettledClosed = !isVisible && !isAnimating
 
-    val animateCloseAndDismiss: () -> Unit = remember(onDismiss) {
+    val animateCloseAndDismiss: () -> Unit = remember {
         {
-            if (!isClosing && isVisible) {
+            if (!isClosing && currentIsVisible) {
+                val startFraction = if (isUserDragging) activeDragFraction else slideOffsetFraction.value
                 isClosing = true
+                isUserDragging = false
+                activeDragFraction = 0f
                 selectedAppForMenu = null
                 focusManager.clearFocus(force = true)
                 keyboardController?.hide()
                 coroutineScope.launch {
                     isAnimating = true
+                    if (slideOffsetFraction.value != startFraction) {
+                        slideOffsetFraction.snapTo(startFraction)
+                    }
+                    val remaining = (1f - startFraction).coerceIn(0f, 1f)
+                    val durationMs = (remaining * 175f).roundToInt().coerceIn(75, 175)
                     slideOffsetFraction.animateTo(
                         targetValue = 1f,
-                        animationSpec = tween(durationMillis = 160, easing = FastOutSlowInEasing)
+                        animationSpec = tween(durationMillis = durationMs, easing = FastOutSlowInEasing)
                     )
                     isAnimating = false
-                    onDismiss()
+                    currentOnDismiss()
                 }
+            }
+        }
+    }
+
+    val settleAfterDrag: (Float) -> Unit = remember {
+        { velocityY ->
+            if (!isClosing && currentIsVisible) {
+                val dragged = activeDragFraction
+                val shouldDismiss = dragged > 0.08f || (velocityY > 420f && dragged > 0.015f)
+                if (shouldDismiss) {
+                    animateCloseAndDismiss()
+                } else {
+                    isUserDragging = false
+                    activeDragFraction = 0f
+                    coroutineScope.launch {
+                        slideOffsetFraction.snapTo(dragged)
+                        slideOffsetFraction.animateTo(
+                            targetValue = 0f,
+                            animationSpec = tween(durationMillis = 150, easing = FastOutSlowInEasing)
+                        )
+                    }
+                }
+            } else {
+                isUserDragging = false
+                activeDragFraction = 0f
             }
         }
     }
@@ -438,7 +482,8 @@ fun AllAppsSheet(
                 }
             }
             .graphicsLayer {
-                translationY = slideOffsetFraction.value * size.height
+                val effectiveOffset = if (isUserDragging) activeDragFraction else slideOffsetFraction.value
+                translationY = effectiveOffset * size.height
                 alpha = if (isSettledClosed) 0f else 1f
             }
             .background(MaterialTheme.colorScheme.background)
@@ -459,17 +504,34 @@ fun AllAppsSheet(
         val sheetHeightPx = with(baseDensity) { maxHeight.toPx() }.coerceAtLeast(1f)
 
         // Full-drawer nested-scroll swipe-down-to-close:
-        // Pulling down anywhere on the app grid/list when at the top smoothly slides the drawer closed!
-        val dismissNestedScroll = remember(sheetHeightPx, isVisible) {
+        // Synchronously intercepts downward pulls at the top before Android stretch overscroll can steal them,
+        // and automatically glides closed on release or downward flick!
+        val dismissNestedScroll = remember(sheetHeightPx) {
             object : NestedScrollConnection {
+                private fun isScrolledToTop(): Boolean = if (currentIsGridMode) {
+                    gridState.firstVisibleItemIndex == 0 && gridState.firstVisibleItemScrollOffset == 0
+                } else {
+                    listState.firstVisibleItemIndex == 0 && listState.firstVisibleItemScrollOffset == 0
+                }
+
                 override fun onPreScroll(available: Offset, source: NestedScrollSource): Offset {
-                    if (isClosing || !isVisible || source != NestedScrollSource.UserInput) return Offset.Zero
-                    val current = slideOffsetFraction.value
-                    if (current > 0f && available.y != 0f) {
-                        val next = (current + available.y / sheetHeightPx).coerceIn(0f, 1f)
-                        val consumedY = (next - current) * sheetHeightPx
-                        coroutineScope.launch { slideOffsetFraction.snapTo(next) }
+                    if (isClosing || !currentIsVisible || source != NestedScrollSource.UserInput) return Offset.Zero
+                    if (isUserDragging && available.y != 0f) {
+                        val next = (activeDragFraction + available.y / sheetHeightPx).coerceIn(0f, 1f)
+                        val consumedY = (next - activeDragFraction) * sheetHeightPx
+                        activeDragFraction = next
+                        if (next == 0f && available.y < 0f) {
+                            isUserDragging = false
+                        }
                         return Offset(0f, consumedY)
+                    }
+                    if (!isUserDragging && available.y > 0f && isScrolledToTop()) {
+                        focusManager.clearFocus(force = true)
+                        keyboardController?.hide()
+                        isUserDragging = true
+                        val next = (available.y / sheetHeightPx).coerceIn(0f, 1f)
+                        activeDragFraction = next
+                        return Offset(0f, next * sheetHeightPx)
                     }
                     return Offset.Zero
                 }
@@ -479,34 +541,34 @@ fun AllAppsSheet(
                     available: Offset,
                     source: NestedScrollSource
                 ): Offset {
-                    if (isClosing || !isVisible || source != NestedScrollSource.UserInput) return Offset.Zero
+                    if (isClosing || !currentIsVisible || source != NestedScrollSource.UserInput) return Offset.Zero
                     if (available.y > 0f) {
-                        val current = slideOffsetFraction.value
-                        val next = (current + available.y / sheetHeightPx).coerceIn(0f, 1f)
-                        val consumedY = (next - current) * sheetHeightPx
-                        if (current == 0f) {
+                        if (!isUserDragging) {
                             focusManager.clearFocus(force = true)
                             keyboardController?.hide()
+                            isUserDragging = true
                         }
-                        coroutineScope.launch { slideOffsetFraction.snapTo(next) }
+                        val next = (activeDragFraction + available.y / sheetHeightPx).coerceIn(0f, 1f)
+                        val consumedY = (next - activeDragFraction) * sheetHeightPx
+                        activeDragFraction = next
                         return Offset(0f, consumedY)
                     }
                     return Offset.Zero
                 }
 
                 override suspend fun onPreFling(available: Velocity): Velocity {
-                    if (isClosing || !isVisible) return Velocity.Zero
-                    val current = slideOffsetFraction.value
-                    if (current > 0f) {
-                        val shouldDismiss = current > 0.11f || (available.y > 650f && current > 0.02f)
-                        if (shouldDismiss) {
-                            animateCloseAndDismiss()
-                        } else {
-                            slideOffsetFraction.animateTo(
-                                targetValue = 0f,
-                                animationSpec = tween(durationMillis = 150, easing = FastOutSlowInEasing)
-                            )
-                        }
+                    if (isClosing || !currentIsVisible) return Velocity.Zero
+                    if (isUserDragging || activeDragFraction > 0f) {
+                        settleAfterDrag(available.y)
+                        return available
+                    }
+                    return Velocity.Zero
+                }
+
+                override suspend fun onPostFling(consumed: Velocity, available: Velocity): Velocity {
+                    if (isClosing || !currentIsVisible) return Velocity.Zero
+                    if (isUserDragging || activeDragFraction > 0f) {
+                        settleAfterDrag(available.y)
                         return available
                     }
                     return Velocity.Zero
@@ -534,52 +596,39 @@ fun AllAppsSheet(
                     modifier = Modifier.fillMaxSize()
                 ) {
             // Finger-following swipe-down chrome (header + search bar + filter strip close immediately from any scroll depth!)
-            var lastDragDelta by remember { mutableFloatStateOf(0f) }
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .pointerInput(sheetHeightPx, isVisible) {
+                    .pointerInput(sheetHeightPx) {
+                        val velocityTracker = VelocityTracker()
+                        var cumulativeDragY = 0f
                         detectVerticalDragGestures(
                             onDragStart = {
-                                lastDragDelta = 0f
+                                velocityTracker.resetTracking()
+                                cumulativeDragY = 0f
                                 focusManager.clearFocus(force = true)
                                 keyboardController?.hide()
                             },
                             onVerticalDrag = { change, dragAmount ->
-                                if (isClosing || !isVisible) return@detectVerticalDragGestures
-                                if (dragAmount > 0f || slideOffsetFraction.value > 0f) {
+                                if (isClosing || !currentIsVisible) return@detectVerticalDragGestures
+                                if (dragAmount > 0f || isUserDragging) {
                                     change.consume()
-                                    lastDragDelta = dragAmount
-                                    val deltaFraction = dragAmount / sheetHeightPx
-                                    val next = (slideOffsetFraction.value + deltaFraction).coerceIn(0f, 1f)
-                                    coroutineScope.launch {
-                                        slideOffsetFraction.snapTo(next)
-                                    }
+                                    isUserDragging = true
+                                    cumulativeDragY += dragAmount
+                                    velocityTracker.addPosition(change.uptimeMillis, Offset(0f, cumulativeDragY))
+                                    activeDragFraction = (activeDragFraction + dragAmount / sheetHeightPx)
+                                        .coerceIn(0f, 1f)
                                 }
                             },
                             onDragEnd = {
-                                if (isClosing || !isVisible) return@detectVerticalDragGestures
-                                val shouldDismiss = slideOffsetFraction.value > 0.11f ||
-                                    (lastDragDelta > 14f && slideOffsetFraction.value > 0.02f)
-                                if (shouldDismiss) {
-                                    animateCloseAndDismiss()
-                                } else {
-                                    coroutineScope.launch {
-                                        slideOffsetFraction.animateTo(
-                                            targetValue = 0f,
-                                            animationSpec = tween(durationMillis = 150, easing = FastOutSlowInEasing)
-                                        )
-                                    }
+                                if (isUserDragging || activeDragFraction > 0f) {
+                                    val velocityY = velocityTracker.calculateVelocity().y
+                                    settleAfterDrag(velocityY)
                                 }
                             },
                             onDragCancel = {
-                                if (!isClosing && isVisible) {
-                                    coroutineScope.launch {
-                                        slideOffsetFraction.animateTo(
-                                            targetValue = 0f,
-                                            animationSpec = tween(durationMillis = 150, easing = FastOutSlowInEasing)
-                                        )
-                                    }
+                                if (isUserDragging || activeDragFraction > 0f) {
+                                    settleAfterDrag(0f)
                                 }
                             }
                         )
