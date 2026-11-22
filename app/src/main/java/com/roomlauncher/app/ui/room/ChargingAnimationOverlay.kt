@@ -54,6 +54,7 @@ import com.roomlauncher.app.data.ChargeSource
 import com.roomlauncher.app.ui.theme.ChargingAnimationStyle
 import com.roomlauncher.app.ui.theme.GeometryDashSubTheme
 import com.roomlauncher.app.ui.theme.RoomStyleId
+import com.roomlauncher.app.ui.theme.RoomThemeId
 import com.roomlauncher.app.ui.theme.accentNeonColors
 import kotlinx.coroutines.delay
 import kotlin.math.PI
@@ -69,6 +70,7 @@ import kotlin.math.sin
 fun ChargingSplashOverlay(
     batteryStatus: BatteryStatus,
     roomStyle: RoomStyleId,
+    themeId: RoomThemeId = RoomThemeId.WARM_LINEN,
     gdSubTheme: GeometryDashSubTheme = GeometryDashSubTheme.SONIC_WAVE,
     animationStyle: ChargingAnimationStyle,
     triggerKey: Long,
@@ -119,7 +121,7 @@ fun ChargingSplashOverlay(
     val effectiveGdCyber = animationStyle == ChargingAnimationStyle.MATCH_ROOM &&
         roomStyle == RoomStyleId.GEOMETRY_DASH
 
-    val (primaryGlow, secondaryGlow, accentGlow) = animationPalette(animationStyle, roomStyle, gdSubTheme)
+    val (primaryGlow, secondaryGlow, accentGlow) = animationPalette(animationStyle, roomStyle, themeId, gdSubTheme)
     val p = entrance.value
     val fade = exitAlpha.value * p
 
@@ -701,6 +703,7 @@ private fun DrawScope.drawVoxelRedstoneCharging(
 private fun animationPalette(
     animationStyle: ChargingAnimationStyle,
     roomStyle: RoomStyleId,
+    themeId: RoomThemeId = RoomThemeId.WARM_LINEN,
     gdSubTheme: GeometryDashSubTheme = GeometryDashSubTheme.SONIC_WAVE
 ): Triple<Color, Color, Color> = when (animationStyle) {
     ChargingAnimationStyle.LIQUID_GLASS -> Triple(Color(0xFF00B4D8), Color(0xFF0077B6), Color(0xFF90E0EF))
@@ -710,7 +713,11 @@ private fun animationPalette(
     ChargingAnimationStyle.VOXEL_REDSTONE -> Triple(Color(0xFFE53935), Color(0xFF5CE65C), Color(0xFFFFE066))
     ChargingAnimationStyle.MATCH_ROOM -> when (roomStyle) {
         RoomStyleId.COZY_MINIMALIST -> Triple(Color(0xFFE09F3E), Color(0xFF7CC49E), Color(0xFFFFE599))
-        RoomStyleId.GIRLY_ROOM -> Triple(Color(0xFFFF85B3), Color(0xFFC896FF), Color(0xFFFFD6E7))
+        RoomStyleId.GIRLY_ROOM -> if (themeId == RoomThemeId.PASTEL_SKY) {
+            Triple(Color(0xFF6BB9F5), Color(0xFFA7B8FF), Color(0xFFD6EEFF))
+        } else {
+            Triple(Color(0xFFFF85B3), Color(0xFFC896FF), Color(0xFFFFD6E7))
+        }
         RoomStyleId.TEEN_ROOM -> Triple(Color(0xFF9B5DE5), Color(0xFF00F5D4), Color(0xFFF15BB5))
         RoomStyleId.KIDS_ROOM -> Triple(Color(0xFFFFB703), Color(0xFF4CC9F0), Color(0xFFFF6B6B))
         RoomStyleId.MINECRAFT -> Triple(Color(0xFFE53935), Color(0xFF5CE65C), Color(0xFFFFE066))

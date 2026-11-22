@@ -975,17 +975,18 @@ fun SettingsSheet(
                                     color = MaterialTheme.colorScheme.primary
                                 )
                                 Text(
-                                    text = "Quick-switch between Blush Rose (light) & Lavender Night (dark), or pick any palette below.",
+                                    text = "Quick-switch between Blush Rose, Baby Blue (light) & Lavender Night (dark), or pick any palette below.",
                                     style = MaterialTheme.typography.bodySmall,
                                     color = MaterialTheme.colorScheme.onSurfaceVariant
                                 )
                                 Row(
                                     modifier = Modifier.fillMaxWidth(),
-                                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                    horizontalArrangement = Arrangement.spacedBy(6.dp)
                                 ) {
                                     listOf(
-                                        RoomThemeId.BLUSH_ROSE to "Blush Rose",
-                                        RoomThemeId.LAVENDER_NIGHT to "Lavender Night"
+                                        RoomThemeId.BLUSH_ROSE to "Blush",
+                                        RoomThemeId.PASTEL_SKY to "Baby Blue",
+                                        RoomThemeId.LAVENDER_NIGHT to "Lavender"
                                     ).forEach { (themeChoice, label) ->
                                         val isChosen = !uiState.config.dynamicThemeEnabled &&
                                             uiState.config.themeId == themeChoice
@@ -1012,21 +1013,21 @@ fun SettingsSheet(
                                                 .clickable { onSelectTheme(themeChoice) }
                                         ) {
                                             Row(
-                                                modifier = Modifier.padding(horizontal = 10.dp, vertical = 10.dp),
+                                                modifier = Modifier.padding(horizontal = 6.dp, vertical = 10.dp),
                                                 verticalAlignment = Alignment.CenterVertically,
                                                 horizontalArrangement = Arrangement.Center
                                             ) {
                                                 Box(
                                                     modifier = Modifier
-                                                        .size(14.dp)
+                                                        .size(13.dp)
                                                         .clip(CircleShape)
                                                         .background(swatch.wallMain)
                                                         .border(1.dp, swatch.rugBorder, CircleShape)
                                                 )
-                                                Spacer(modifier = Modifier.width(6.dp))
+                                                Spacer(modifier = Modifier.width(5.dp))
                                                 Text(
                                                     text = label,
-                                                    style = MaterialTheme.typography.labelLarge,
+                                                    style = MaterialTheme.typography.labelMedium,
                                                     fontWeight = FontWeight.SemiBold,
                                                     maxLines = 1,
                                                     overflow = TextOverflow.Ellipsis

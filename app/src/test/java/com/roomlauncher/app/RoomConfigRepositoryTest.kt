@@ -237,9 +237,9 @@ class RoomConfigRepositoryTest {
 
     @Test
     fun changelogStartsWithLatestVersion() {
-        assertEquals("3.2.1", ChangelogData.CURRENT_VERSION)
+        assertEquals("3.2.2", ChangelogData.CURRENT_VERSION)
         assertTrue(ChangelogData.entries.isNotEmpty())
-        assertEquals("3.2.1", ChangelogData.entries.first().version)
+        assertEquals("3.2.2", ChangelogData.entries.first().version)
         assertTrue(ChangelogData.entries.first().highlights.size >= 3)
     }
 
@@ -262,7 +262,17 @@ class RoomConfigRepositoryTest {
         val reloadedBlush = repo.loadConfig()
         assertEquals(RoomStyleId.GIRLY_ROOM, reloadedBlush.roomStyleId)
         assertEquals(RoomThemeId.BLUSH_ROSE, reloadedBlush.themeId)
-        assertFalse(RoomThemes.effectivePalette(RoomStyleId.GIRLY_ROOM, RoomThemeId.BLUSH_ROSE).isDark)
+        val blushPalette = RoomThemes.effectivePalette(RoomStyleId.GIRLY_ROOM, RoomThemeId.BLUSH_ROSE)
+        assertFalse(blushPalette.isDark)
+
+        val blueConfig = blushConfig.copy(themeId = RoomThemeId.PASTEL_SKY)
+        repo.saveConfig(blueConfig)
+        val reloadedBlue = repo.loadConfig()
+        assertEquals(RoomStyleId.GIRLY_ROOM, reloadedBlue.roomStyleId)
+        assertEquals(RoomThemeId.PASTEL_SKY, reloadedBlue.themeId)
+        val bluePalette = RoomThemes.effectivePalette(RoomStyleId.GIRLY_ROOM, RoomThemeId.PASTEL_SKY)
+        assertFalse(bluePalette.isDark)
+        assertTrue(bluePalette.wallMain != blushPalette.wallMain)
 
         val lavenderPalette = RoomThemes.effectivePalette(RoomStyleId.GIRLY_ROOM, RoomThemeId.LAVENDER_NIGHT)
         assertTrue(lavenderPalette.isDark)

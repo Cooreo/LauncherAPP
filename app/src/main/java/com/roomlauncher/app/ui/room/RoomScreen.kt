@@ -808,6 +808,7 @@ fun RoomScreen(
             ChargingSplashOverlay(
                 batteryStatus = uiState.batteryStatus,
                 roomStyle = uiState.config.roomStyleId,
+                themeId = uiState.config.themeId,
                 gdSubTheme = uiState.config.geometryDashSubTheme,
                 animationStyle = uiState.config.chargingAnimationStyle,
                 triggerKey = uiState.activeChargingSplashKey,
