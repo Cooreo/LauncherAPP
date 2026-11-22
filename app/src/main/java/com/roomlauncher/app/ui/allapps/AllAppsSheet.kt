@@ -325,9 +325,13 @@ fun AllAppsSheet(
         }
     }
 
-    val showAlphabetHeaders = activeSort == AllAppsSort.AZ &&
+    val showAlphabetIndex = activeSort == AllAppsSort.AZ &&
         activeFilter != AllAppsFilter.RECENT &&
         trimmedQuery.isEmpty()
+
+    // In Grid View, keep a clean continuous 4-column grid (no mid-grid letter header breaks leaving gaps!).
+    // In List View, render full-width A–Z letter headers. Both modes support the A–Z fast-scroll rail!
+    val insertSectionHeaders = showAlphabetIndex && !isGridMode
 
     val showPinnedDock = activeFilter == AllAppsFilter.ALL &&
         trimmedQuery.isEmpty() &&
@@ -338,7 +342,8 @@ fun AllAppsSheet(
         pinnedApps,
         pinnedSet,
         showPinnedDock,
-        showAlphabetHeaders,
+        showAlphabetIndex,
+        insertSectionHeaders,
         packageOwnerLabels,
         defaultUnsortedLabel
     ) {
@@ -350,7 +355,7 @@ fun AllAppsSheet(
             entries.add(AllAppsEntry.PinnedDock(pinnedApps))
         }
 
-        if (showAlphabetHeaders) {
+        if (showAlphabetIndex) {
             for (app in filteredApps) {
                 val letter = app.indexLetter
                 letterCounts[letter] = (letterCounts[letter] ?: 0) + 1
@@ -360,7 +365,9 @@ fun AllAppsSheet(
                 val letter = app.indexLetter
                 if (letter != lastLetter) {
                     letterToIndex[letter] = entries.size
-                    entries.add(AllAppsEntry.Header(letter, letterCounts[letter] ?: 0))
+                    if (insertSectionHeaders) {
+                        entries.add(AllAppsEntry.Header(letter, letterCounts[letter] ?: 0))
+                    }
                     lastLetter = letter
                 }
                 val isAssigned = app.packageName in packageOwnerLabels
@@ -403,7 +410,7 @@ fun AllAppsSheet(
         WindowInsets.ime.asPaddingValues().calculateBottomPadding()
     }
 
-    val showScrubRail = sectionLetters.size > 1 && showAlphabetHeaders
+    val showScrubRail = sectionLetters.size > 1 && showAlphabetIndex
 
     BoxWithConstraints(
         modifier = Modifier
@@ -836,10 +843,10 @@ fun AllAppsSheet(
                     }
                 } else {
                     val startContentPad = 12.dp
-                    val endContentPad = if (showScrubRail) 30.dp else 12.dp
+                    val endContentPad = if (showScrubRail) 32.dp else 12.dp
                     val availableGridWidth = (maxWidth - startContentPad - endContentPad).coerceAtLeast(240.dp)
                     val gridColumns = if (availableGridWidth >= 460.dp) 5 else 4
-                    val gridIconSize = ((availableGridWidth / gridColumns) * 0.50f).coerceIn(40.dp, 46.dp)
+                    val gridIconSize = ((availableGridWidth / gridColumns) * 0.60f).coerceIn(46.dp, 50.dp)
 
                     if (isGridMode) {
                         LazyVerticalGrid(
@@ -848,11 +855,11 @@ fun AllAppsSheet(
                             contentPadding = PaddingValues(
                                 start = startContentPad,
                                 end = endContentPad,
-                                top = 2.dp,
-                                bottom = 24.dp + imeBottomPadding
+                                top = 8.dp,
+                                bottom = 28.dp + imeBottomPadding
                             ),
                             horizontalArrangement = Arrangement.spacedBy(4.dp),
-                            verticalArrangement = Arrangement.spacedBy(4.dp),
+                            verticalArrangement = Arrangement.spacedBy(8.dp),
                             modifier = Modifier.fillMaxSize()
                         ) {
                             gridItems(
@@ -1250,30 +1257,37 @@ private fun GridAppTile(
             }
         }
 
-        Spacer(modifier = Modifier.height(5.dp))
+        Spacer(modifier = Modifier.height(6.dp))
 
-        if (highlightedLabel != null) {
-            Text(
-                text = highlightedLabel,
-                fontSize = 11.sp,
-                fontWeight = FontWeight.Medium,
-                color = MaterialTheme.colorScheme.onBackground,
-                maxLines = 2,
-                lineHeight = 13.sp,
-                overflow = TextOverflow.Ellipsis,
-                textAlign = TextAlign.Center
-            )
-        } else {
-            Text(
-                text = app.label,
-                fontSize = 11.sp,
-                fontWeight = FontWeight.Medium,
-                color = MaterialTheme.colorScheme.onBackground,
-                maxLines = 2,
-                lineHeight = 13.sp,
-                overflow = TextOverflow.Ellipsis,
-                textAlign = TextAlign.Center
-            )
+        Box(
+            contentAlignment = Alignment.TopCenter,
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(30.dp)
+        ) {
+            if (highlightedLabel != null) {
+                Text(
+                    text = highlightedLabel,
+                    fontSize = 11.5.sp,
+                    fontWeight = FontWeight.Medium,
+                    color = MaterialTheme.colorScheme.onBackground,
+                    maxLines = 2,
+                    lineHeight = 14.sp,
+                    overflow = TextOverflow.Ellipsis,
+                    textAlign = TextAlign.Center
+                )
+            } else {
+                Text(
+                    text = app.label,
+                    fontSize = 11.5.sp,
+                    fontWeight = FontWeight.Medium,
+                    color = MaterialTheme.colorScheme.onBackground,
+                    maxLines = 2,
+                    lineHeight = 14.sp,
+                    overflow = TextOverflow.Ellipsis,
+                    textAlign = TextAlign.Center
+                )
+            }
         }
     }
 }

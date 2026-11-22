@@ -11,9 +11,19 @@ data class ChangelogEntry(
 )
 
 object ChangelogData {
-    const val CURRENT_VERSION = "3.1.1"
+    const val CURRENT_VERSION = "3.1.2"
 
     val entries: List<ChangelogEntry> = listOf(
+        ChangelogEntry(
+            version = "3.1.2",
+            title = "Native DPI Restore, All Apps Grid Alignment & Bottom Button Fix",
+            tag = "BUGFIX",
+            highlights = listOf(
+                "Restored 100% native system DPI (removed the v3.1.1 LocalDensity override that made UI/text look way too tiny on Oppo Reno 6 5G) while keeping a gentle 0.93× room breathing margin.",
+                "Fixed the missing bottom All Apps button: moved navigationBarsPadding() outside the bottom pill container and removed its fixed 112dp height cap so both the Room Switcher and All Apps pill are always fully visible above 3-button and gesture nav bars.",
+                "Fixed scattered/misaligned apps in the All Apps Grid: removed mid-grid A–Z header breaks so all 4 columns flow continuously row-by-row with uniform 30dp label height and crisp 46–50dp icons (while keeping the A–Z fast-scroll rail working smoothly in both Grid and List views)."
+            )
+        ),
         ChangelogEntry(
             version = "3.1.1",
             title = "Oppo Reno 6 5G / Compact-Width Display Scaling Fix",
