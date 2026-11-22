@@ -114,7 +114,7 @@ object RoomWallpaperRenderer {
             val minutesOfDay = cal.get(Calendar.HOUR_OF_DAY) * 60 + cal.get(Calendar.MINUTE)
             val isVoxel = config.roomStyleId == RoomStyleId.MINECRAFT
 
-            val cameraScale = 0.88f
+            val cameraScale = 0.93f
             val cameraAnchorY = 0.58f
             config.hotspots.forEach { hotspot ->
                 val viewX = 0.5f + (hotspot.x - 0.5f) * cameraScale

@@ -110,7 +110,7 @@ import java.util.Calendar
 import kotlin.math.abs
 import kotlin.math.roundToInt
 
-internal const val ROOM_CAMERA_SCALE = 0.88f
+internal const val ROOM_CAMERA_SCALE = 0.93f
 internal const val ROOM_CAMERA_ANCHOR_Y = 0.58f
 
 @OptIn(ExperimentalFoundationApi::class)
@@ -517,7 +517,8 @@ fun RoomScreen(
                 )
             }
 
-            // Bottom subtle swipe-up zone: Room Switcher Dots + All Apps A–Z fallback pill
+            // Bottom subtle swipe-up zone: Room Switcher Dots + All Apps pill
+            // Apply navigationBarsPadding() BEFORE height/content so neither pill can ever be clipped!
             if (!uiState.isEditMode) {
                 var swipeAccumulated by remember { mutableFloatStateOf(0f) }
                 Column(
@@ -526,7 +527,7 @@ fun RoomScreen(
                     modifier = Modifier
                         .align(Alignment.BottomCenter)
                         .fillMaxWidth()
-                        .height(112.dp)
+                        .navigationBarsPadding()
                         .pointerInput(Unit) {
                             detectVerticalDragGestures(
                                 onDragStart = { swipeAccumulated = 0f },
@@ -539,8 +540,7 @@ fun RoomScreen(
                                 }
                             )
                         }
-                        .navigationBarsPadding()
-                        .padding(bottom = 10.dp)
+                        .padding(top = 18.dp, bottom = 12.dp)
                 ) {
                     if (rooms.size > 1) {
                         Surface(

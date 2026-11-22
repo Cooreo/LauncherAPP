@@ -2,8 +2,12 @@
 
 **Room Launcher** is a minimalist Android home screen launcher built with **Kotlin** and **Jetpack Compose**. Instead of a traditional grid of icons, your home screen is a customizable, illustrated room where every piece of furniture is an interactive, movable object.
 
-## Features (v3.1.1 — Oppo Reno 6 5G & High-DPI Display Scaling Fix)
+## Features (v3.1.2 — Native DPI Restore, Clean Grid Alignment & All Apps Pill Fix)
 
+- **Native DPI, Aligned App Grid & Bottom Pill Fix (v3.1.2)**:
+  - Restored 100% native system DPI (removed the global `LocalDensity` override that shrunk UI too far) while keeping a gentle `0.93×` room breathing margin.
+  - Fixed the bottom **All Apps** button clipping on 3-button & gesture navigation bars by applying `navigationBarsPadding()` outside the unconstrained bottom bar container.
+  - Fixed scattered/uneven apps in the All Apps Grid by removing mid-grid A–Z header breaks (continuous 4-column rows with uniform `30dp` label height and crisp `46–50dp` icons, while keeping the A–Z fast-scroll rail working in both Grid and List views).
 - **Adaptive High-DPI Scaling & Room Perspective Polish (v3.1.1)**:
   - Automatically normalizes oversized OEM display densities (such as Oppo Reno 6 5G / ColorOS running `1080×2400` at `480dpi / 3.0x = 360dp`) to a spacious `412dp` logical reference width while retaining native `1080×2400` pixel sharpness.
   - Gently pulled back room furniture perspective (`0.88×` horizon-anchored across View Mode, Edit Mode & Wallpaper Mirror) for clean breathing room away from screen bezels.
