@@ -11,9 +11,19 @@ data class ChangelogEntry(
 )
 
 object ChangelogData {
-    const val CURRENT_VERSION = "3.2a"
+    const val CURRENT_VERSION = "3.2.1"
 
     val entries: List<ChangelogEntry> = listOf(
+        ChangelogEntry(
+            version = "3.2.1",
+            title = "Opt-In Alpha Updates Checkbox & Stable Release Channel",
+            tag = "FEATURE",
+            highlights = listOf(
+                "Added an \"Include Alpha Versions\" checkbox right inside Settings → App Updates (unchecked by default) so ordinary users stay strictly on stable releases unless they choose to opt in.",
+                "Updated the in-app GitHub updater to filter out alpha/pre-release APKs and GitHub pre-releases when unchecked, and automatically include early alpha test builds (e.g. v3.3a) with clear ALPHA badges when checked.",
+                "Includes the full Girly Room theme & Blush Rose / Lavender Night palettes and allows devices on v3.1.5 or v3.2a to update seamlessly in-place."
+            )
+        ),
         ChangelogEntry(
             version = "3.2a",
             title = "Girly Room Theme (Alpha Preview) + Blush Rose & Lavender Night Palettes",

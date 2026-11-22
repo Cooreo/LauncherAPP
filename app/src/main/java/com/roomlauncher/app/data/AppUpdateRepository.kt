@@ -16,7 +16,8 @@ data class AppUpdateInfo(
     val releasePageUrl: String,
     val releaseNotes: String = "",
     val sizeBytes: Long = 0L,
-    val sourceLabel: String = "GitHub"
+    val sourceLabel: String = "GitHub",
+    val isPreRelease: Boolean = false
 )
 
 @Immutable
@@ -74,11 +75,11 @@ private data class GitHubContentItem(
 
 object AppVersionComparator {
     private val APK_VERSION_REGEX =
-        Regex("""RoomLauncher-v(\d+(?:\.\d+)*(?:[a-z]+\d*)?)\.apk""", RegexOption.IGNORE_CASE)
+        Regex("""RoomLauncher-v(\d+(?:\.\d+)*(?:-?[a-z]+\d*)?)\.apk""", RegexOption.IGNORE_CASE)
     private val TAG_VERSION_REGEX =
-        Regex("""(\d+(?:\.\d+)*(?:[a-z]+\d*)?)""", RegexOption.IGNORE_CASE)
+        Regex("""(\d+(?:\.\d+)*(?:-?[a-z]+\d*)?)""", RegexOption.IGNORE_CASE)
     private val SPLIT_VERSION_REGEX =
-        Regex("""^(\d+(?:\.\d+)*)(?:([a-z]+)(\d*))?$""", RegexOption.IGNORE_CASE)
+        Regex("""^(\d+(?:\.\d+)*)(?:-?([a-z]+)(\d*))?$""", RegexOption.IGNORE_CASE)
 
     fun normalizeVersion(raw: String): String {
         val trimmed = raw.trim().removePrefix("v").removePrefix("V")
@@ -87,6 +88,12 @@ object AppVersionComparator {
 
     fun extractVersionFromApkName(fileName: String): String? {
         return APK_VERSION_REGEX.find(fileName.trim())?.groupValues?.getOrNull(1)?.lowercase()
+    }
+
+    fun isPreReleaseVersion(version: String): Boolean {
+        val norm = normalizeVersion(version)
+        val suffix = SPLIT_VERSION_REGEX.matchEntire(norm)?.groupValues?.getOrNull(2).orEmpty()
+        return suffix.isNotEmpty()
     }
 
     fun compareVersions(a: String, b: String): Int {
@@ -125,8 +132,9 @@ object AppVersionComparator {
 
 /**
  * Checks Cooreo/LauncherAPP on GitHub for newer Room Launcher releases.
- * Supports both official GitHub Releases (/releases/latest) AND compiled APKs committed in
- * the repository's /releases/ directory on main, always picking the newest version.
+ * Supports both official GitHub Releases (/releases) AND compiled APKs committed in
+ * the repository's /releases/ directory on main, always picking the newest eligible version.
+ * Alpha / pre-release builds (e.g. v3.2a, v3.3a) are skipped unless [includePreReleases] is true.
  */
 class AppUpdateRepository(
     private val repoOwner: String = DEFAULT_REPO_OWNER,
@@ -134,14 +142,17 @@ class AppUpdateRepository(
 ) {
     private val json = Json { ignoreUnknownKeys = true }
 
-    suspend fun checkForUpdate(currentVersion: String): UpdateCheckResult = withContext(Dispatchers.IO) {
+    suspend fun checkForUpdate(
+        currentVersion: String,
+        includePreReleases: Boolean = false
+    ): UpdateCheckResult = withContext(Dispatchers.IO) {
         var lastError: String? = null
 
-        val releaseCandidate = runCatching { fetchFromGitHubReleases() }
+        val releaseCandidate = runCatching { fetchFromGitHubReleases(includePreReleases) }
             .onFailure { lastError = it.message }
             .getOrNull()
 
-        val folderCandidate = runCatching { fetchFromReleasesFolder() }
+        val folderCandidate = runCatching { fetchFromReleasesFolder(includePreReleases) }
             .onFailure { if (lastError == null) lastError = it.message }
             .getOrNull()
 
@@ -171,34 +182,50 @@ class AppUpdateRepository(
         return if (cmp >= 0) releaseCandidate else folderCandidate
     }
 
-    private fun fetchFromGitHubReleases(): AppUpdateInfo? {
-        val url = "https://api.github.com/repos/$repoOwner/$repoName/releases/latest"
-        val body = httpGet(url) ?: return null
-        val release = json.decodeFromString<GitHubReleaseResponse>(body)
-        if (release.draft) return null
+    private fun fetchFromGitHubReleases(includePreReleases: Boolean): AppUpdateInfo? {
+        val releases: List<GitHubReleaseResponse> = if (includePreReleases) {
+            val url = "https://api.github.com/repos/$repoOwner/$repoName/releases?per_page=10"
+            val body = httpGet(url) ?: return null
+            json.decodeFromString<List<GitHubReleaseResponse>>(body)
+        } else {
+            val url = "https://api.github.com/repos/$repoOwner/$repoName/releases/latest"
+            val body = httpGet(url) ?: return null
+            listOf(json.decodeFromString<GitHubReleaseResponse>(body))
+        }
 
-        val apkAsset = release.assets.firstOrNull {
-            it.name.endsWith(".apk", ignoreCase = true) && it.browserDownloadUrl.isNotBlank()
-        } ?: return null
+        val candidates = releases.mapNotNull { release ->
+            if (release.draft) return@mapNotNull null
+            val apkAsset = release.assets.firstOrNull {
+                it.name.endsWith(".apk", ignoreCase = true) && it.browserDownloadUrl.isNotBlank()
+            } ?: return@mapNotNull null
 
-        val version = AppVersionComparator.normalizeVersion(
-            release.tagName.ifBlank {
-                AppVersionComparator.extractVersionFromApkName(apkAsset.name).orEmpty()
-            }
-        )
-        if (version.isBlank()) return null
+            val version = AppVersionComparator.normalizeVersion(
+                release.tagName.ifBlank {
+                    AppVersionComparator.extractVersionFromApkName(apkAsset.name).orEmpty()
+                }
+            )
+            if (version.isBlank()) return@mapNotNull null
 
-        return AppUpdateInfo(
-            versionName = version,
-            downloadUrl = apkAsset.browserDownloadUrl,
-            releasePageUrl = release.htmlUrl.ifBlank { "https://github.com/$repoOwner/$repoName/releases" },
-            releaseNotes = release.body.orEmpty().trim(),
-            sizeBytes = apkAsset.size,
-            sourceLabel = "GitHub Release"
-        )
+            val isPre = release.prerelease || AppVersionComparator.isPreReleaseVersion(version)
+            if (isPre && !includePreReleases) return@mapNotNull null
+
+            AppUpdateInfo(
+                versionName = version,
+                downloadUrl = apkAsset.browserDownloadUrl,
+                releasePageUrl = release.htmlUrl.ifBlank { "https://github.com/$repoOwner/$repoName/releases" },
+                releaseNotes = release.body.orEmpty().trim(),
+                sizeBytes = apkAsset.size,
+                sourceLabel = if (isPre) "GitHub Alpha Release" else "GitHub Release",
+                isPreRelease = isPre
+            )
+        }
+
+        return candidates.maxWithOrNull { a, b ->
+            AppVersionComparator.compareVersions(a.versionName, b.versionName)
+        }
     }
 
-    private fun fetchFromReleasesFolder(): AppUpdateInfo? {
+    private fun fetchFromReleasesFolder(includePreReleases: Boolean): AppUpdateInfo? {
         val url = "https://api.github.com/repos/$repoOwner/$repoName/contents/releases?ref=main"
         val body = httpGet(url) ?: return null
         val items = json.decodeFromString<List<GitHubContentItem>>(body)
@@ -206,6 +233,9 @@ class AppUpdateRepository(
         val candidates = items.mapNotNull { item ->
             if (!item.type.equals("file", ignoreCase = true)) return@mapNotNull null
             val version = AppVersionComparator.extractVersionFromApkName(item.name) ?: return@mapNotNull null
+            val isPre = AppVersionComparator.isPreReleaseVersion(version)
+            if (isPre && !includePreReleases) return@mapNotNull null
+
             val downloadUrl = item.downloadUrl?.takeIf { it.isNotBlank() }
                 ?: "https://raw.githubusercontent.com/$repoOwner/$repoName/main/releases/${item.name}"
             AppUpdateInfo(
@@ -213,9 +243,14 @@ class AppUpdateRepository(
                 downloadUrl = downloadUrl,
                 releasePageUrl = item.htmlUrl?.takeIf { it.isNotBlank() }
                     ?: "https://github.com/$repoOwner/$repoName/tree/main/releases",
-                releaseNotes = "Compiled release APK from $repoOwner/$repoName (${item.name}).",
+                releaseNotes = if (isPre) {
+                    "Alpha / pre-release test build from $repoOwner/$repoName (${item.name})."
+                } else {
+                    "Compiled release APK from $repoOwner/$repoName (${item.name})."
+                },
                 sizeBytes = item.size,
-                sourceLabel = "GitHub Repo"
+                sourceLabel = if (isPre) "GitHub Repo (Alpha)" else "GitHub Repo",
+                isPreRelease = isPre
             )
         }
 

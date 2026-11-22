@@ -121,6 +121,8 @@ data class RoomConfig(
     val musicDefaultMode: MusicDisplayMode = MusicDisplayMode.VISUALIZER,
     val audioReactiveVisualizerEnabled: Boolean = false,
     val autoCheckUpdatesEnabled: Boolean = true,
+    /** Opt-in flag to receive alpha/pre-release updates (e.g. v3.2a, v3.3a). Off by default so regular users only see stable releases. */
+    val includeAlphaUpdates: Boolean = false,
     val weatherEnabled: Boolean = true,
     val mirrorHomeWallpaper: Boolean = false,
     val framePhotoPath: String? = null,

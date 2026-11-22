@@ -69,6 +69,7 @@ class RoomConfigRepositoryTest {
             musicDefaultMode = MusicDisplayMode.LYRICS,
             audioReactiveVisualizerEnabled = true,
             autoCheckUpdatesEnabled = false,
+            includeAlphaUpdates = true,
             weatherEnabled = true,
             mirrorHomeWallpaper = true,
             posterLeftPath = "/tmp/poster_left.jpg",
@@ -236,10 +237,16 @@ class RoomConfigRepositoryTest {
 
     @Test
     fun changelogStartsWithLatestVersion() {
-        assertEquals("3.2a", ChangelogData.CURRENT_VERSION)
+        assertEquals("3.2.1", ChangelogData.CURRENT_VERSION)
         assertTrue(ChangelogData.entries.isNotEmpty())
-        assertEquals("3.2a", ChangelogData.entries.first().version)
+        assertEquals("3.2.1", ChangelogData.entries.first().version)
         assertTrue(ChangelogData.entries.first().highlights.size >= 3)
+    }
+
+    @Test
+    fun alphaUpdatesOptInDefaultsToFalse() {
+        val defaultConfig = RoomConfigRepository.createDefaultRoomConfig()
+        assertFalse(defaultConfig.includeAlphaUpdates)
     }
 
     @Test

@@ -63,6 +63,8 @@ import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.Checkbox
+import androidx.compose.material3.CheckboxDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.HorizontalDivider
@@ -155,6 +157,7 @@ fun SettingsSheet(
     onOpenNotificationAccess: () -> Unit,
     onPreviewMusicVisualizer: () -> Unit,
     onToggleAutoCheckUpdates: (Boolean) -> Unit,
+    onToggleIncludeAlphaUpdates: (Boolean) -> Unit,
     onCheckForUpdates: () -> Unit,
     onShowUpdatePopup: () -> Unit,
     onDismissUpdatePopup: () -> Unit,
@@ -356,10 +359,15 @@ fun SettingsSheet(
                             }
                         }
                         upd.isChecking -> "Checking GitHub for new releases…"
-                        upd.availableUpdate != null ->
-                            "New update ready: v${upd.availableUpdate.versionName}!"
+                        upd.availableUpdate != null -> {
+                            val tag = if (upd.availableUpdate.isPreRelease) " (Alpha)" else ""
+                            "New update ready: v${upd.availableUpdate.versionName}$tag!"
+                        }
                         upd.errorMessage != null -> upd.errorMessage
-                        upd.isUpToDate -> "Up to date (v${upd.currentVersion})"
+                        upd.isUpToDate -> {
+                            val channel = if (uiState.config.includeAlphaUpdates) "Alpha + Stable" else "Stable"
+                            "Up to date (v${upd.currentVersion} • $channel)"
+                        }
                         else -> "Installed v${upd.currentVersion} • Cooreo/LauncherAPP"
                     }
 
@@ -386,7 +394,13 @@ fun SettingsSheet(
                                             modifier = Modifier.size(18.dp)
                                         )
                                         Spacer(modifier = Modifier.width(6.dp))
-                                        Text("Update v${upd.availableUpdate.versionName}")
+                                        Text(
+                                            if (upd.availableUpdate.isPreRelease) {
+                                                "Alpha v${upd.availableUpdate.versionName}"
+                                            } else {
+                                                "Update v${upd.availableUpdate.versionName}"
+                                            }
+                                        )
                                     }
                                 }
                                 OutlinedButton(
@@ -437,6 +451,68 @@ fun SettingsSheet(
                                     checked = uiState.config.autoCheckUpdatesEnabled,
                                     onCheckedChange = onToggleAutoCheckUpdates
                                 )
+                            }
+
+                            HorizontalDivider(
+                                color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)
+                            )
+
+                            // Opt-in Alpha / Pre-Release checkbox (unchecked by default)
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clip(RoundedCornerShape(12.dp))
+                                    .clickable {
+                                        onToggleIncludeAlphaUpdates(!uiState.config.includeAlphaUpdates)
+                                    }
+                                    .padding(vertical = 2.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(6.dp)
+                            ) {
+                                Checkbox(
+                                    checked = uiState.config.includeAlphaUpdates,
+                                    onCheckedChange = onToggleIncludeAlphaUpdates,
+                                    colors = CheckboxDefaults.colors(
+                                        checkedColor = MaterialTheme.colorScheme.primary
+                                    )
+                                )
+                                Column(modifier = Modifier.weight(1f)) {
+                                    Row(
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        horizontalArrangement = Arrangement.spacedBy(6.dp)
+                                    ) {
+                                        Text(
+                                            text = "Include Alpha Versions",
+                                            style = MaterialTheme.typography.titleSmall,
+                                            fontWeight = FontWeight.SemiBold
+                                        )
+                                        Surface(
+                                            shape = RoundedCornerShape(6.dp),
+                                            color = if (uiState.config.includeAlphaUpdates) {
+                                                MaterialTheme.colorScheme.tertiaryContainer
+                                            } else {
+                                                MaterialTheme.colorScheme.surfaceContainerHighest
+                                            }
+                                        ) {
+                                            Text(
+                                                text = if (uiState.config.includeAlphaUpdates) "ALPHA ON" else "STABLE ONLY",
+                                                style = MaterialTheme.typography.labelSmall,
+                                                fontWeight = FontWeight.Bold,
+                                                color = if (uiState.config.includeAlphaUpdates) {
+                                                    MaterialTheme.colorScheme.onTertiaryContainer
+                                                } else {
+                                                    MaterialTheme.colorScheme.onSurfaceVariant
+                                                },
+                                                modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                                            )
+                                        }
+                                    }
+                                    Text(
+                                        text = "Opt in to early alpha test builds (e.g. v3.3a). Leave unchecked to only receive stable updates.",
+                                        style = MaterialTheme.typography.labelSmall,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
+                                }
                             }
                         }
                     }
@@ -1850,10 +1926,10 @@ fun SettingsSheet(
             },
             title = {
                 Text(
-                    text = if (upd.signatureConflict) {
-                        "One-Time Key Upgrade"
-                    } else {
-                        "Update Available (v${availableUpdate.versionName})"
+                    text = when {
+                        upd.signatureConflict -> "One-Time Key Upgrade"
+                        availableUpdate.isPreRelease -> "Alpha Update Available (v${availableUpdate.versionName})"
+                        else -> "Update Available (v${availableUpdate.versionName})"
                     },
                     fontWeight = FontWeight.Bold
                 )
