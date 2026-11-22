@@ -11,9 +11,19 @@ data class ChangelogEntry(
 )
 
 object ChangelogData {
-    const val CURRENT_VERSION = "3.1.0"
+    const val CURRENT_VERSION = "3.1.1"
 
     val entries: List<ChangelogEntry> = listOf(
+        ChangelogEntry(
+            version = "3.1.1",
+            title = "Oppo Reno 6 5G / Compact-Width Display Scaling Fix",
+            tag = "BUGFIX",
+            highlights = listOf(
+                "Added adaptive high-DPI display scaling for 360dp-class ColorOS / Oppo Reno 6 5G screens (normalizing oversized 480dpi / 3.0x density cleanly to a roomy 412dp logical reference while keeping native 1080×2400 pixel sharpness).",
+                "Gently stepped back room furniture perspective (0.88× horizon-anchored camera pull-back across View Mode, Edit Mode & Wallpaper Mirror) so the room feels spacious instead of pressed up against the bezels.",
+                "Rescaled the redesigned All Apps drawer with adaptive icon sizing (40–46dp), razor-sharp 144px cached app icons, a sleeker 44dp pill search bar, compact header & action tiles, and a slimmer A–Z fast-scroll rail."
+            )
+        ),
         ChangelogEntry(
             version = "3.1.0",
             title = "Redesigned All Apps, Boot-Cached Speed, Rich Onboarding & Big Window Temp",

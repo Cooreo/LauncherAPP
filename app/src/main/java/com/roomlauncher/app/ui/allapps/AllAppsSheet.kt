@@ -44,6 +44,7 @@ import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
@@ -74,8 +75,6 @@ import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -92,6 +91,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
@@ -109,6 +109,7 @@ import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.text.withStyle
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -508,20 +509,22 @@ fun AllAppsSheet(
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(start = 18.dp, end = 8.dp, top = 4.dp, bottom = 4.dp),
+                        .padding(start = 16.dp, end = 6.dp, top = 2.dp, bottom = 2.dp),
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Column(modifier = Modifier.weight(1f)) {
                         Row(
                             verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                            horizontalArrangement = Arrangement.spacedBy(6.dp)
                         ) {
                             Text(
                                 text = "All Apps",
-                                style = MaterialTheme.typography.headlineMedium,
+                                style = MaterialTheme.typography.titleLarge,
+                                fontSize = 19.sp,
                                 fontWeight = FontWeight.Bold,
-                                color = MaterialTheme.colorScheme.onBackground
+                                color = MaterialTheme.colorScheme.onBackground,
+                                maxLines = 1
                             )
                             Surface(
                                 shape = CircleShape,
@@ -529,54 +532,58 @@ fun AllAppsSheet(
                             ) {
                                 Text(
                                     text = "${filteredApps.size}",
-                                    style = MaterialTheme.typography.labelMedium,
+                                    style = MaterialTheme.typography.labelSmall,
                                     fontWeight = FontWeight.Bold,
                                     color = MaterialTheme.colorScheme.onPrimaryContainer,
-                                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp)
+                                    modifier = Modifier.padding(horizontal = 7.dp, vertical = 1.dp)
                                 )
                             }
                         }
                         Text(
                             text = when {
                                 trimmedQuery.isNotEmpty() -> "Matching \"$trimmedQuery\" • Enter to launch"
-                                activeFilter != AllAppsFilter.ALL -> "${activeFilter.label} • Long-press any app for actions"
-                                else -> "${activeSort.label} • Long-press any app to pin, move or uninstall"
+                                activeFilter != AllAppsFilter.ALL -> "${activeFilter.label} • Hold app for actions"
+                                else -> "${activeSort.label} • Hold any app to pin or uninstall"
                             },
-                            style = MaterialTheme.typography.bodySmall,
+                            style = MaterialTheme.typography.labelSmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                             maxLines = 1,
                             overflow = TextOverflow.Ellipsis
                         )
                     }
 
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        // Sort Cycle Pill (A-Z -> Newest -> Recent)
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(2.dp)
+                    ) {
+                        // Compact Sort Cycle Pill (A-Z -> Newest -> Recent)
                         Surface(
-                            shape = RoundedCornerShape(12.dp),
+                            shape = RoundedCornerShape(10.dp),
                             color = MaterialTheme.colorScheme.surfaceVariant,
                             modifier = Modifier
-                                .clip(RoundedCornerShape(12.dp))
+                                .clip(RoundedCornerShape(10.dp))
                                 .clickable {
                                     val all = AllAppsSort.entries
                                     activeSort = all[(activeSort.ordinal + 1) % all.size]
                                 }
                         ) {
                             Row(
-                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 6.dp),
+                                modifier = Modifier.padding(horizontal = 7.dp, vertical = 5.dp),
                                 verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.spacedBy(4.dp)
+                                horizontalArrangement = Arrangement.spacedBy(3.dp)
                             ) {
                                 Icon(
                                     imageVector = activeSort.icon,
                                     contentDescription = "Sort mode",
                                     tint = MaterialTheme.colorScheme.primary,
-                                    modifier = Modifier.size(16.dp)
+                                    modifier = Modifier.size(14.dp)
                                 )
                                 Text(
                                     text = activeSort.label,
-                                    style = MaterialTheme.typography.labelSmall,
+                                    fontSize = 11.sp,
                                     fontWeight = FontWeight.SemiBold,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    maxLines = 1
                                 )
                             }
                         }
@@ -584,13 +591,13 @@ fun AllAppsSheet(
                         // Grid / List Toggle
                         IconButton(
                             onClick = { onToggleGridMode(!isGridMode) },
-                            modifier = Modifier.size(38.dp)
+                            modifier = Modifier.size(34.dp)
                         ) {
                             Icon(
                                 imageVector = if (isGridMode) Icons.Rounded.ViewList else Icons.Rounded.GridView,
                                 contentDescription = if (isGridMode) "Switch to list view" else "Switch to grid view",
                                 tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                                modifier = Modifier.size(21.dp)
+                                modifier = Modifier.size(19.dp)
                             )
                         }
 
@@ -603,77 +610,110 @@ fun AllAppsSheet(
                                     onOpenSettings()
                                 }
                             },
-                            modifier = Modifier.size(38.dp)
+                            modifier = Modifier.size(34.dp)
                         ) {
                             Icon(
                                 imageVector = Icons.Rounded.Settings,
                                 contentDescription = "Room Launcher Settings",
                                 tint = MaterialTheme.colorScheme.primary,
-                                modifier = Modifier.size(21.dp)
+                                modifier = Modifier.size(19.dp)
                             )
                         }
 
                         // Close
                         IconButton(
                             onClick = animateCloseAndDismiss,
-                            modifier = Modifier.size(38.dp)
+                            modifier = Modifier.size(34.dp)
                         ) {
                             Icon(
                                 imageVector = Icons.Rounded.Close,
                                 contentDescription = "Close all apps",
-                                modifier = Modifier.size(21.dp)
+                                modifier = Modifier.size(19.dp)
                             )
                         }
                     }
                 }
             }
 
-            // Modern Pill Search Bar with Instant Enter-to-Launch
-            OutlinedTextField(
-                value = searchQuery,
-                onValueChange = { searchQuery = it },
-                placeholder = { Text("Search apps, packages…") },
-                leadingIcon = {
+            // Sleek Compact Pill Search Bar with Instant Enter-to-Launch
+            Surface(
+                shape = RoundedCornerShape(22.dp),
+                color = MaterialTheme.colorScheme.surface,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 14.dp, vertical = 4.dp)
+                    .height(44.dp)
+                    .border(
+                        width = 1.dp,
+                        color = MaterialTheme.colorScheme.outline.copy(alpha = 0.42f),
+                        shape = RoundedCornerShape(22.dp)
+                    )
+            ) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(horizontal = 14.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
                     Icon(
                         imageVector = Icons.Rounded.Search,
                         contentDescription = null,
-                        tint = MaterialTheme.colorScheme.primary
+                        tint = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.size(19.dp)
                     )
-                },
-                trailingIcon = {
+                    Box(
+                        modifier = Modifier.weight(1f),
+                        contentAlignment = Alignment.CenterStart
+                    ) {
+                        if (searchQuery.isEmpty()) {
+                            Text(
+                                text = "Search apps…",
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.72f)
+                            )
+                        }
+                        BasicTextField(
+                            value = searchQuery,
+                            onValueChange = { searchQuery = it },
+                            singleLine = true,
+                            textStyle = MaterialTheme.typography.bodyMedium.copy(
+                                color = MaterialTheme.colorScheme.onSurface
+                            ),
+                            cursorBrush = SolidColor(MaterialTheme.colorScheme.primary),
+                            keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
+                            keyboardActions = KeyboardActions(
+                                onSearch = {
+                                    val firstMatch = filteredApps.firstOrNull()
+                                    if (firstMatch != null && !isClosing) {
+                                        focusManager.clearFocus(force = true)
+                                        keyboardController?.hide()
+                                        onLaunchApp(firstMatch)
+                                    }
+                                }
+                            ),
+                            modifier = Modifier.fillMaxWidth()
+                        )
+                    }
                     if (searchQuery.isNotEmpty()) {
-                        IconButton(onClick = { searchQuery = "" }) {
-                            Icon(Icons.Rounded.Close, contentDescription = "Clear search")
+                        IconButton(
+                            onClick = { searchQuery = "" },
+                            modifier = Modifier.size(28.dp)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Rounded.Close,
+                                contentDescription = "Clear search",
+                                modifier = Modifier.size(17.dp)
+                            )
                         }
                     }
-                },
-                singleLine = true,
-                keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
-                keyboardActions = KeyboardActions(
-                    onSearch = {
-                        val firstMatch = filteredApps.firstOrNull()
-                        if (firstMatch != null && !isClosing) {
-                            focusManager.clearFocus(force = true)
-                            keyboardController?.hide()
-                            onLaunchApp(firstMatch)
-                        }
-                    }
-                ),
-                shape = RoundedCornerShape(26.dp),
-                colors = OutlinedTextFieldDefaults.colors(
-                    focusedContainerColor = MaterialTheme.colorScheme.surface,
-                    unfocusedContainerColor = MaterialTheme.colorScheme.surface,
-                    unfocusedBorderColor = MaterialTheme.colorScheme.outline.copy(alpha = 0.45f)
-                ),
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 16.dp, vertical = 4.dp)
-            )
+                }
+            }
 
-            // Interactive Filter Pill Strip
+            // Compact Interactive Filter Pill Strip
             LazyRow(
-                contentPadding = PaddingValues(horizontal = 16.dp, vertical = 6.dp),
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                contentPadding = PaddingValues(horizontal = 14.dp, vertical = 4.dp),
+                horizontalArrangement = Arrangement.spacedBy(6.dp),
                 modifier = Modifier.fillMaxWidth()
             ) {
                 items(AllAppsFilter.entries, key = { it.name }) { filter ->
@@ -686,14 +726,14 @@ fun AllAppsSheet(
                         AllAppsFilter.UNSORTED -> unsortedCount
                     }
                     Surface(
-                        shape = RoundedCornerShape(14.dp),
+                        shape = RoundedCornerShape(12.dp),
                         color = if (selected) {
                             MaterialTheme.colorScheme.primary
                         } else {
                             MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.72f)
                         },
                         modifier = Modifier
-                            .clip(RoundedCornerShape(14.dp))
+                            .clip(RoundedCornerShape(12.dp))
                             .clickable {
                                 activeFilter = filter
                                 coroutineScope.launch {
@@ -702,9 +742,9 @@ fun AllAppsSheet(
                             }
                     ) {
                         Row(
-                            modifier = Modifier.padding(horizontal = 12.dp, vertical = 7.dp),
+                            modifier = Modifier.padding(horizontal = 10.dp, vertical = 5.dp),
                             verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(6.dp)
+                            horizontalArrangement = Arrangement.spacedBy(5.dp)
                         ) {
                             Icon(
                                 imageVector = filter.icon,
@@ -714,7 +754,7 @@ fun AllAppsSheet(
                                 } else {
                                     MaterialTheme.colorScheme.primary
                                 },
-                                modifier = Modifier.size(15.dp)
+                                modifier = Modifier.size(13.5.dp)
                             )
                             Text(
                                 text = if (countBadge != null && countBadge > 0) {
@@ -722,7 +762,7 @@ fun AllAppsSheet(
                                 } else {
                                     filter.label
                                 },
-                                style = MaterialTheme.typography.labelMedium,
+                                fontSize = 11.5.sp,
                                 fontWeight = if (selected) FontWeight.Bold else FontWeight.Medium,
                                 color = if (selected) {
                                     MaterialTheme.colorScheme.onPrimary
@@ -795,20 +835,24 @@ fun AllAppsSheet(
                         SettingsDeckCard(onClick = { if (!isClosing) onOpenSettings() })
                     }
                 } else {
-                    val endContentPad = if (showScrubRail) 40.dp else 14.dp
+                    val startContentPad = 12.dp
+                    val endContentPad = if (showScrubRail) 30.dp else 12.dp
+                    val availableGridWidth = (maxWidth - startContentPad - endContentPad).coerceAtLeast(240.dp)
+                    val gridColumns = if (availableGridWidth >= 460.dp) 5 else 4
+                    val gridIconSize = ((availableGridWidth / gridColumns) * 0.50f).coerceIn(40.dp, 46.dp)
 
                     if (isGridMode) {
                         LazyVerticalGrid(
-                            columns = GridCells.Fixed(4),
+                            columns = GridCells.Fixed(gridColumns),
                             state = gridState,
                             contentPadding = PaddingValues(
-                                start = 14.dp,
+                                start = startContentPad,
                                 end = endContentPad,
-                                top = 4.dp,
-                                bottom = 28.dp + imeBottomPadding
+                                top = 2.dp,
+                                bottom = 24.dp + imeBottomPadding
                             ),
-                            horizontalArrangement = Arrangement.spacedBy(6.dp),
-                            verticalArrangement = Arrangement.spacedBy(6.dp),
+                            horizontalArrangement = Arrangement.spacedBy(4.dp),
+                            verticalArrangement = Arrangement.spacedBy(4.dp),
                             modifier = Modifier.fillMaxSize()
                         ) {
                             gridItems(
@@ -859,6 +903,7 @@ fun AllAppsSheet(
                                     is AllAppsEntry.AppItem -> {
                                         GridAppTile(
                                             app = entry.app,
+                                            iconSize = gridIconSize,
                                             isPinned = entry.isPinned,
                                             isAssignedToRoom = entry.isAssignedToRoom,
                                             highlightQuery = trimmedQuery,
@@ -996,10 +1041,10 @@ fun AllAppsSheet(
                         val shownCount = letterCounts[shownLetter] ?: 0
                         Surface(
                             shape = RoundedCornerShape(
-                                topStart = 32.dp,
-                                bottomStart = 32.dp,
-                                topEnd = 32.dp,
-                                bottomEnd = 8.dp
+                                topStart = 28.dp,
+                                bottomStart = 28.dp,
+                                topEnd = 28.dp,
+                                bottomEnd = 6.dp
                             ),
                             color = MaterialTheme.colorScheme.primary,
                             shadowElevation = 8.dp,
@@ -1007,11 +1052,11 @@ fun AllAppsSheet(
                                 .align(Alignment.TopEnd)
                                 .offset {
                                     IntOffset(
-                                        x = -with(density) { 52.dp.toPx() }.roundToInt(),
+                                        x = -with(density) { 40.dp.toPx() }.roundToInt(),
                                         y = bubbleY.roundToInt()
                                     )
                                 }
-                                .size(64.dp)
+                                .size(54.dp)
                         ) {
                             Column(
                                 horizontalAlignment = Alignment.CenterHorizontally,
@@ -1114,26 +1159,26 @@ private fun PinnedAppsDockCard(
                 )
             }
             LazyRow(
-                contentPadding = PaddingValues(horizontal = 12.dp),
-                horizontalArrangement = Arrangement.spacedBy(10.dp)
+                contentPadding = PaddingValues(horizontal = 10.dp),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
                 items(pinnedApps, key = { "pin_${it.packageName}" }) { app ->
                     Column(
                         horizontalAlignment = Alignment.CenterHorizontally,
                         modifier = Modifier
-                            .width(66.dp)
-                            .clip(RoundedCornerShape(14.dp))
+                            .width(58.dp)
+                            .clip(RoundedCornerShape(12.dp))
                             .combinedClickable(
                                 onClick = { onLaunch(app) },
                                 onLongClick = { onLongPress(app) }
                             )
-                            .padding(vertical = 4.dp, horizontal = 2.dp)
+                            .padding(vertical = 3.dp, horizontal = 2.dp)
                     ) {
-                        AppIconView(app = app, size = 48.dp)
-                        Spacer(modifier = Modifier.height(5.dp))
+                        AppIconView(app = app, size = 40.dp)
+                        Spacer(modifier = Modifier.height(4.dp))
                         Text(
                             text = app.label,
-                            style = MaterialTheme.typography.labelSmall,
+                            fontSize = 10.5.sp,
                             color = MaterialTheme.colorScheme.onSurface,
                             maxLines = 1,
                             overflow = TextOverflow.Ellipsis,
@@ -1150,6 +1195,7 @@ private fun PinnedAppsDockCard(
 @Composable
 private fun GridAppTile(
     app: AppInfo,
+    iconSize: Dp,
     isPinned: Boolean,
     isAssignedToRoom: Boolean,
     highlightQuery: String,
@@ -1163,22 +1209,22 @@ private fun GridAppTile(
         horizontalAlignment = Alignment.CenterHorizontally,
         modifier = Modifier
             .fillMaxWidth()
-            .clip(RoundedCornerShape(16.dp))
+            .clip(RoundedCornerShape(14.dp))
             .combinedClickable(
                 onClick = onLaunch,
                 onLongClick = onLongPress
             )
-            .padding(horizontal = 4.dp, vertical = 8.dp)
+            .padding(horizontal = 3.dp, vertical = 6.dp)
     ) {
         Box(contentAlignment = Alignment.Center) {
-            AppIconView(app = app, size = 54.dp)
+            AppIconView(app = app, size = iconSize)
             if (isPinned) {
                 Box(
                     contentAlignment = Alignment.Center,
                     modifier = Modifier
                         .align(Alignment.TopEnd)
-                        .offset(x = 3.dp, y = (-3).dp)
-                        .size(18.dp)
+                        .offset(x = 2.dp, y = (-2).dp)
+                        .size(15.dp)
                         .clip(CircleShape)
                         .background(MaterialTheme.colorScheme.secondary)
                 ) {
@@ -1186,7 +1232,7 @@ private fun GridAppTile(
                         imageVector = Icons.Rounded.Star,
                         contentDescription = "Pinned",
                         tint = MaterialTheme.colorScheme.onSecondary,
-                        modifier = Modifier.size(11.dp)
+                        modifier = Modifier.size(9.5.dp)
                     )
                 }
             } else if (isAssignedToRoom) {
@@ -1194,7 +1240,7 @@ private fun GridAppTile(
                     modifier = Modifier
                         .align(Alignment.BottomEnd)
                         .offset(x = 2.dp, y = 2.dp)
-                        .size(9.dp)
+                        .size(8.dp)
                         .clip(CircleShape)
                         .background(MaterialTheme.colorScheme.background)
                         .padding(1.5.dp)
@@ -1204,25 +1250,27 @@ private fun GridAppTile(
             }
         }
 
-        Spacer(modifier = Modifier.height(6.dp))
+        Spacer(modifier = Modifier.height(5.dp))
 
         if (highlightedLabel != null) {
             Text(
                 text = highlightedLabel,
-                style = MaterialTheme.typography.labelSmall,
+                fontSize = 11.sp,
+                fontWeight = FontWeight.Medium,
                 color = MaterialTheme.colorScheme.onBackground,
                 maxLines = 2,
-                lineHeight = 13.5.sp,
+                lineHeight = 13.sp,
                 overflow = TextOverflow.Ellipsis,
                 textAlign = TextAlign.Center
             )
         } else {
             Text(
                 text = app.label,
-                style = MaterialTheme.typography.labelSmall,
+                fontSize = 11.sp,
+                fontWeight = FontWeight.Medium,
                 color = MaterialTheme.colorScheme.onBackground,
                 maxLines = 2,
-                lineHeight = 13.5.sp,
+                lineHeight = 13.sp,
                 overflow = TextOverflow.Ellipsis,
                 textAlign = TextAlign.Center
             )
@@ -1278,28 +1326,28 @@ private fun AppActionsModal(
         properties = DialogProperties(usePlatformDefaultWidth = false)
     ) {
         Surface(
-            shape = RoundedCornerShape(28.dp),
+            shape = RoundedCornerShape(24.dp),
             color = MaterialTheme.colorScheme.surface,
             tonalElevation = 8.dp,
             shadowElevation = 16.dp,
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 20.dp)
+                .padding(horizontal = 16.dp)
         ) {
             Column(
-                modifier = Modifier.padding(20.dp),
-                verticalArrangement = Arrangement.spacedBy(14.dp)
+                modifier = Modifier.padding(16.dp),
+                verticalArrangement = Arrangement.spacedBy(12.dp)
             ) {
                 // Header: Icon + Name + Package + Current Room Badge
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(14.dp)
+                    horizontalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
-                    AppIconView(app = app, size = 52.dp)
+                    AppIconView(app = app, size = 44.dp)
                     Column(modifier = Modifier.weight(1f)) {
                         Text(
                             text = app.label,
-                            style = MaterialTheme.typography.titleLarge,
+                            style = MaterialTheme.typography.titleMedium,
                             fontWeight = FontWeight.Bold,
                             color = MaterialTheme.colorScheme.onSurface,
                             maxLines = 1,
@@ -1462,21 +1510,22 @@ private fun QuickActionTile(
     ) {
         Column(
             horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.spacedBy(4.dp),
-            modifier = Modifier.padding(vertical = 11.dp, horizontal = 4.dp)
+            verticalArrangement = Arrangement.spacedBy(3.dp),
+            modifier = Modifier.padding(vertical = 9.dp, horizontal = 3.dp)
         ) {
             Icon(
                 imageVector = icon,
                 contentDescription = label,
                 tint = contentColor,
-                modifier = Modifier.size(21.dp)
+                modifier = Modifier.size(19.dp)
             )
             Text(
                 text = label,
-                style = MaterialTheme.typography.labelSmall,
+                fontSize = 10.5.sp,
                 fontWeight = FontWeight.SemiBold,
                 color = contentColor,
                 maxLines = 1,
+                softWrap = false,
                 overflow = TextOverflow.Ellipsis
             )
         }
@@ -1538,8 +1587,8 @@ private fun FastAllAppRow(
             .padding(horizontal = 6.dp, vertical = 7.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        AppIconView(app = app, size = 44.dp)
-        Spacer(modifier = Modifier.width(12.dp))
+        AppIconView(app = app, size = 38.dp)
+        Spacer(modifier = Modifier.width(10.dp))
         Column(modifier = Modifier.weight(1f)) {
             if (displayTitle != null) {
                 Text(
@@ -1617,8 +1666,8 @@ private fun AlphabetFastScrollerRail(
 
     Column(
         modifier = modifier
-            .width(28.dp)
-            .clip(RoundedCornerShape(14.dp))
+            .width(22.dp)
+            .clip(RoundedCornerShape(11.dp))
             .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.62f))
             .pointerInput(letters) {
                 detectTapGestures(
@@ -1673,7 +1722,7 @@ private fun AlphabetFastScrollerRail(
             ) {
                 Text(
                     text = letter,
-                    fontSize = 10.sp,
+                    fontSize = 9.5.sp,
                     fontWeight = if (isActive) FontWeight.ExtraBold else FontWeight.SemiBold,
                     color = if (isActive) {
                         MaterialTheme.colorScheme.secondary

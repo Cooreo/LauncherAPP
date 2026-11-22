@@ -2,8 +2,12 @@
 
 **Room Launcher** is a minimalist Android home screen launcher built with **Kotlin** and **Jetpack Compose**. Instead of a traditional grid of icons, your home screen is a customizable, illustrated room where every piece of furniture is an interactive, movable object.
 
-## Features (v3.1.0 — Redesigned All Apps, Boot-Cached Speed, Interactive Onboarding & Large Window Temp)
+## Features (v3.1.1 — Oppo Reno 6 5G & High-DPI Display Scaling Fix)
 
+- **Adaptive High-DPI Scaling & Room Perspective Polish (v3.1.1)**:
+  - Automatically normalizes oversized OEM display densities (such as Oppo Reno 6 5G / ColorOS running `1080×2400` at `480dpi / 3.0x = 360dp`) to a spacious `412dp` logical reference width while retaining native `1080×2400` pixel sharpness.
+  - Gently pulled back room furniture perspective (`0.88×` horizon-anchored across View Mode, Edit Mode & Wallpaper Mirror) for clean breathing room away from screen bezels.
+  - Rescaled the redesigned All Apps drawer with adaptive `40–46dp` icons backed by crisp `144px` cached bitmaps, a compact `44dp` pill search bar, tighter header & action modal sizing, and a slimmer `22dp` A–Z fast-scroll rail.
 - **Redesigned All Apps Drawer with 1-Tap Uninstall & Pinning (v3.1.0)**:
   - **4-Column Icon Grid & List View Toggle** (persisted), **Pinned Favorites dock strip**, interactive **Filter Chips** (*All*, *Pinned*, *Recent*, *Games*, *Unsorted*), **Sort Mode Switcher** (*A–Z*, *Newest*, *Recent*), **Enter-to-Launch Search**, A–Z Fast-Scroll Alphabet Rail working across both views, and a rich **Long-Press App Actions Modal** with **Open**, **Pin / Unpin**, **App Info**, **1-Tap Uninstall** (`REQUEST_DELETE_PACKAGES`), and **Room Object Assignment**.
 - **Boot-Cached & Pre-Warmed Instant Performance (v3.1.0)**:

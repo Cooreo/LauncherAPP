@@ -1163,21 +1163,21 @@ private fun WindowGraphic(
                 modifier = Modifier
                     .align(Alignment.BottomCenter)
                     .fillMaxWidth()
-                    .padding(horizontal = 6.dp, vertical = 10.dp),
+                    .padding(horizontal = 4.dp, vertical = 8.dp),
                 contentAlignment = Alignment.BottomCenter
             ) {
                 val badgeFontSize = when {
-                    maxWidth >= 110.dp -> 15.sp
-                    maxWidth >= 82.dp -> 13.5.sp
-                    else -> 12.sp
+                    maxWidth >= 105.dp -> 13.5.sp
+                    maxWidth >= 78.dp -> 12.sp
+                    else -> 10.5.sp
                 }
-                val shape = RoundedCornerShape(if (isVoxel) 3.dp else 11.dp)
+                val shape = RoundedCornerShape(if (isVoxel) 3.dp else 10.dp)
                 Box(
                     modifier = Modifier
                         .clip(shape)
                         .background(badgeBg)
                         .border(1.dp, borderTint, shape)
-                        .padding(horizontal = 9.dp, vertical = 3.5.dp)
+                        .padding(horizontal = 7.dp, vertical = 2.5.dp)
                 ) {
                     Text(
                         text = label,
