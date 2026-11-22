@@ -2,8 +2,11 @@
 
 **Room Launcher** is a minimalist Android home screen launcher built with **Kotlin** and **Jetpack Compose**. Instead of a traditional grid of icons, your home screen is a customizable, illustrated room where every piece of furniture is an interactive, movable object.
 
-## Features (v3.2.1 — Opt-In Alpha Updates Checkbox)
+## Features (v3.2.2 — Girly Room Baby Blue Theme & Room Lighting Fix)
 
+- **Girly Room Baby Blue Theme & Fixed Room Light Sources (v3.2.2)**:
+  - Added the **Baby Blue** (`PASTEL_SKY`) pastel blue theme for **Girly Room**, adapting stripes, satin ribbons, sheer curtains, tufted velvet headboard & heart pillow, Polaroids, painting, clock, shelf decor, Home Wallpaper Mirror, and charging animation — with 1-tap **Blush / Baby Blue / Lavender** switching in **Settings → Room Style**.
+  - Fixed light sources across all rooms so every fixture genuinely emits light: Living Room recessed ceiling spotlights (housings, glowing lenses & downward spotlight cones), Kitchen hanging pendant lamps (lit filament bulbs & warm downward cones), Gaming Room RGB hexagonal wall panels & Streaming Desk ring light, Girly & Teen fairy lights (exact wire placement, sockets & multi-layer radial blooms), Girly shelf & Fireplace mantel candles, and Blocky/Voxel wall torches.
 - **Opt-In Alpha Updates Channel (v3.2.1)**:
   - Added an **Include Alpha Versions** checkbox in **Settings → App Updates** (unchecked by default so regular users only receive stable releases).
   - When unchecked, alpha/pre-release APKs (e.g. `v3.2a`, `v3.3a`) and GitHub pre-releases are filtered out automatically. When checked, early alpha test builds appear right in the in-app updater with clear `ALPHA` badges.

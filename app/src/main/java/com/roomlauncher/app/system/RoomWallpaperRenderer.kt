@@ -23,6 +23,7 @@ import com.roomlauncher.app.data.WeatherCondition
 import com.roomlauncher.app.data.WeatherState
 import com.roomlauncher.app.ui.theme.GeometryDashSubTheme
 import com.roomlauncher.app.ui.theme.RoomStyleId
+import com.roomlauncher.app.ui.theme.RoomThemeId
 import com.roomlauncher.app.ui.theme.RoomThemes
 import com.roomlauncher.app.ui.theme.RoomVisualPalette
 import com.roomlauncher.app.ui.theme.accentNeonColors
@@ -274,6 +275,30 @@ object RoomWallpaperRenderer {
             // Cobblestone strip
             paint.color = if (palette.isDark) 0xFF3A3D42.toInt() else 0xFF7D8084.toInt()
             canvas.drawRect(0f, floorY - viewH * 0.055f, fullW, floorY, paint)
+            // Glowing pixel wall torches with warm radial light pools
+            listOf(0.32f to 0.30f, 0.94f to 0.25f).forEach { (tx, ty) ->
+                val cx = viewLeft + viewW * tx
+                val cy = viewTop + viewH * ty
+                val glowR = viewW * (if (palette.isDark) 0.20f else 0.14f)
+                paint.shader = RadialGradient(
+                    cx, cy - viewH * 0.008f, glowR,
+                    intArrayOf(
+                        if (palette.isDark) 0x9EFFE57F.toInt() else 0x70FFE57F.toInt(),
+                        if (palette.isDark) 0x4DFF9800 else 0x33FF9800,
+                        0x00FF9800
+                    ),
+                    floatArrayOf(0f, 0.52f, 1f),
+                    Shader.TileMode.CLAMP
+                )
+                canvas.drawCircle(cx, cy - viewH * 0.008f, glowR, paint)
+                paint.shader = null
+                paint.color = 0xFF6D4C2F.toInt()
+                canvas.drawRect(cx - viewW * 0.01f, cy, cx + viewW * 0.01f, cy + viewH * 0.042f, paint)
+                paint.color = 0xFFFF7043.toInt()
+                canvas.drawRect(cx - viewW * 0.013f, cy - viewH * 0.016f, cx + viewW * 0.013f, cy + viewH * 0.002f, paint)
+                paint.color = 0xFFFFEE58.toInt()
+                canvas.drawRect(cx - viewW * 0.008f, cy - viewH * 0.012f, cx + viewW * 0.008f, cy - viewH * 0.002f, paint)
+            }
             // Floor
             paint.color = if (palette.isDark) 0xFF2B2016.toInt() else 0xFF7A5A3A.toInt()
             canvas.drawRect(0f, floorY, fullW, fullH, paint)
@@ -310,7 +335,7 @@ object RoomWallpaperRenderer {
             canvas.drawRect(0f, 0f, fullW, viewTop + viewH * 0.28f, paint)
             paint.shader = null
 
-            // Crisp LED strip tube
+            // Crisp LED strip tube with hot core & glowing fairy lights
             paint.shader = LinearGradient(
                 0f, ledY, fullW, ledY,
                 intArrayOf(0xFF00F5D4.toInt(), 0xFF9B5DE5.toInt(), 0xFFF15BB5.toInt(), 0xFF00BBF9.toInt()),
@@ -319,6 +344,25 @@ object RoomWallpaperRenderer {
             )
             canvas.drawRect(0f, ledY, fullW, ledY + viewH * 0.0065f, paint)
             paint.shader = null
+            paint.color = 0xA6FFFFFF.toInt()
+            canvas.drawRect(0f, ledY + viewH * 0.0018f, fullW, ledY + viewH * 0.0040f, paint)
+
+            val tBulbs = listOf(0.10f to 0.094f, 0.24f to 0.106f, 0.38f to 0.098f, 0.50f to 0.088f, 0.62f to 0.098f, 0.76f to 0.106f, 0.90f to 0.094f)
+            tBulbs.forEach { (bx, by) ->
+                val cx = viewLeft + viewW * bx
+                val cy = viewTop + viewH * by
+                val r = viewW * 0.055f
+                paint.shader = RadialGradient(
+                    cx, cy, r,
+                    intArrayOf(0xB5FFE59D.toInt(), 0x55FFB703, 0x00FFB703),
+                    floatArrayOf(0f, 0.45f, 1f),
+                    Shader.TileMode.CLAMP
+                )
+                canvas.drawCircle(cx, cy, r, paint)
+                paint.shader = null
+                paint.color = 0xFFFFFEFA.toInt()
+                canvas.drawCircle(cx, cy, viewW * 0.0085f, paint)
+            }
 
             // Teen posters (properly center-cropped, never stretched!)
             val leftRect = RectF(viewLeft + viewW * 0.34f, viewTop + viewH * 0.285f, viewLeft + viewW * 0.53f, viewTop + viewH * 0.41f)
@@ -336,39 +380,82 @@ object RoomWallpaperRenderer {
                 canvas.drawRect(rightRect, paint)
             }
         } else if (style == RoomStyleId.GIRLY_ROOM) {
+            val isBlueGirly = palette.themeId == RoomThemeId.PASTEL_SKY
             // Subtle pastel vertical boutique stripes
             val stripeCount = 12
             val stripeW = fullW / stripeCount
-            paint.color = if (palette.isDark) 0x10F4A2C9 else 0x52FFFFFF
+            paint.color = when {
+                palette.isDark -> 0x10F4A2C9
+                isBlueGirly -> 0x6BFFFFFF
+                else -> 0x52FFFFFF
+            }
             for (i in 0 until stripeCount step 2) {
                 canvas.drawRect(i * stripeW, 0f, (i + 1) * stripeW, floorY, paint)
             }
-            // Soft blush & lavender ambient canopy wash
+            // Soft blush/sky & lavender ambient canopy wash
             paint.shader = LinearGradient(
-                0f, 0f, 0f, viewTop + viewH * 0.26f,
+                0f, 0f, 0f, viewTop + viewH * 0.27f,
                 intArrayOf(
-                    if (palette.isDark) 0x52FF9EC7 else 0x38FF9EC7,
-                    if (palette.isDark) 0x28D6B4FC else 0x1AD6B4FC,
+                    when {
+                        palette.isDark -> 0x56FF9EC7
+                        isBlueGirly -> 0x3D8CCBFF
+                        else -> 0x3CFF9EC7
+                    },
+                    when {
+                        palette.isDark -> 0x2DD6B4FC
+                        isBlueGirly -> 0x20B8C9FF
+                        else -> 0x1ED6B4FC
+                    },
                     0x00D6B4FC
                 ),
                 floatArrayOf(0f, 0.55f, 1f),
                 Shader.TileMode.CLAMP
             )
-            canvas.drawRect(0f, 0f, fullW, viewTop + viewH * 0.26f, paint)
+            canvas.drawRect(0f, 0f, fullW, viewTop + viewH * 0.27f, paint)
             paint.shader = null
 
-            // Pearl fairy-light bulbs along top swag
+            // Draped fairy light wire & glowing radial bulbs
+            val swagTopY = viewTop + viewH * 0.064f
+            val swagPath = Path().apply {
+                moveTo(viewLeft, swagTopY)
+                quadTo(viewLeft + viewW * 0.25f, swagTopY + viewH * 0.058f, viewLeft + viewW * 0.50f, swagTopY + viewH * 0.012f)
+                quadTo(viewLeft + viewW * 0.75f, swagTopY + viewH * 0.058f, viewLeft + viewW, swagTopY)
+            }
+            paint.style = Paint.Style.STROKE
+            paint.strokeWidth = 2.5f
+            paint.color = if (isBlueGirly) 0xB89AC2E4.toInt() else 0xB8DFA3BD.toInt()
+            canvas.drawPath(swagPath, paint)
+            paint.style = Paint.Style.FILL
+
             val bulbs = listOf(
-                0.09f to 0.080f, 0.19f to 0.091f, 0.30f to 0.093f, 0.41f to 0.084f,
-                0.59f to 0.084f, 0.70f to 0.093f, 0.81f to 0.091f, 0.91f to 0.080f
+                0.09f to 0.088f, 0.20f to 0.098f, 0.31f to 0.098f, 0.41f to 0.088f,
+                0.59f to 0.088f, 0.69f to 0.098f, 0.80f to 0.098f, 0.91f to 0.088f
             )
             bulbs.forEachIndexed { idx, (bx, by) ->
                 val cx = viewLeft + viewW * bx
                 val cy = viewTop + viewH * by
-                paint.color = if (idx % 2 == 0) 0x55FFB5D6 else 0x55FFE5A8
-                canvas.drawCircle(cx, cy, viewW * 0.024f, paint)
-                paint.color = 0xFFFFF8FA.toInt()
-                canvas.drawCircle(cx, cy, viewW * 0.009f, paint)
+                val glowR = viewW * (if (palette.isDark) 0.062f else 0.050f)
+                val innerCol = when {
+                    isBlueGirly && idx % 2 == 0 -> 0xAADFF3FF.toInt()
+                    idx % 2 == 0 -> 0xAAFFE1EE.toInt()
+                    else -> 0xAAFFF2C2.toInt()
+                }
+                val outerCol = when {
+                    isBlueGirly && idx % 2 == 0 -> 0x4599D6FF
+                    isBlueGirly -> 0x45FFE59D
+                    idx % 2 == 0 -> 0x45FFB5D6
+                    else -> 0x45FFE092
+                }
+                paint.shader = RadialGradient(
+                    cx, cy, glowR,
+                    intArrayOf(innerCol, outerCol, 0x00FFFFFF),
+                    floatArrayOf(0f, 0.48f, 1f),
+                    Shader.TileMode.CLAMP
+                )
+                canvas.drawCircle(cx, cy, glowR, paint)
+                paint.shader = null
+                paint.color = 0xFFFFFEFA.toInt()
+                canvas.drawCircle(cx, cy, viewW * 0.0085f, paint)
             }
         } else if (style == RoomStyleId.KIDS_ROOM) {
             val colors = intArrayOf(0xFFFF6B6B.toInt(), 0xFFFFD166.toInt(), 0xFF06D6A0.toInt(), 0xFF118AB2.toInt(), 0xFFFF9F1C.toInt())

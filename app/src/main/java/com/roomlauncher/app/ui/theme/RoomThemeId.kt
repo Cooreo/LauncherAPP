@@ -26,7 +26,7 @@ enum class RoomStyleId(
     val description: String
 ) {
     COZY_MINIMALIST("Cozy Minimalist", "Calm Scandinavian room & clean wood furniture"),
-    GIRLY_ROOM("Girly Room (Alpha)", "Blush striped walls, pearl fairy lights, ribbon bows, plush heart rug & dreamy vanity accents"),
+    GIRLY_ROOM("Girly Room (Alpha)", "Pastel striped walls (Blush Rose, Baby Blue & Lavender), glowing fairy lights, satin ribbons & heart rug"),
     TEEN_ROOM("Teen Room", "LED wall glow, fairy lights & 2 custom wall posters"),
     KIDS_ROOM("Kids Room", "Bunting garland, starry walls & cheerful play rug"),
     MINECRAFT("Blocky / Voxel", "Pixelated oak walls, torches & blocky furniture"),
@@ -64,6 +64,7 @@ enum class RoomThemeId(
 ) {
     WARM_LINEN("Warm Linen", "Cozy Scandinavian cream & oak", false),
     BLUSH_ROSE("Blush Rose", "Soft pastel pink, warm cream & rose-gold", false),
+    PASTEL_SKY("Baby Blue", "Dreamy powder blue, cloud white & pearl silver", false),
     BOTANICAL_SAGE("Botanical Sage", "Soft sunlit sage & birch", false),
     LAVENDER_NIGHT("Lavender Night", "Dreamy twilight lilac, soft rose & starlight", true),
     MIDNIGHT_COZY("Midnight Cozy", "Deep slate walls & warm lamplight", true),
@@ -573,6 +574,55 @@ object RoomThemes {
                 surfaceVariant = Color(0xFFF7E2EB),
                 onSurfaceVariant = Color(0xFF704E5F),
                 outline = Color(0xFFE3BED0)
+            )
+        )
+
+        RoomThemeId.PASTEL_SKY -> RoomVisualPalette(
+            themeId = id,
+            isDark = false,
+            wallMain = Color(0xFFEBF5FE),
+            wallUpper = Color(0xFFDCECFB),
+            baseboard = Color(0xFFD3E6F8),
+            baseboardShadow = Color(0xFFB7D2EB),
+            floorMain = Color(0xFFE7DFD6),
+            floorPlankLine = Color(0xFFCFC3B6),
+            rugFill = Color(0xFFF6FBFF),
+            rugBorder = Color(0xFF8CC5F2),
+            woodDark = Color(0xFF567494),
+            woodMid = Color(0xFF83A7CA),
+            woodLight = Color(0xFFB2CFE9),
+            duvetPrimary = Color(0xFFA7D4F7),
+            throwBlanket = Color(0xFF78B6EB),
+            pillowColor = Color(0xFFFAFDFF),
+            tvBezel = Color(0xFF283A4F),
+            tvScreen = Color(0xFF36516E),
+            consoleBody = Color(0xFF2E435B),
+            consoleAccent = Color(0xFF70C2FF),
+            trashBody = Color(0xFFB7D6EE),
+            trashRim = Color(0xFFEBF2F9),
+            stickyNoteFill = Color(0xFFD4ECFF),
+            stickyNoteFold = Color(0xFFA3D3F7),
+            clockFace = Color(0xFFFAFDFF),
+            clockHands = Color(0xFF26405C),
+            clockAccent = Color(0xFF4A98E0),
+            ambientLightTint = Color(0x46F0F9FF),
+            hudTextColor = Color(0xFF1C334A),
+            colorScheme = lightColorScheme(
+                primary = Color(0xFF367FC4),
+                onPrimary = Color.White,
+                primaryContainer = Color(0xFFD5EBFF),
+                onPrimaryContainer = Color(0xFF0E2C4A),
+                secondary = Color(0xFF6B7ED6),
+                onSecondary = Color.White,
+                secondaryContainer = Color(0xFFE3E8FF),
+                onSecondaryContainer = Color(0xFF1E2959),
+                background = Color(0xFFF0F7FE),
+                onBackground = Color(0xFF1A3045),
+                surface = Color(0xFFF9FCFF),
+                onSurface = Color(0xFF1A3045),
+                surfaceVariant = Color(0xFFE0EEF9),
+                onSurfaceVariant = Color(0xFF4E6880),
+                outline = Color(0xFFBAD5EC)
             )
         )
 

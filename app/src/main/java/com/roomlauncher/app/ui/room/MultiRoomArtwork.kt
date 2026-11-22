@@ -58,17 +58,56 @@ internal fun DrawScope.drawRoomTypeArchitectureAccent(
                 end = Offset(w, h * 0.295f),
                 strokeWidth = 5f
             )
-            // Warm recessed ceiling spotlight cones
+            // Recessed ceiling spotlights with visible housings, glowing LED lenses & warm downward light cones!
             listOf(0.22f, 0.50f, 0.78f).forEach { sx ->
                 val cx = w * sx
+                val lampY = h * 0.036f
+                // Soft downward spotlight light beam cone
+                val beam = Path().apply {
+                    moveTo(cx - w * 0.026f, lampY)
+                    lineTo(cx + w * 0.026f, lampY)
+                    lineTo(cx + w * 0.165f, h * 0.30f)
+                    lineTo(cx - w * 0.165f, h * 0.30f)
+                    close()
+                }
+                drawPath(
+                    path = beam,
+                    brush = Brush.verticalGradient(
+                        colors = listOf(
+                            Color(0xFFFFE59D).copy(alpha = if (palette.isDark) 0.42f else 0.30f),
+                            Color(0xFFFFE59D).copy(alpha = if (palette.isDark) 0.12f else 0.08f),
+                            Color.Transparent
+                        ),
+                        startY = lampY,
+                        endY = h * 0.30f
+                    )
+                )
+                // Recessed metallic ceiling trim ring
+                drawRoundRect(
+                    color = palette.woodDark,
+                    topLeft = Offset(cx - w * 0.034f, lampY - h * 0.014f),
+                    size = Size(w * 0.068f, h * 0.018f),
+                    cornerRadius = CornerRadius(6f, 6f)
+                )
+                // Radial bulb halo right below fixture
                 drawCircle(
                     brush = Brush.radialGradient(
-                        colors = listOf(Color(0x36FFE3A3), Color.Transparent),
-                        center = Offset(cx, h * 0.075f),
-                        radius = w * 0.22f
+                        colors = listOf(
+                            Color(0xFFFFF5CC).copy(alpha = if (palette.isDark) 0.85f else 0.72f),
+                            Color(0xFFFFD166).copy(alpha = if (palette.isDark) 0.35f else 0.24f),
+                            Color.Transparent
+                        ),
+                        center = Offset(cx, lampY + h * 0.008f),
+                        radius = w * 0.095f
                     ),
-                    radius = w * 0.22f,
-                    center = Offset(cx, h * 0.075f)
+                    radius = w * 0.095f,
+                    center = Offset(cx, lampY + h * 0.008f)
+                )
+                // Bright glowing recessed bulb lens
+                drawOval(
+                    color = Color(0xFFFFFCE8),
+                    topLeft = Offset(cx - w * 0.022f, lampY - h * 0.003f),
+                    size = Size(w * 0.044f, h * 0.011f)
                 )
             }
         }
@@ -106,10 +145,49 @@ internal fun DrawScope.drawRoomTypeArchitectureAccent(
                     }
                 }
             }
-            // Hanging pendant kitchen lamps near top ceiling
+            // Hanging pendant kitchen lamps with glowing warm bulbs & downward light cones!
             listOf(0.28f, 0.54f).forEach { lx ->
                 val cx = w * lx
+                val bulbCenter = Offset(cx, h * 0.128f)
+                // Soft downward warm pendant light cone illuminating backsplash
+                val cone = Path().apply {
+                    moveTo(cx - w * 0.044f, h * 0.125f)
+                    lineTo(cx + w * 0.044f, h * 0.125f)
+                    lineTo(cx + w * 0.17f, h * 0.36f)
+                    lineTo(cx - w * 0.17f, h * 0.36f)
+                    close()
+                }
+                drawPath(
+                    path = cone,
+                    brush = Brush.verticalGradient(
+                        colors = listOf(
+                            Color(0xFFFFE59D).copy(alpha = if (palette.isDark) 0.46f else 0.32f),
+                            Color(0xFFFFD166).copy(alpha = if (palette.isDark) 0.14f else 0.09f),
+                            Color.Transparent
+                        ),
+                        startY = h * 0.125f,
+                        endY = h * 0.36f
+                    )
+                )
+                // Radial warm light halo around bulb
+                drawCircle(
+                    brush = Brush.radialGradient(
+                        colors = listOf(
+                            Color(0xFFFFF5CC).copy(alpha = if (palette.isDark) 0.88f else 0.72f),
+                            Color(0xFFFFD166).copy(alpha = if (palette.isDark) 0.38f else 0.25f),
+                            Color.Transparent
+                        ),
+                        center = bulbCenter,
+                        radius = w * 0.135f
+                    ),
+                    radius = w * 0.135f,
+                    center = bulbCenter
+                )
+                // Cord + metallic dome shade + glowing filament bulb peeking underneath
                 drawLine(palette.woodDark, Offset(cx, 0f), Offset(cx, h * 0.095f), strokeWidth = 2.4f)
+                // Glowing bulb peeking from beneath shade
+                drawCircle(Color(0xFFFFE59D), radius = w * 0.017f, center = bulbCenter)
+                drawCircle(Color(0xFFFFFEF2), radius = w * 0.010f, center = bulbCenter)
                 val shade = Path().apply {
                     moveTo(cx - w * 0.048f, h * 0.125f)
                     lineTo(cx - w * 0.022f, h * 0.092f)
@@ -118,14 +196,12 @@ internal fun DrawScope.drawRoomTypeArchitectureAccent(
                     close()
                 }
                 drawPath(shade, palette.woodDark)
-                drawCircle(
-                    brush = Brush.radialGradient(
-                        colors = listOf(Color(0x45FFE59D), Color.Transparent),
-                        center = Offset(cx, h * 0.135f),
-                        radius = w * 0.14f
-                    ),
-                    radius = w * 0.14f,
-                    center = Offset(cx, h * 0.135f)
+                // Warm inner rim reflection along bottom lip of shade
+                drawLine(
+                    Color(0xFFFFF0B8).copy(alpha = 0.80f),
+                    Offset(cx - w * 0.044f, h * 0.125f),
+                    Offset(cx + w * 0.044f, h * 0.125f),
+                    strokeWidth = 2f
                 )
             }
             // Subtle ceramic checkered tile tint on kitchen floor
@@ -150,8 +226,8 @@ internal fun DrawScope.drawRoomTypeArchitectureAccent(
             drawRect(
                 brush = Brush.verticalGradient(
                     colors = listOf(
-                        accent.copy(alpha = if (palette.isDark) 0.26f else 0.15f),
-                        secondary.copy(alpha = if (palette.isDark) 0.12f else 0.06f),
+                        accent.copy(alpha = if (palette.isDark) 0.28f else 0.16f),
+                        secondary.copy(alpha = if (palette.isDark) 0.14f else 0.07f),
                         Color.Transparent
                     ),
                     startY = 0f,
@@ -160,7 +236,7 @@ internal fun DrawScope.drawRoomTypeArchitectureAccent(
                 topLeft = Offset.Zero,
                 size = Size(w, h * 0.30f)
             )
-            // Hexagonal RGB acoustic wall tiles cluster on upper-right wall
+            // Hexagonal RGB acoustic wall light tiles with real radial neon wall bloom!
             val hexR = w * 0.046f
             val hexCenters = listOf(
                 0.70f to 0.12f, 0.79f to 0.12f, 0.88f to 0.12f,
@@ -170,6 +246,21 @@ internal fun DrawScope.drawRoomTypeArchitectureAccent(
             hexCenters.forEachIndexed { idx, (hx, hy) ->
                 val cx = w * hx
                 val cy = h * hy
+                val hexGlowColor = if (idx % 2 == 0) accent else secondary
+                // Soft radial neon light glow cast behind each LED hex tile
+                drawCircle(
+                    brush = Brush.radialGradient(
+                        colors = listOf(
+                            hexGlowColor.copy(alpha = if (palette.isDark) 0.42f else 0.28f),
+                            hexGlowColor.copy(alpha = if (palette.isDark) 0.14f else 0.08f),
+                            Color.Transparent
+                        ),
+                        center = Offset(cx, cy),
+                        radius = hexR * 2.15f
+                    ),
+                    radius = hexR * 2.15f,
+                    center = Offset(cx, cy)
+                )
                 val hexPath = Path()
                 for (i in 0 until 6) {
                     val angle = (i * PI / 3.0 - PI / 6.0).toFloat()
@@ -178,16 +269,31 @@ internal fun DrawScope.drawRoomTypeArchitectureAccent(
                     if (i == 0) hexPath.moveTo(px, py) else hexPath.lineTo(px, py)
                 }
                 hexPath.close()
-                drawPath(hexPath, Color(0xFF10131C).copy(alpha = 0.65f))
+                drawPath(hexPath, Color(0xFF10131C).copy(alpha = 0.72f))
+                drawPath(hexPath, hexGlowColor.copy(alpha = 0.20f))
                 drawPath(
                     hexPath,
-                    color = (if (idx % 2 == 0) accent else secondary).copy(alpha = 0.70f),
-                    style = Stroke(width = 2.2f)
+                    color = hexGlowColor.copy(alpha = 0.92f),
+                    style = Stroke(width = 2.6f)
+                )
+                drawPath(
+                    hexPath,
+                    color = Color.White.copy(alpha = 0.45f),
+                    style = Stroke(width = 1.0f)
                 )
             }
-            // Neon baseboard trim strip
+            // Neon baseboard trim strip with subtle upward glow
+            drawRect(
+                brush = Brush.verticalGradient(
+                    colors = listOf(Color.Transparent, accent.copy(alpha = if (palette.isDark) 0.30f else 0.18f)),
+                    startY = floorY - h * 0.03f,
+                    endY = floorY
+                ),
+                topLeft = Offset(0f, floorY - h * 0.03f),
+                size = Size(w, h * 0.03f)
+            )
             drawLine(
-                color = accent.copy(alpha = 0.78f),
+                color = accent.copy(alpha = 0.88f),
                 start = Offset(0f, floorY - 2f),
                 end = Offset(w, floorY - 2f),
                 strokeWidth = 3.5f
@@ -271,9 +377,20 @@ internal fun DrawScope.drawFireplace(palette: RoomVisualPalette, isVoxel: Boolea
 
     // Thick wood mantel shelf on top
     drawRoundRect(palette.woodLight, Offset(w * 0.02f, h * 0.11f), Size(w * 0.96f, h * 0.09f), CornerRadius(r * 0.5f, r * 0.5f))
-    // Small candle & potted plant sitting on mantel
+    // Glowing candle & potted plant sitting on mantel (with real warm radial candlelight halo!)
+    val mantelFlame = Offset(w * 0.187f, h * 0.018f)
+    drawCircle(
+        brush = Brush.radialGradient(
+            colors = listOf(Color(0xAAFFE57F), Color(0x45FF9F1C), Color.Transparent),
+            center = mantelFlame,
+            radius = w * 0.11f
+        ),
+        radius = w * 0.11f,
+        center = mantelFlame
+    )
     drawRoundRect(Color(0xFFFFF3D6), Offset(w * 0.16f, h * 0.03f), Size(w * 0.055f, h * 0.08f), CornerRadius(2f, 2f))
-    drawCircle(Color(0xFFFFB703), w * 0.018f, Offset(w * 0.187f, h * 0.02f))
+    drawCircle(Color(0xFFFFA726), w * 0.020f, Offset(w * 0.187f, h * 0.020f))
+    drawCircle(Color(0xFFFFF8DC), w * 0.011f, Offset(w * 0.187f, h * 0.021f))
     drawRoundRect(palette.throwBlanket, Offset(w * 0.76f, h * 0.045f), Size(w * 0.09f, h * 0.065f), CornerRadius(3f, 3f))
     drawCircle(Color(0xFF4F9D69), w * 0.045f, Offset(w * 0.805f, h * 0.032f))
 
@@ -604,12 +721,21 @@ internal fun DrawScope.drawStreamingDesk(palette: RoomVisualPalette, isVoxel: Bo
     drawRoundRect(palette.consoleBody, Offset(w * 0.03f, h * 0.50f), Size(w * 0.94f, h * 0.11f), CornerRadius(r * 0.6f, r * 0.6f))
     drawLine(neon2, Offset(w * 0.05f, h * 0.60f), Offset(w * 0.95f, h * 0.60f), strokeWidth = 3f)
 
-    // Glowing ring light on left
+    // Glowing studio ring light on left with soft radial light bloom
     val ringCenter = Offset(w * 0.22f, h * 0.24f)
     val ringR = min(w, h) * 0.17f
     drawLine(Color(0xFF64748B), Offset(w * 0.22f, h * 0.41f), Offset(w * 0.22f, h * 0.50f), strokeWidth = 3f)
-    drawCircle(Color.White.copy(alpha = 0.22f), ringR * 1.35f, ringCenter)
-    drawCircle(Color.White, ringR, ringCenter, style = Stroke(width = 4f))
+    drawCircle(
+        brush = Brush.radialGradient(
+            colors = listOf(Color(0x66FFFFFF), Color(0x38D8F3FF), Color.Transparent),
+            center = ringCenter,
+            radius = ringR * 2.25f
+        ),
+        radius = ringR * 2.25f,
+        center = ringCenter
+    )
+    drawCircle(Color(0x99E0F7FF), ringR, ringCenter, style = Stroke(width = 7f))
+    drawCircle(Color.White, ringR, ringCenter, style = Stroke(width = 3.8f))
 
     // Boom-arm studio mic in center
     drawLine(Color(0xFF94A3B8), Offset(w * 0.36f, h * 0.50f), Offset(w * 0.46f, h * 0.16f), strokeWidth = 3f)

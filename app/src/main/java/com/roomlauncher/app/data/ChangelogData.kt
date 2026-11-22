@@ -11,9 +11,19 @@ data class ChangelogEntry(
 )
 
 object ChangelogData {
-    const val CURRENT_VERSION = "3.2.1"
+    const val CURRENT_VERSION = "3.2.2"
 
     val entries: List<ChangelogEntry> = listOf(
+        ChangelogEntry(
+            version = "3.2.2",
+            title = "Girly Room Baby Blue Theme & Fixed Room Light Sources",
+            tag = "MINOR UPDATE",
+            highlights = listOf(
+                "Added the brand-new Baby Blue (Pastel Sky) theme for Girly Room — powder-blue Parisian stripes, satin blue ribbon bows, sheer sky curtains, baby-blue tufted velvet headboard & heart pillow, blue Polaroid prints, matching sky-blue charging animation & Home Wallpaper Mirror, plus 1-tap Blush / Baby Blue / Lavender switching in Settings → Room Style.",
+                "Fixed room light sources that were missing real emitted lights: added glowing recessed ceiling spotlight housings, lenses & downward light beams in the Living Room; lit filament bulbs & warm downward light cones under Kitchen hanging pendant lamps; and soft neon radial wall glow behind Gaming Room RGB hexagonal panels & Streaming Desk ring light.",
+                "Upgraded Girly Room & Teen Room fairy lights (bulbs now hang precisely on the wire curve with metallic sockets & multi-layer radial light blooms), added glowing flame & radial candlelight halos to the Girly shelf candle and Fireplace mantel candle, plus smooth torchlight pools in Blocky/Voxel mode."
+            )
+        ),
         ChangelogEntry(
             version = "3.2.1",
             title = "Opt-In Alpha Updates Checkbox & Stable Release Channel",
