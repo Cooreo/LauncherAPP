@@ -90,6 +90,7 @@ fun RoomShellCanvas(
         Canvas(modifier = Modifier.fillMaxSize()) {
             when (roomStyle) {
                 RoomStyleId.COZY_MINIMALIST -> drawCozyShell(palette)
+                RoomStyleId.GIRLY_ROOM -> drawGirlyShell(palette)
                 RoomStyleId.TEEN_ROOM -> drawTeenShell(palette)
                 RoomStyleId.KIDS_ROOM -> drawKidsShell(palette)
                 RoomStyleId.MINECRAFT -> drawMinecraftShell(palette)
@@ -97,6 +98,30 @@ fun RoomShellCanvas(
             }
             // Layer room-specific architecture (Living Room wainscoting, Kitchen tiles, Gaming Room RGB hexes)
             drawRoomTypeArchitectureAccent(roomType, palette)
+        }
+
+        // Girly Room features 2 cute pastel Polaroid wall prints taped with rose/lilac washi tape!
+        if (roomStyle == RoomStyleId.GIRLY_ROOM && roomType == RoomType.BEDROOM && wPx > 0f && hPx > 0f) {
+            GirlyWallPolaroid(
+                isHeartCard = true,
+                modifier = Modifier
+                    .offset { IntOffset((wPx * 0.345f).roundToInt(), (hPx * 0.285f).roundToInt()) }
+                    .size(
+                        width = with(density) { (wPx * 0.165f).toDp() },
+                        height = with(density) { (hPx * 0.115f).toDp() }
+                    )
+                    .rotate(-3.2f)
+            )
+            GirlyWallPolaroid(
+                isHeartCard = false,
+                modifier = Modifier
+                    .offset { IntOffset((wPx * 0.565f).roundToInt(), (hPx * 0.205f).roundToInt()) }
+                    .size(
+                        width = with(density) { (wPx * 0.145f).toDp() },
+                        height = with(density) { (hPx * 0.105f).toDp() }
+                    )
+                    .rotate(3.6f)
+            )
         }
 
         // Teen Room features 2 customizable taped wall posters right on the bedroom wall!
@@ -315,6 +340,265 @@ private fun DrawScope.drawCozyShell(palette: RoomVisualPalette) {
         cornerRadius = CornerRadius(w * 0.02f, w * 0.02f),
         style = Stroke(width = w * 0.004f)
     )
+}
+
+@Composable
+private fun GirlyWallPolaroid(
+    isHeartCard: Boolean,
+    modifier: Modifier = Modifier
+) {
+    Box(
+        modifier = modifier
+            .background(Color(0xFFFFFAFC), RoundedCornerShape(4.dp))
+            .border(1.dp, Color(0x40D989AD), RoundedCornerShape(4.dp))
+            .padding(start = 4.dp, end = 4.dp, top = 4.dp, bottom = 10.dp)
+    ) {
+        Canvas(modifier = Modifier.fillMaxSize().clip(RoundedCornerShape(2.dp))) {
+            val w = size.width
+            val h = size.height
+            if (isHeartCard) {
+                drawRect(
+                    brush = Brush.verticalGradient(
+                        listOf(Color(0xFFFFE0EE), Color(0xFFF7C9E6), Color(0xFFE7D2FA))
+                    )
+                )
+                drawTinyHeart(Offset(w * 0.50f, h * 0.52f), min(w, h) * 0.26f, Color(0xFFE8699E))
+                drawSparkleStar(Offset(w * 0.22f, h * 0.25f), min(w, h) * 0.08f, Color.White.copy(alpha = 0.9f))
+                drawSparkleStar(Offset(w * 0.78f, h * 0.30f), min(w, h) * 0.065f, Color(0xFFFFF4C2))
+            } else {
+                drawRect(
+                    brush = Brush.verticalGradient(
+                        listOf(Color(0xFFEEE0FF), Color(0xFFFFE5F0))
+                    )
+                )
+                // Minimalist pastel pink tulip stem
+                drawLine(
+                    color = Color(0xFF7BB38C),
+                    start = Offset(w * 0.50f, h * 0.86f),
+                    end = Offset(w * 0.50f, h * 0.42f),
+                    strokeWidth = maxOf(2f, w * 0.045f),
+                    cap = StrokeCap.Round
+                )
+                val leaf = Path().apply {
+                    moveTo(w * 0.50f, h * 0.72f)
+                    quadraticTo(w * 0.74f, h * 0.64f, w * 0.68f, h * 0.52f)
+                    quadraticTo(w * 0.54f, h * 0.58f, w * 0.50f, h * 0.72f)
+                    close()
+                }
+                drawPath(leaf, Color(0xFF8CC49B))
+                drawCircle(Color(0xFFFF88B8), min(w, h) * 0.16f, Offset(w * 0.50f, h * 0.36f))
+                drawCircle(Color(0xFFFFB5D3), min(w, h) * 0.11f, Offset(w * 0.44f, h * 0.34f))
+                drawCircle(Color(0xFFFFD6E8), min(w, h) * 0.07f, Offset(w * 0.56f, h * 0.33f))
+            }
+        }
+        // Cute pastel washi tape strip at top center
+        Box(
+            modifier = Modifier
+                .align(Alignment.TopCenter)
+                .offset(y = (-6).dp)
+                .size(width = 18.dp, height = 6.dp)
+                .background(
+                    if (isHeartCard) Color(0xCCF59FC6) else Color(0xCCC9AEF5),
+                    RoundedCornerShape(1.5.dp)
+                )
+        )
+    }
+}
+
+private fun DrawScope.drawGirlyShell(palette: RoomVisualPalette) {
+    val w = size.width
+    val h = size.height
+    val floorY = h * 0.61f
+
+    // Dreamy wall gradient extending seamlessly behind the status bar
+    drawRect(
+        brush = Brush.verticalGradient(
+            colors = listOf(palette.wallUpper, palette.wallMain, palette.wallMain),
+            startY = 0f,
+            endY = floorY
+        ),
+        topLeft = Offset.Zero,
+        size = Size(w, floorY)
+    )
+
+    // Subtle Parisian boutique vertical pastel stripes on the upper wall
+    val stripeCount = 12
+    val stripeW = w / stripeCount
+    val stripeTint = if (palette.isDark) {
+        Color(0xFFF4A2C9).copy(alpha = 0.06f)
+    } else {
+        Color.White.copy(alpha = 0.34f)
+    }
+    for (i in 0 until stripeCount step 2) {
+        drawRect(stripeTint, Offset(i * stripeW, 0f), Size(stripeW, floorY))
+    }
+
+    // Soft rose-blush & lavender ambient ceiling glow
+    drawRect(
+        brush = Brush.verticalGradient(
+            colors = listOf(
+                Color(0xFFFF9EC7).copy(alpha = if (palette.isDark) 0.32f else 0.22f),
+                Color(0xFFD6B4FC).copy(alpha = if (palette.isDark) 0.16f else 0.10f),
+                Color.Transparent
+            ),
+            startY = 0f,
+            endY = h * 0.26f
+        ),
+        topLeft = Offset.Zero,
+        size = Size(w, h * 0.26f)
+    )
+
+    // Draped pearl & warm rose-gold fairy lights in graceful double swags
+    val swagTopY = h * 0.064f
+    val wirePath = Path().apply {
+        moveTo(0f, swagTopY)
+        quadraticTo(w * 0.25f, swagTopY + h * 0.056f, w * 0.50f, swagTopY + h * 0.010f)
+        quadraticTo(w * 0.75f, swagTopY + h * 0.056f, w, swagTopY)
+    }
+    drawPath(
+        path = wirePath,
+        color = Color(0xFFDFA3BD).copy(alpha = 0.65f),
+        style = Stroke(width = 2.2f)
+    )
+    val bulbPoints = listOf(
+        0.09f to 0.080f, 0.19f to 0.091f, 0.30f to 0.093f, 0.41f to 0.084f,
+        0.59f to 0.084f, 0.70f to 0.093f, 0.81f to 0.091f, 0.91f to 0.080f
+    )
+    bulbPoints.forEachIndexed { idx, (bx, by) ->
+        val haloColor = if (idx % 2 == 0) Color(0xFFFFB5D6) else Color(0xFFFFE5A8)
+        drawCircle(haloColor.copy(alpha = if (palette.isDark) 0.42f else 0.34f), radius = w * 0.024f, center = Offset(w * bx, h * by))
+        drawCircle(Color(0xFFFFF8FA), radius = w * 0.009f, center = Offset(w * bx, h * by))
+    }
+
+    // Cute satin ribbon bow tying the center of the fairy-light swag!
+    drawRibbonBow(
+        center = Offset(w * 0.50f, swagTopY + h * 0.012f),
+        scale = w * 0.042f,
+        color = Color(0xFFEC72A8),
+        highlight = Color(0xFFFFC1DD)
+    )
+
+    // Delicate floating sparkles & tiny pastel hearts on the wall
+    val sparkleColor = if (palette.isDark) Color(0xFFFFD4E8).copy(alpha = 0.70f) else Color(0xFFE886B3).copy(alpha = 0.50f)
+    listOf(0.14f to 0.042f, 0.78f to 0.044f, 0.48f to 0.175f, 0.86f to 0.30f, 0.25f to 0.55f).forEach { (sx, sy) ->
+        drawSparkleStar(Offset(w * sx, h * sy), w * 0.014f, sparkleColor)
+    }
+    val heartColor = if (palette.isDark) Color(0xFFF48FB1).copy(alpha = 0.45f) else Color(0xFFEC7EB0).copy(alpha = 0.34f)
+    listOf(0.32f to 0.16f, 0.68f to 0.145f, 0.79f to 0.56f).forEach { (hx, hy) ->
+        drawTinyHeart(Offset(w * hx, h * hy), w * 0.015f, heartColor)
+    }
+
+    drawBaseboardAndWoodFloor(palette, floorY)
+
+    // Plush scalloped cloud-trim pastel rug with woven heart centerpiece
+    val rugTopLeft = Offset(w * 0.11f, h * 0.662f)
+    val rugSize = Size(w * 0.78f, h * 0.250f)
+    val laceColor = if (palette.isDark) Color(0xFFF8D0E4).copy(alpha = 0.62f) else Color(0xFFFFFAFC).copy(alpha = 0.92f)
+    val scallopR = w * 0.022f
+    // Soft lace scallops along top and bottom edges of the fluffy rug
+    val horizCount = 14
+    for (i in 0..horizCount) {
+        val sx = rugTopLeft.x + (rugSize.width * i / horizCount)
+        drawCircle(laceColor, scallopR, Offset(sx, rugTopLeft.y + scallopR * 0.25f))
+        drawCircle(laceColor, scallopR, Offset(sx, rugTopLeft.y + rugSize.height - scallopR * 0.25f))
+    }
+    val vertCount = 5
+    for (j in 1 until vertCount) {
+        val sy = rugTopLeft.y + (rugSize.height * j / vertCount)
+        drawCircle(laceColor, scallopR, Offset(rugTopLeft.x + scallopR * 0.25f, sy))
+        drawCircle(laceColor, scallopR, Offset(rugTopLeft.x + rugSize.width - scallopR * 0.25f, sy))
+    }
+    drawRoundRect(palette.rugFill, rugTopLeft, rugSize, CornerRadius(w * 0.055f, w * 0.055f))
+    drawRoundRect(
+        color = palette.rugBorder.copy(alpha = 0.58f),
+        topLeft = Offset(rugTopLeft.x + w * 0.028f, rugTopLeft.y + h * 0.014f),
+        size = Size(rugSize.width - w * 0.056f, rugSize.height - h * 0.028f),
+        cornerRadius = CornerRadius(w * 0.04f, w * 0.04f),
+        style = Stroke(width = w * 0.0045f)
+    )
+    // Subtle pastel heart woven right into the center of the rug
+    drawTinyHeart(
+        center = Offset(rugTopLeft.x + rugSize.width * 0.5f, rugTopLeft.y + rugSize.height * 0.52f),
+        radius = w * 0.055f,
+        color = palette.rugBorder.copy(alpha = if (palette.isDark) 0.42f else 0.34f)
+    )
+}
+
+private fun DrawScope.drawTinyHeart(center: Offset, radius: Float, color: Color) {
+    val path = Path().apply {
+        moveTo(center.x, center.y + radius * 0.92f)
+        cubicTo(
+            center.x - radius * 1.45f, center.y + radius * 0.12f,
+            center.x - radius * 1.15f, center.y - radius * 1.05f,
+            center.x, center.y - radius * 0.32f
+        )
+        cubicTo(
+            center.x + radius * 1.15f, center.y - radius * 1.05f,
+            center.x + radius * 1.45f, center.y + radius * 0.12f,
+            center.x, center.y + radius * 0.92f
+        )
+        close()
+    }
+    drawPath(path, color)
+}
+
+private fun DrawScope.drawSparkleStar(center: Offset, radius: Float, color: Color) {
+    val path = Path().apply {
+        moveTo(center.x, center.y - radius)
+        quadraticTo(center.x, center.y, center.x + radius, center.y)
+        quadraticTo(center.x, center.y, center.x, center.y + radius)
+        quadraticTo(center.x, center.y, center.x - radius, center.y)
+        quadraticTo(center.x, center.y, center.x, center.y - radius)
+        close()
+    }
+    drawPath(path, color)
+}
+
+private fun DrawScope.drawRibbonBow(center: Offset, scale: Float, color: Color, highlight: Color) {
+    // Left & right flowing ribbon tails
+    val leftTail = Path().apply {
+        moveTo(center.x - scale * 0.15f, center.y + scale * 0.10f)
+        quadraticTo(center.x - scale * 0.55f, center.y + scale * 0.72f, center.x - scale * 0.78f, center.y + scale * 1.05f)
+        lineTo(center.x - scale * 0.38f, center.y + scale * 0.98f)
+        quadraticTo(center.x - scale * 0.20f, center.y + scale * 0.58f, center.x, center.y + scale * 0.22f)
+        close()
+    }
+    val rightTail = Path().apply {
+        moveTo(center.x + scale * 0.15f, center.y + scale * 0.10f)
+        quadraticTo(center.x + scale * 0.55f, center.y + scale * 0.72f, center.x + scale * 0.78f, center.y + scale * 1.05f)
+        lineTo(center.x + scale * 0.38f, center.y + scale * 0.98f)
+        quadraticTo(center.x + scale * 0.20f, center.y + scale * 0.58f, center.x, center.y + scale * 0.22f)
+        close()
+    }
+    drawPath(leftTail, color.copy(alpha = 0.88f))
+    drawPath(rightTail, color.copy(alpha = 0.88f))
+
+    // Left & right satin bow loops
+    val leftLoop = Path().apply {
+        moveTo(center.x, center.y)
+        cubicTo(
+            center.x - scale * 0.95f, center.y - scale * 0.85f,
+            center.x - scale * 1.15f, center.y + scale * 0.58f,
+            center.x, center.y + scale * 0.15f
+        )
+        close()
+    }
+    val rightLoop = Path().apply {
+        moveTo(center.x, center.y)
+        cubicTo(
+            center.x + scale * 0.95f, center.y - scale * 0.85f,
+            center.x + scale * 1.15f, center.y + scale * 0.58f,
+            center.x, center.y + scale * 0.15f
+        )
+        close()
+    }
+    drawPath(leftLoop, color)
+    drawPath(rightLoop, color)
+    drawCircle(highlight, scale * 0.17f, Offset(center.x - scale * 0.42f, center.y - scale * 0.04f))
+    drawCircle(highlight, scale * 0.17f, Offset(center.x + scale * 0.42f, center.y - scale * 0.04f))
+    // Center knot
+    drawCircle(color, scale * 0.24f, Offset(center.x, center.y + scale * 0.05f))
+    drawCircle(highlight.copy(alpha = 0.75f), scale * 0.11f, Offset(center.x - scale * 0.04f, center.y))
 }
 
 private fun DrawScope.drawTeenShell(palette: RoomVisualPalette) {
@@ -838,12 +1122,14 @@ fun RoomObjectGraphic(
     modifier: Modifier = Modifier
 ) {
     val isVoxel = roomStyle == RoomStyleId.MINECRAFT
+    val isGirly = roomStyle == RoomStyleId.GIRLY_ROOM
     Box(modifier = modifier) {
         when (visualType) {
             RoomObjectVisual.PAINTING -> {
                 PaintingGraphic(
                     palette = palette,
                     isVoxel = isVoxel,
+                    isGirly = isGirly,
                     gdDefaultDrawableRes = if (roomStyle == RoomStyleId.GEOMETRY_DASH) {
                         gdSubTheme.mainDrawableRes()
                     } else {
@@ -857,6 +1143,7 @@ fun RoomObjectGraphic(
                 WindowGraphic(
                     palette = palette,
                     isVoxel = isVoxel,
+                    isGirly = isGirly,
                     weatherState = weatherState,
                     weatherEnabled = weatherEnabled,
                     modifier = Modifier.fillMaxSize()
@@ -890,12 +1177,20 @@ fun RoomObjectGraphic(
                         }
                     } else {
                         when (visualType) {
-                            RoomObjectVisual.CLOCK -> drawClock(palette, currentMinutesOfDay)
+                            RoomObjectVisual.CLOCK -> drawClock(palette, currentMinutesOfDay, isGirly = isGirly)
                             RoomObjectVisual.STICKY_NOTE -> drawStickyNote(palette)
                             RoomObjectVisual.TV -> drawTv(palette)
                             RoomObjectVisual.CONSOLE -> drawGameConsole(palette)
-                            RoomObjectVisual.SHELF -> drawShelf(palette, isKids = roomStyle == RoomStyleId.KIDS_ROOM)
-                            RoomObjectVisual.BED -> drawBed(palette, isKids = roomStyle == RoomStyleId.KIDS_ROOM)
+                            RoomObjectVisual.SHELF -> drawShelf(
+                                palette = palette,
+                                isKids = roomStyle == RoomStyleId.KIDS_ROOM,
+                                isGirly = isGirly
+                            )
+                            RoomObjectVisual.BED -> drawBed(
+                                palette = palette,
+                                isKids = roomStyle == RoomStyleId.KIDS_ROOM,
+                                isGirly = isGirly
+                            )
                             RoomObjectVisual.TRASH_CAN -> drawTrashCan(palette)
                             RoomObjectVisual.SOFA -> drawSofa(palette, isVoxel = false)
                             RoomObjectVisual.FIREPLACE -> drawFireplace(palette, isVoxel = false)
@@ -923,6 +1218,7 @@ fun RoomObjectGraphic(
 private fun WindowGraphic(
     palette: RoomVisualPalette,
     isVoxel: Boolean,
+    isGirly: Boolean = false,
     weatherState: WeatherState,
     weatherEnabled: Boolean,
     modifier: Modifier = Modifier
@@ -1121,14 +1417,51 @@ private fun WindowGraphic(
                 }
             }
 
-            val frameColor = if (isVoxel) Color(0xFF5C3E24) else palette.woodLight
+            val frameColor = when {
+                isVoxel -> Color(0xFF5C3E24)
+                isGirly -> Color(0xFFFFF6F9)
+                else -> palette.woodLight
+            }
             val frameStroke = min(w, h) * (if (isVoxel) 0.075f else 0.055f)
             drawRect(frameColor, Offset(padX, padTop), Size(paneW, paneH), style = Stroke(width = frameStroke))
             drawLine(frameColor, Offset(padX + paneW / 2f, padTop), Offset(padX + paneW / 2f, padTop + paneH), strokeWidth = frameStroke * 0.8f)
             drawLine(frameColor, Offset(padX, padTop + paneH / 2f), Offset(padX + paneW, padTop + paneH / 2f), strokeWidth = frameStroke * 0.8f)
 
+            if (isGirly) {
+                // Sheer pastel tied-back curtains with rose ribbon tiebacks!
+                val curtainColor = Color(0xCCFFE3EF)
+                val curtainFold = Color(0x99F3AFCB)
+                val leftCurtain = Path().apply {
+                    moveTo(padX, padTop)
+                    lineTo(padX + paneW * 0.28f, padTop)
+                    quadraticTo(padX + paneW * 0.24f, padTop + paneH * 0.42f, padX + paneW * 0.12f, padTop + paneH * 0.56f)
+                    quadraticTo(padX + paneW * 0.20f, padTop + paneH * 0.78f, padX + paneW * 0.16f, padTop + paneH)
+                    lineTo(padX, padTop + paneH)
+                    close()
+                }
+                val rightCurtain = Path().apply {
+                    moveTo(padX + paneW, padTop)
+                    lineTo(padX + paneW * 0.72f, padTop)
+                    quadraticTo(padX + paneW * 0.76f, padTop + paneH * 0.42f, padX + paneW * 0.88f, padTop + paneH * 0.56f)
+                    quadraticTo(padX + paneW * 0.80f, padTop + paneH * 0.78f, padX + paneW * 0.84f, padTop + paneH)
+                    lineTo(padX + paneW, padTop + paneH)
+                    close()
+                }
+                drawPath(leftCurtain, curtainColor)
+                drawPath(rightCurtain, curtainColor)
+                drawPath(leftCurtain, curtainFold, style = Stroke(width = 1.6f))
+                drawPath(rightCurtain, curtainFold, style = Stroke(width = 1.6f))
+                // Cute rose ribbon tiebacks
+                drawLine(Color(0xFFEC72A8), Offset(padX, padTop + paneH * 0.56f), Offset(padX + paneW * 0.14f, padTop + paneH * 0.56f), strokeWidth = 3.2f, cap = StrokeCap.Round)
+                drawLine(Color(0xFFEC72A8), Offset(padX + paneW * 0.86f, padTop + paneH * 0.56f), Offset(padX + paneW, padTop + paneH * 0.56f), strokeWidth = 3.2f, cap = StrokeCap.Round)
+            }
+
             drawRoundRect(
-                color = if (isVoxel) Color(0xFF472F1A) else palette.woodMid,
+                color = when {
+                    isVoxel -> Color(0xFF472F1A)
+                    isGirly -> Color(0xFFF3CEDD)
+                    else -> palette.woodMid
+                },
                 topLeft = Offset(w * 0.02f, padTop + paneH - frameStroke * 0.2f),
                 size = Size(w * 0.96f, h * 0.09f),
                 cornerRadius = CornerRadius(if (isVoxel) 0f else 4f, if (isVoxel) 0f else 4f)
@@ -1205,6 +1538,7 @@ private fun DrawScope.drawCloud(left: Float, top: Float, width: Float, color: Co
 private fun PaintingGraphic(
     palette: RoomVisualPalette,
     isVoxel: Boolean,
+    isGirly: Boolean = false,
     gdDefaultDrawableRes: Int? = null,
     frameImageBitmap: ImageBitmap?,
     modifier: Modifier = Modifier
@@ -1214,11 +1548,11 @@ private fun PaintingGraphic(
         val wPx = with(density) { maxWidth.toPx() }
         val hPx = with(density) { maxHeight.toPx() }
 
-        // 1. Back layer: realistic drop shadow, beveled wooden outer frame & warm cream gallery mat
+        // 1. Back layer: realistic drop shadow, beveled outer frame & warm cream gallery mat
         Canvas(modifier = Modifier.fillMaxSize()) {
             val w = size.width
             val h = size.height
-            val corner = if (isVoxel) 0f else 6f
+            val corner = if (isVoxel) 0f else if (isGirly) 9f else 6f
 
             // Soft gallery wall shadow
             drawRoundRect(
@@ -1227,20 +1561,28 @@ private fun PaintingGraphic(
                 size = Size(w * 0.92f, h * 0.91f),
                 cornerRadius = CornerRadius(corner, corner)
             )
-            // Symmetrical outer wooden frame
+            // Symmetrical outer wooden / rose-gold frame
             val frameLeft = w * 0.03f
             val frameTop = h * 0.03f
             val frameW = w * 0.94f
             val frameH = h * 0.94f
             drawRoundRect(
-                color = if (isVoxel) Color(0xFF6B4828) else palette.woodDark,
+                color = when {
+                    isVoxel -> Color(0xFF6B4828)
+                    isGirly -> Color(0xFFD994AE)
+                    else -> palette.woodDark
+                },
                 topLeft = Offset(frameLeft, frameTop),
                 size = Size(frameW, frameH),
                 cornerRadius = CornerRadius(corner, corner)
             )
-            // Subtle inner wood bevel highlight so frame has real depth
+            // Subtle inner bevel highlight so frame has real depth
             drawRoundRect(
-                color = (if (isVoxel) Color(0xFF91673F) else palette.woodLight).copy(alpha = 0.55f),
+                color = when {
+                    isVoxel -> Color(0xFF91673F).copy(alpha = 0.55f)
+                    isGirly -> Color(0xFFFFE5F0).copy(alpha = 0.85f)
+                    else -> palette.woodLight.copy(alpha = 0.55f)
+                },
                 topLeft = Offset(frameLeft + w * 0.015f, frameTop + h * 0.015f),
                 size = Size(frameW - w * 0.03f, frameH - h * 0.03f),
                 cornerRadius = CornerRadius((corner - 1f).coerceAtLeast(0f), (corner - 1f).coerceAtLeast(0f)),
@@ -1251,7 +1593,7 @@ private fun PaintingGraphic(
             val matTop = h * 0.10f
             val matW = w * 0.80f
             val matH = h * 0.80f
-            drawRect(Color(0xFFFAF6EE), Offset(matLeft, matTop), Size(matW, matH))
+            drawRect(if (isGirly) Color(0xFFFFF8FA) else Color(0xFFFAF6EE), Offset(matLeft, matTop), Size(matW, matH))
 
             // Recessed inner aperture border around the artwork/photo
             val artLeft = w * 0.155f
@@ -1259,7 +1601,7 @@ private fun PaintingGraphic(
             val artW = w * 0.69f
             val artH = h * 0.69f
             drawRect(
-                color = Color(0xFFD5CCB9),
+                color = if (isGirly) Color(0xFFEBC3D4) else Color(0xFFD5CCB9),
                 topLeft = Offset(artLeft - 1.5f, artTop - 1.5f),
                 size = Size(artW + 3f, artH + 3f)
             )
@@ -1272,6 +1614,35 @@ private fun PaintingGraphic(
                     drawRect(Color(0xFFFFD166), Offset(artLeft + artW * 0.65f, artTop + artH * 0.12f), Size(artW * 0.2f, artH * 0.2f))
                     drawRect(Color(0xFF386641), Offset(artLeft + artW * 0.14f, artTop + artH * 0.32f), Size(artW * 0.24f, artH * 0.28f))
                     drawRect(Color(0xFF6F4E37), Offset(artLeft + artW * 0.22f, artTop + artH * 0.56f), Size(artW * 0.08f, artH * 0.22f))
+                } else if (isGirly) {
+                    // Dreamy pastel pink-lavender sunset & cherry blossom hills
+                    drawRect(
+                        brush = Brush.verticalGradient(
+                            colors = listOf(Color(0xFFE7CEFA), Color(0xFFFFCBE0), Color(0xFFFFE5B8)),
+                            startY = artTop,
+                            endY = artTop + artH
+                        ),
+                        topLeft = Offset(artLeft, artTop),
+                        size = Size(artW, artH)
+                    )
+                    drawCircle(Color(0xFFFFF2C6), min(artW, artH) * 0.17f, Offset(artLeft + artW * 0.66f, artTop + artH * 0.32f))
+                    drawSparkleStar(Offset(artLeft + artW * 0.26f, artTop + artH * 0.24f), min(artW, artH) * 0.06f, Color.White.copy(alpha = 0.9f))
+                    val blossomHill = Path().apply {
+                        moveTo(artLeft, artTop + artH)
+                        lineTo(artLeft, artTop + artH * 0.72f)
+                        quadraticTo(artLeft + artW * 0.42f, artTop + artH * 0.50f, artLeft + artW, artTop + artH * 0.76f)
+                        lineTo(artLeft + artW, artTop + artH)
+                        close()
+                    }
+                    drawPath(blossomHill, Color(0xFFE58FB5))
+                    val softMist = Path().apply {
+                        moveTo(artLeft, artTop + artH)
+                        lineTo(artLeft, artTop + artH * 0.84f)
+                        quadraticTo(artLeft + artW * 0.60f, artTop + artH * 0.68f, artLeft + artW, artTop + artH * 0.85f)
+                        lineTo(artLeft + artW, artTop + artH)
+                        close()
+                    }
+                    drawPath(softMist, Color(0xFFC26E9B))
                 } else {
                     drawRect(if (palette.isDark) Color(0xFF42384A) else Color(0xFFE9C7A6), Offset(artLeft, artTop), Size(artW, artH))
                     drawCircle(if (palette.isDark) Color(0xFFE8A87C) else Color(0xFFD97D54), min(artW, artH) * 0.17f, Offset(artLeft + artW * 0.66f, artTop + artH * 0.32f))
@@ -1292,6 +1663,16 @@ private fun PaintingGraphic(
                     }
                     drawPath(frontHill, Color(0xFF4B5D52))
                 }
+            }
+
+            // Cute satin ribbon bow perched on top center of the Girly Room frame!
+            if (isGirly) {
+                drawRibbonBow(
+                    center = Offset(w * 0.50f, frameTop + h * 0.01f),
+                    scale = min(w, h) * 0.11f,
+                    color = Color(0xFFEC72A8),
+                    highlight = Color(0xFFFFCCE4)
+                )
             }
         }
 
@@ -1352,14 +1733,17 @@ private fun PaintingGraphic(
 
 // ==================== CLASSIC FURNITURE ====================
 
-private fun DrawScope.drawClock(palette: RoomVisualPalette, minutesOfDay: Int) {
+private fun DrawScope.drawClock(palette: RoomVisualPalette, minutesOfDay: Int, isGirly: Boolean = false) {
     val radius = min(size.width, size.height) * 0.43f
     val cx = size.width / 2f
     val cy = size.height / 2f
 
     drawCircle(Color.Black.copy(alpha = if (palette.isDark) 0.36f else 0.12f), radius, Offset(cx + radius * 0.08f, cy + radius * 0.10f))
-    drawCircle(palette.woodDark, radius, Offset(cx, cy))
-    drawCircle(palette.clockFace, radius * 0.85f, Offset(cx, cy))
+    drawCircle(if (isGirly) Color(0xFFE3A4BC) else palette.woodDark, radius, Offset(cx, cy))
+    if (isGirly) {
+        drawCircle(Color(0xFFFFE5F0), radius * 0.93f, Offset(cx, cy), style = Stroke(width = maxOf(1.5f, radius * 0.06f)))
+    }
+    drawCircle(if (isGirly) Color(0xFFFFF9FB) else palette.clockFace, radius * 0.85f, Offset(cx, cy))
 
     val tickStroke = radius * 0.065f
     for (i in 0 until 12) {
@@ -1367,7 +1751,7 @@ private fun DrawScope.drawClock(palette: RoomVisualPalette, minutesOfDay: Int) {
         val inner = if (i % 3 == 0) radius * 0.64f else radius * 0.72f
         val outer = radius * 0.78f
         drawLine(
-            color = palette.clockHands.copy(alpha = if (i % 3 == 0) 0.85f else 0.35f),
+            color = (if (isGirly) Color(0xFFC95C8E) else palette.clockHands).copy(alpha = if (i % 3 == 0) 0.85f else 0.35f),
             start = Offset(cx + (cos(angle) * inner).toFloat(), cy + (sin(angle) * inner).toFloat()),
             end = Offset(cx + (cos(angle) * outer).toFloat(), cy + (sin(angle) * outer).toFloat()),
             strokeWidth = if (i % 3 == 0) tickStroke else tickStroke * 0.55f,
@@ -1377,9 +1761,10 @@ private fun DrawScope.drawClock(palette: RoomVisualPalette, minutesOfDay: Int) {
 
     val hourAngle = Math.toRadians(((minutesOfDay % 720) / 720.0) * 360.0 - 90.0)
     val minAngle = Math.toRadians(((minutesOfDay % 60) / 60.0) * 360.0 - 90.0)
-    drawLine(palette.clockHands, Offset(cx, cy), Offset(cx + (cos(hourAngle) * radius * 0.45f).toFloat(), cy + (sin(hourAngle) * radius * 0.45f).toFloat()), radius * 0.095f, StrokeCap.Round)
-    drawLine(palette.clockHands, Offset(cx, cy), Offset(cx + (cos(minAngle) * radius * 0.65f).toFloat(), cy + (sin(minAngle) * radius * 0.65f).toFloat()), radius * 0.065f, StrokeCap.Round)
-    drawCircle(palette.clockAccent, radius * 0.09f, Offset(cx, cy))
+    val handColor = if (isGirly) Color(0xFF5A3146) else palette.clockHands
+    drawLine(handColor, Offset(cx, cy), Offset(cx + (cos(hourAngle) * radius * 0.45f).toFloat(), cy + (sin(hourAngle) * radius * 0.45f).toFloat()), radius * 0.095f, StrokeCap.Round)
+    drawLine(handColor, Offset(cx, cy), Offset(cx + (cos(minAngle) * radius * 0.65f).toFloat(), cy + (sin(minAngle) * radius * 0.65f).toFloat()), radius * 0.065f, StrokeCap.Round)
+    drawCircle(if (isGirly) Color(0xFFEC72A8) else palette.clockAccent, radius * 0.09f, Offset(cx, cy))
 }
 
 private fun DrawScope.drawStickyNote(palette: RoomVisualPalette) {
@@ -1485,53 +1870,128 @@ private fun DrawScope.drawGameConsole(palette: RoomVisualPalette) {
     drawPath(rightLeg, palette.woodDark)
 }
 
-private fun DrawScope.drawShelf(palette: RoomVisualPalette, isKids: Boolean) {
+private fun DrawScope.drawShelf(palette: RoomVisualPalette, isKids: Boolean, isGirly: Boolean = false) {
     val w = size.width
     val h = size.height
     val upperY = h * 0.40f
     val shelfH = h * 0.065f
+    val shelfColor = when {
+        isKids -> Color(0xFFFFB703)
+        isGirly -> Color(0xFFFFF5F9)
+        else -> palette.woodMid
+    }
 
     drawRect(Color.Black.copy(alpha = 0.16f), Offset(w * 0.06f, upperY + shelfH), Size(w * 0.90f, h * 0.03f))
-    drawRoundRect(if (isKids) Color(0xFFFFB703) else palette.woodMid, Offset(w * 0.04f, upperY), Size(w * 0.92f, shelfH), CornerRadius(4f, 4f))
+    drawRoundRect(shelfColor, Offset(w * 0.04f, upperY), Size(w * 0.92f, shelfH), CornerRadius(4f, 4f))
 
-    drawRect(if (isKids) Color(0xFFFF6B6B) else palette.duvetPrimary, Offset(w * 0.09f, h * 0.13f), Size(w * 0.09f, upperY - h * 0.13f))
-    drawRect(if (isKids) Color(0xFF06D6A0) else palette.throwBlanket, Offset(w * 0.20f, h * 0.18f), Size(w * 0.08f, upperY - h * 0.18f))
-    drawRect(if (isKids) Color(0xFF118AB2) else Color(0xFFE2B97B), Offset(w * 0.30f, h * 0.10f), Size(w * 0.09f, upperY - h * 0.10f))
+    drawRect(
+        color = when {
+            isKids -> Color(0xFFFF6B6B)
+            isGirly -> Color(0xFFF49AC1)
+            else -> palette.duvetPrimary
+        },
+        topLeft = Offset(w * 0.09f, h * 0.13f),
+        size = Size(w * 0.09f, upperY - h * 0.13f)
+    )
+    drawRect(
+        color = when {
+            isKids -> Color(0xFF06D6A0)
+            isGirly -> Color(0xFFCBB2F6)
+            else -> palette.throwBlanket
+        },
+        topLeft = Offset(w * 0.20f, h * 0.18f),
+        size = Size(w * 0.08f, upperY - h * 0.18f)
+    )
+    drawRect(
+        color = when {
+            isKids -> Color(0xFF118AB2)
+            isGirly -> Color(0xFFFFE0B5)
+            else -> Color(0xFFE2B97B)
+        },
+        topLeft = Offset(w * 0.30f, h * 0.10f),
+        size = Size(w * 0.09f, upperY - h * 0.10f)
+    )
     val leaning = Path().apply {
         moveTo(w * 0.41f, upperY); lineTo(w * 0.48f, h * 0.16f); lineTo(w * 0.55f, h * 0.18f); lineTo(w * 0.48f, upperY); close()
     }
-    drawPath(leaning, if (isKids) Color(0xFF9B5DE5) else Color(0xFF596E79))
+    drawPath(
+        leaning,
+        when {
+            isKids -> Color(0xFF9B5DE5)
+            isGirly -> Color(0xFFB5EAD7)
+            else -> Color(0xFF596E79)
+        }
+    )
     val pot = Path().apply {
         moveTo(w * 0.72f, h * 0.28f); lineTo(w * 0.88f, h * 0.28f); lineTo(w * 0.85f, upperY); lineTo(w * 0.75f, upperY); close()
     }
-    drawPath(pot, Color(0xFFC66E4E))
-    drawCircle(Color(0xFF5D8768), w * 0.065f, Offset(w * 0.80f, h * 0.22f))
+    drawPath(pot, if (isGirly) Color(0xFFF6C6DA) else Color(0xFFC66E4E))
+    if (isGirly) {
+        // Blooming pink tulip / bouquet in pastel vase
+        drawCircle(Color(0xFF7CB88E), w * 0.055f, Offset(w * 0.80f, h * 0.24f))
+        drawCircle(Color(0xFFFF7EB6), w * 0.042f, Offset(w * 0.77f, h * 0.20f))
+        drawCircle(Color(0xFFFFB5D6), w * 0.038f, Offset(w * 0.83f, h * 0.19f))
+    } else {
+        drawCircle(Color(0xFF5D8768), w * 0.065f, Offset(w * 0.80f, h * 0.22f))
+    }
 
     val lowerY = h * 0.86f
     drawRect(Color.Black.copy(alpha = 0.16f), Offset(w * 0.06f, lowerY + shelfH), Size(w * 0.90f, h * 0.03f))
-    drawRoundRect(if (isKids) Color(0xFFFFB703) else palette.woodMid, Offset(w * 0.04f, lowerY), Size(w * 0.92f, shelfH), CornerRadius(4f, 4f))
+    drawRoundRect(shelfColor, Offset(w * 0.04f, lowerY), Size(w * 0.92f, shelfH), CornerRadius(4f, 4f))
 
-    drawRect(if (isKids) Color(0xFF118AB2) else Color(0xFF3E4E56), Offset(w * 0.09f, h * 0.60f), Size(w * 0.24f, lowerY - h * 0.60f))
-    drawRect(Color(0xFFFAF7F2), Offset(w * 0.14f, h * 0.69f), Size(w * 0.14f, h * 0.04f))
-    drawRect(Color(0xFFD9A76A), Offset(w * 0.38f, h * 0.79f), Size(w * 0.34f, lowerY - h * 0.79f))
-    drawRect(if (isKids) Color(0xFFFF6B6B) else palette.duvetPrimary, Offset(w * 0.41f, h * 0.72f), Size(w * 0.28f, h * 0.07f))
-    drawRect(Color(0xFFF0E5D6), Offset(w * 0.78f, h * 0.71f), Size(w * 0.12f, lowerY - h * 0.71f))
-    drawRect(palette.throwBlanket, Offset(w * 0.81f, h * 0.63f), Size(w * 0.025f, h * 0.08f))
-    drawRect(palette.duvetPrimary, Offset(w * 0.855f, h * 0.65f), Size(w * 0.02f, h * 0.06f))
+    if (isGirly) {
+        // Pastel ribbon jewelry box on left
+        drawRoundRect(Color(0xFFF3B0CF), Offset(w * 0.09f, h * 0.64f), Size(w * 0.24f, lowerY - h * 0.64f), CornerRadius(5f, 5f))
+        drawRect(Color(0xFFFFE5F0), Offset(w * 0.195f, h * 0.64f), Size(w * 0.03f, lowerY - h * 0.64f))
+        drawRect(Color(0xFFFFE5F0), Offset(w * 0.09f, h * 0.73f), Size(w * 0.24f, h * 0.035f))
+        // Stacked pastel journals in middle
+        drawRect(Color(0xFFD6B8FA), Offset(w * 0.38f, h * 0.79f), Size(w * 0.34f, lowerY - h * 0.79f))
+        drawRect(Color(0xFFF7A1C4), Offset(w * 0.41f, h * 0.72f), Size(w * 0.28f, h * 0.07f))
+        // Glowing rose scented candle on right!
+        drawRoundRect(Color(0xFFFFF4F8), Offset(w * 0.77f, h * 0.70f), Size(w * 0.14f, lowerY - h * 0.70f), CornerRadius(4f, 4f))
+        drawRect(Color(0xFFF49AC1), Offset(w * 0.79f, h * 0.76f), Size(w * 0.10f, h * 0.055f))
+        drawCircle(Color(0x55FFD166), w * 0.065f, Offset(w * 0.84f, h * 0.65f))
+        drawCircle(Color(0xFFFFD166), w * 0.028f, Offset(w * 0.84f, h * 0.66f))
+    } else {
+        drawRect(if (isKids) Color(0xFF118AB2) else Color(0xFF3E4E56), Offset(w * 0.09f, h * 0.60f), Size(w * 0.24f, lowerY - h * 0.60f))
+        drawRect(Color(0xFFFAF7F2), Offset(w * 0.14f, h * 0.69f), Size(w * 0.14f, h * 0.04f))
+        drawRect(Color(0xFFD9A76A), Offset(w * 0.38f, h * 0.79f), Size(w * 0.34f, lowerY - h * 0.79f))
+        drawRect(if (isKids) Color(0xFFFF6B6B) else palette.duvetPrimary, Offset(w * 0.41f, h * 0.72f), Size(w * 0.28f, h * 0.07f))
+        drawRect(Color(0xFFF0E5D6), Offset(w * 0.78f, h * 0.71f), Size(w * 0.12f, lowerY - h * 0.71f))
+        drawRect(palette.throwBlanket, Offset(w * 0.81f, h * 0.63f), Size(w * 0.025f, h * 0.08f))
+        drawRect(palette.duvetPrimary, Offset(w * 0.855f, h * 0.65f), Size(w * 0.02f, h * 0.06f))
+    }
 }
 
-private fun DrawScope.drawBed(palette: RoomVisualPalette, isKids: Boolean) {
+private fun DrawScope.drawBed(palette: RoomVisualPalette, isKids: Boolean, isGirly: Boolean = false) {
     val w = size.width
     val h = size.height
 
     drawRoundRect(Color.Black.copy(alpha = if (palette.isDark) 0.40f else 0.16f), Offset(w * 0.04f, h * 0.90f), Size(w * 0.92f, h * 0.09f), CornerRadius(10f, 10f))
-    drawRoundRect(if (isKids) Color(0xFF118AB2) else palette.woodDark, Offset(w * 0.03f, h * 0.03f), Size(w * 0.86f, h * 0.34f), CornerRadius(14f, 14f))
-    drawRect(Color.Black.copy(alpha = 0.14f), Offset(w * 0.07f, h * 0.11f), Size(w * 0.78f, h * 0.022f))
-    drawRect(Color.Black.copy(alpha = 0.14f), Offset(w * 0.07f, h * 0.19f), Size(w * 0.78f, h * 0.022f))
+    if (isGirly) {
+        // Curved tufted pastel velvet headboard with pearl buttons!
+        val headboardColor = if (palette.isDark) Color(0xFF6A4175) else Color(0xFFF2B6CF)
+        val headboardTrim = if (palette.isDark) Color(0xFFE5A4CB) else Color(0xFFFFF6FA)
+        drawRoundRect(headboardColor, Offset(w * 0.03f, h * 0.02f), Size(w * 0.86f, h * 0.35f), CornerRadius(w * 0.12f, w * 0.12f))
+        drawRoundRect(headboardTrim, Offset(w * 0.055f, h * 0.045f), Size(w * 0.81f, h * 0.28f), CornerRadius(w * 0.10f, w * 0.10f), style = Stroke(width = 2.2f))
+        // Pearl button tufting dots
+        listOf(0.20f, 0.38f, 0.56f, 0.74f).forEach { tx ->
+            drawCircle(headboardTrim.copy(alpha = 0.85f), w * 0.015f, Offset(w * tx, h * 0.13f))
+        }
+    } else {
+        drawRoundRect(if (isKids) Color(0xFF118AB2) else palette.woodDark, Offset(w * 0.03f, h * 0.03f), Size(w * 0.86f, h * 0.34f), CornerRadius(14f, 14f))
+        drawRect(Color.Black.copy(alpha = 0.14f), Offset(w * 0.07f, h * 0.11f), Size(w * 0.78f, h * 0.022f))
+        drawRect(Color.Black.copy(alpha = 0.14f), Offset(w * 0.07f, h * 0.19f), Size(w * 0.78f, h * 0.022f))
+    }
 
     drawRoundRect(palette.pillowColor.copy(alpha = 0.94f), Offset(w * 0.03f, h * 0.30f), Size(w * 0.94f, h * 0.50f), CornerRadius(10f, 10f))
     drawRoundRect(palette.pillowColor, Offset(w * 0.07f, h * 0.21f), Size(w * 0.38f, h * 0.18f), CornerRadius(14f, 14f))
     drawRoundRect(palette.pillowColor.copy(alpha = 0.90f), Offset(w * 0.48f, h * 0.21f), Size(w * 0.38f, h * 0.18f), CornerRadius(14f, 14f))
+    if (isGirly) {
+        // Cute plush pink heart throw pillow right in the middle!
+        drawTinyHeart(Offset(w * 0.47f, h * 0.32f), min(w, h) * 0.115f, Color(0xFFEC72A8))
+        drawTinyHeart(Offset(w * 0.46f, h * 0.305f), min(w, h) * 0.055f, Color(0xFFFFB5D6))
+    }
     drawRect(palette.pillowColor.copy(alpha = 0.82f), Offset(w * 0.03f, h * 0.39f), Size(w * 0.94f, h * 0.05f))
 
     drawRect(if (isKids) Color(0xFF2EC4B6) else palette.duvetPrimary, Offset(w * 0.03f, h * 0.43f), Size(w * 0.94f, h * 0.37f))
@@ -1540,11 +2000,26 @@ private fun DrawScope.drawBed(palette: RoomVisualPalette, isKids: Boolean) {
         listOf(0.22f to 0.52f, 0.50f to 0.55f, 0.78f to 0.51f).forEach { (sx, sy) ->
             drawCircle(Color(0xFFFFD166), w * 0.032f, Offset(w * sx, h * sy))
         }
+    } else if (isGirly) {
+        // Delicate cream lace ruffle trim along top edge of duvet + subtle sparkle dots
+        val ruffleCount = 12
+        val ruffleStep = (w * 0.94f) / ruffleCount
+        for (i in 0..ruffleCount) {
+            drawCircle(Color(0xFFFFFAFC).copy(alpha = 0.90f), ruffleStep * 0.42f, Offset(w * 0.03f + i * ruffleStep, h * 0.43f))
+        }
+        listOf(0.20f to 0.53f, 0.48f to 0.56f, 0.76f to 0.52f).forEach { (sx, sy) ->
+            drawSparkleStar(Offset(w * sx, h * sy), w * 0.022f, Color.White.copy(alpha = 0.65f))
+        }
     }
     drawRect(if (isKids) Color(0xFFFF6B6B) else palette.throwBlanket, Offset(w * 0.03f, h * 0.64f), Size(w * 0.94f, h * 0.16f))
-    drawRect(if (isKids) Color(0xFF118AB2) else palette.woodDark, Offset(w * 0.02f, h * 0.79f), Size(w * 0.96f, h * 0.085f))
-    drawRect(if (isKids) Color(0xFF0B6887) else palette.woodDark, Offset(w * 0.06f, h * 0.875f), Size(w * 0.055f, h * 0.10f))
-    drawRect(if (isKids) Color(0xFF0B6887) else palette.woodDark, Offset(w * 0.885f, h * 0.875f), Size(w * 0.055f, h * 0.10f))
+    val baseFrameColor = when {
+        isKids -> Color(0xFF118AB2)
+        isGirly -> if (palette.isDark) Color(0xFF5D3A69) else Color(0xFFE7B6C7)
+        else -> palette.woodDark
+    }
+    drawRect(baseFrameColor, Offset(w * 0.02f, h * 0.79f), Size(w * 0.96f, h * 0.085f))
+    drawRect(if (isKids) Color(0xFF0B6887) else baseFrameColor, Offset(w * 0.06f, h * 0.875f), Size(w * 0.055f, h * 0.10f))
+    drawRect(if (isKids) Color(0xFF0B6887) else baseFrameColor, Offset(w * 0.885f, h * 0.875f), Size(w * 0.055f, h * 0.10f))
 }
 
 private fun DrawScope.drawTrashCan(palette: RoomVisualPalette) {

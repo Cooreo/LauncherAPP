@@ -2,8 +2,12 @@
 
 **Room Launcher** is a minimalist Android home screen launcher built with **Kotlin** and **Jetpack Compose**. Instead of a traditional grid of icons, your home screen is a customizable, illustrated room where every piece of furniture is an interactive, movable object.
 
-## Features (v3.1.5 — Reliable App Drawer Swipe-Down Auto-Close)
+## Features (v3.2a — Girly Room Theme Alpha Preview)
 
+- **Girly Room Theme (Alpha) & Matching Pastel Palettes (v3.2a)**:
+  - New **Girly Room (Alpha)** room style featuring subtle Parisian pastel striped wallpaper, draped pearl & rose-gold fairy lights tied with a satin ribbon bow, delicate floating sparkles & tiny hearts, pastel Polaroid wall prints, and a fluffy scalloped-lace heart rug.
+  - Custom Girly Room furniture touches across the room: tufted velvet headboard with pearl buttons & plush heart throw pillow, lace-ruffle duvet, sheer tied-back window curtains, rose-gold bow picture frame with cherry-blossom sunset art, rose-gold pearl clock, and pastel bookshelf with tulips, jewelry box & glowing scented candle.
+  - Added **Blush Rose** (soft light pink & rose-gold) and **Lavender Night** (cozy twilight lilac & rose glow) palettes with 1-tap switching in **Settings → Room Style**, plus full Home Wallpaper Mirror & matching pink/lavender charging animation.
 - **Instant App Drawer Swipe-Down Auto-Close Fix (v3.1.5)**:
   - Fixed a stale `isVisible` closure inside the boot-warmed `AllAppsSheet` close handler that stopped downward swipes from automatically finishing the dismiss animation.
   - Upgraded both top-chrome and nested-scroll swipe-down tracking to synchronous 1:1 GPU translation with cumulative screen-space `VelocityTracker` flick detection and pre-overscroll interception at the top of the Grid/List.

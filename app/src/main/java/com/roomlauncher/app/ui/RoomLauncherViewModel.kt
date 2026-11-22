@@ -1246,7 +1246,20 @@ class RoomLauncherViewModel(application: Application) : AndroidViewModel(applica
     // ---- Theme, Room Style, Animation, Weather, Wallpaper, Photos Settings ----
 
     fun setRoomStyle(styleId: RoomStyleId) {
-        updateConfig { it.copy(roomStyleId = styleId) }
+        updateConfig { cfg ->
+            if (styleId == RoomStyleId.GIRLY_ROOM &&
+                cfg.themeId != RoomThemeId.BLUSH_ROSE &&
+                cfg.themeId != RoomThemeId.LAVENDER_NIGHT
+            ) {
+                cfg.copy(
+                    roomStyleId = styleId,
+                    themeId = RoomThemeId.BLUSH_ROSE,
+                    dynamicThemeEnabled = false
+                )
+            } else {
+                cfg.copy(roomStyleId = styleId)
+            }
+        }
         if (_uiState.value.config.mirrorHomeWallpaper) {
             syncHomeWallpaperNow(showToast = false)
         }

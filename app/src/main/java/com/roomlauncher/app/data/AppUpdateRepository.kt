@@ -73,28 +73,48 @@ private data class GitHubContentItem(
 )
 
 object AppVersionComparator {
-    private val APK_VERSION_REGEX = Regex("""RoomLauncher-v(\d+(?:\.\d+)*)\.apk""", RegexOption.IGNORE_CASE)
-    private val TAG_VERSION_REGEX = Regex("""(\d+(?:\.\d+)*)""")
+    private val APK_VERSION_REGEX =
+        Regex("""RoomLauncher-v(\d+(?:\.\d+)*(?:[a-z]+\d*)?)\.apk""", RegexOption.IGNORE_CASE)
+    private val TAG_VERSION_REGEX =
+        Regex("""(\d+(?:\.\d+)*(?:[a-z]+\d*)?)""", RegexOption.IGNORE_CASE)
+    private val SPLIT_VERSION_REGEX =
+        Regex("""^(\d+(?:\.\d+)*)(?:([a-z]+)(\d*))?$""", RegexOption.IGNORE_CASE)
 
     fun normalizeVersion(raw: String): String {
         val trimmed = raw.trim().removePrefix("v").removePrefix("V")
-        return TAG_VERSION_REGEX.find(trimmed)?.groupValues?.getOrNull(1) ?: trimmed
+        return TAG_VERSION_REGEX.find(trimmed)?.groupValues?.getOrNull(1)?.lowercase() ?: trimmed.lowercase()
     }
 
     fun extractVersionFromApkName(fileName: String): String? {
-        return APK_VERSION_REGEX.find(fileName.trim())?.groupValues?.getOrNull(1)
+        return APK_VERSION_REGEX.find(fileName.trim())?.groupValues?.getOrNull(1)?.lowercase()
     }
 
     fun compareVersions(a: String, b: String): Int {
-        val partsA = normalizeVersion(a).split('.').map { it.toIntOrNull() ?: 0 }
-        val partsB = normalizeVersion(b).split('.').map { it.toIntOrNull() ?: 0 }
+        val normA = normalizeVersion(a)
+        val normB = normalizeVersion(b)
+        val matchA = SPLIT_VERSION_REGEX.matchEntire(normA)
+        val matchB = SPLIT_VERSION_REGEX.matchEntire(normB)
+
+        val partsA = (matchA?.groupValues?.getOrNull(1) ?: normA).split('.').map { it.toIntOrNull() ?: 0 }
+        val partsB = (matchB?.groupValues?.getOrNull(1) ?: normB).split('.').map { it.toIntOrNull() ?: 0 }
         val maxLen = maxOf(partsA.size, partsB.size)
         for (i in 0 until maxLen) {
             val va = partsA.getOrElse(i) { 0 }
             val vb = partsB.getOrElse(i) { 0 }
             if (va != vb) return va.compareTo(vb)
         }
-        return 0
+
+        // Numeric components are equal: stable release (no suffix) > prerelease suffix (e.g. 3.2 > 3.2b > 3.2a)
+        val suffixA = matchA?.groupValues?.getOrNull(2).orEmpty()
+        val suffixB = matchB?.groupValues?.getOrNull(2).orEmpty()
+        if (suffixA.isEmpty() && suffixB.isEmpty()) return 0
+        if (suffixA.isEmpty()) return 1
+        if (suffixB.isEmpty()) return -1
+        val letterCmp = suffixA.compareTo(suffixB)
+        if (letterCmp != 0) return letterCmp
+        val preNumA = matchA?.groupValues?.getOrNull(3)?.toIntOrNull() ?: 1
+        val preNumB = matchB?.groupValues?.getOrNull(3)?.toIntOrNull() ?: 1
+        return preNumA.compareTo(preNumB)
     }
 
     fun isNewerVersion(remote: String, current: String): Boolean {
