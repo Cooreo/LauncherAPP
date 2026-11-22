@@ -1844,8 +1844,8 @@ private fun ThemeSwatchTile(
                 Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
                     SwatchDot(palette.wallMain)
                     SwatchDot(palette.floorMain)
-                    SwatchDot(palette.bedBlanket)
-                    SwatchDot(palette.accent)
+                    SwatchDot(palette.duvetPrimary)
+                    SwatchDot(palette.throwBlanket)
                 }
                 if (selected) {
                     Box(
