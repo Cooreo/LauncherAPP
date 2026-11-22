@@ -335,6 +335,41 @@ object RoomWallpaperRenderer {
                 paint.color = 0xFF1A2238.toInt()
                 canvas.drawRect(rightRect, paint)
             }
+        } else if (style == RoomStyleId.GIRLY_ROOM) {
+            // Subtle pastel vertical boutique stripes
+            val stripeCount = 12
+            val stripeW = fullW / stripeCount
+            paint.color = if (palette.isDark) 0x10F4A2C9 else 0x52FFFFFF
+            for (i in 0 until stripeCount step 2) {
+                canvas.drawRect(i * stripeW, 0f, (i + 1) * stripeW, floorY, paint)
+            }
+            // Soft blush & lavender ambient canopy wash
+            paint.shader = LinearGradient(
+                0f, 0f, 0f, viewTop + viewH * 0.26f,
+                intArrayOf(
+                    if (palette.isDark) 0x52FF9EC7 else 0x38FF9EC7,
+                    if (palette.isDark) 0x28D6B4FC else 0x1AD6B4FC,
+                    0x00D6B4FC
+                ),
+                floatArrayOf(0f, 0.55f, 1f),
+                Shader.TileMode.CLAMP
+            )
+            canvas.drawRect(0f, 0f, fullW, viewTop + viewH * 0.26f, paint)
+            paint.shader = null
+
+            // Pearl fairy-light bulbs along top swag
+            val bulbs = listOf(
+                0.09f to 0.080f, 0.19f to 0.091f, 0.30f to 0.093f, 0.41f to 0.084f,
+                0.59f to 0.084f, 0.70f to 0.093f, 0.81f to 0.091f, 0.91f to 0.080f
+            )
+            bulbs.forEachIndexed { idx, (bx, by) ->
+                val cx = viewLeft + viewW * bx
+                val cy = viewTop + viewH * by
+                paint.color = if (idx % 2 == 0) 0x55FFB5D6 else 0x55FFE5A8
+                canvas.drawCircle(cx, cy, viewW * 0.024f, paint)
+                paint.color = 0xFFFFF8FA.toInt()
+                canvas.drawCircle(cx, cy, viewW * 0.009f, paint)
+            }
         } else if (style == RoomStyleId.KIDS_ROOM) {
             val colors = intArrayOf(0xFFFF6B6B.toInt(), 0xFFFFD166.toInt(), 0xFF06D6A0.toInt(), 0xFF118AB2.toInt(), 0xFFFF9F1C.toInt())
             val flagCount = 9

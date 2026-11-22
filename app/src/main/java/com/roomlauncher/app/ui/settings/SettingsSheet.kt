@@ -890,6 +890,77 @@ fun SettingsSheet(
                                 }
                             }
 
+                            if (uiState.config.roomStyleId == RoomStyleId.GIRLY_ROOM) {
+                                Spacer(modifier = Modifier.height(6.dp))
+                                Text(
+                                    text = "Girly Room Vibe (Alpha Preview)",
+                                    style = MaterialTheme.typography.titleSmall,
+                                    fontWeight = FontWeight.SemiBold,
+                                    color = MaterialTheme.colorScheme.primary
+                                )
+                                Text(
+                                    text = "Quick-switch between Blush Rose (light) & Lavender Night (dark), or pick any palette below.",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                ) {
+                                    listOf(
+                                        RoomThemeId.BLUSH_ROSE to "Blush Rose",
+                                        RoomThemeId.LAVENDER_NIGHT to "Lavender Night"
+                                    ).forEach { (themeChoice, label) ->
+                                        val isChosen = !uiState.config.dynamicThemeEnabled &&
+                                            uiState.config.themeId == themeChoice
+                                        val swatch = RoomThemes.paletteFor(themeChoice)
+                                        Surface(
+                                            shape = RoundedCornerShape(12.dp),
+                                            color = if (isChosen) {
+                                                MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.65f)
+                                            } else {
+                                                MaterialTheme.colorScheme.surface
+                                            },
+                                            modifier = Modifier
+                                                .weight(1f)
+                                                .border(
+                                                    width = if (isChosen) 2.dp else 1.dp,
+                                                    color = if (isChosen) {
+                                                        MaterialTheme.colorScheme.primary
+                                                    } else {
+                                                        MaterialTheme.colorScheme.outlineVariant
+                                                    },
+                                                    shape = RoundedCornerShape(12.dp)
+                                                )
+                                                .clip(RoundedCornerShape(12.dp))
+                                                .clickable { onSelectTheme(themeChoice) }
+                                        ) {
+                                            Row(
+                                                modifier = Modifier.padding(horizontal = 10.dp, vertical = 10.dp),
+                                                verticalAlignment = Alignment.CenterVertically,
+                                                horizontalArrangement = Arrangement.Center
+                                            ) {
+                                                Box(
+                                                    modifier = Modifier
+                                                        .size(14.dp)
+                                                        .clip(CircleShape)
+                                                        .background(swatch.wallMain)
+                                                        .border(1.dp, swatch.rugBorder, CircleShape)
+                                                )
+                                                Spacer(modifier = Modifier.width(6.dp))
+                                                Text(
+                                                    text = label,
+                                                    style = MaterialTheme.typography.labelLarge,
+                                                    fontWeight = FontWeight.SemiBold,
+                                                    maxLines = 1,
+                                                    overflow = TextOverflow.Ellipsis
+                                                )
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+
                             if (uiState.config.roomStyleId == RoomStyleId.TEEN_ROOM) {
                                 Spacer(modifier = Modifier.height(6.dp))
                                 Text(

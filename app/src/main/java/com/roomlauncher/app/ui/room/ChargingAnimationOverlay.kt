@@ -710,6 +710,7 @@ private fun animationPalette(
     ChargingAnimationStyle.VOXEL_REDSTONE -> Triple(Color(0xFFE53935), Color(0xFF5CE65C), Color(0xFFFFE066))
     ChargingAnimationStyle.MATCH_ROOM -> when (roomStyle) {
         RoomStyleId.COZY_MINIMALIST -> Triple(Color(0xFFE09F3E), Color(0xFF7CC49E), Color(0xFFFFE599))
+        RoomStyleId.GIRLY_ROOM -> Triple(Color(0xFFFF85B3), Color(0xFFC896FF), Color(0xFFFFD6E7))
         RoomStyleId.TEEN_ROOM -> Triple(Color(0xFF9B5DE5), Color(0xFF00F5D4), Color(0xFFF15BB5))
         RoomStyleId.KIDS_ROOM -> Triple(Color(0xFFFFB703), Color(0xFF4CC9F0), Color(0xFFFF6B6B))
         RoomStyleId.MINECRAFT -> Triple(Color(0xFFE53935), Color(0xFF5CE65C), Color(0xFFFFE066))

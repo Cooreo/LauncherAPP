@@ -11,9 +11,19 @@ data class ChangelogEntry(
 )
 
 object ChangelogData {
-    const val CURRENT_VERSION = "3.1.5"
+    const val CURRENT_VERSION = "3.2a"
 
     val entries: List<ChangelogEntry> = listOf(
+        ChangelogEntry(
+            version = "3.2a",
+            title = "Girly Room Theme (Alpha Preview) + Blush Rose & Lavender Night Palettes",
+            tag = "ALPHA",
+            highlights = listOf(
+                "Added the brand-new Girly Room (Alpha) style: Parisian pastel striped wallpaper, draped pearl & rose-gold fairy lights tied with a satin ribbon bow, floating sparkles & tiny hearts, pastel Polaroid wall prints, and a fluffy scalloped-lace heart rug!",
+                "Styled Girly Room furniture details: tufted pastel velvet headboard with pearl buttons & plush heart throw pillow, lace-ruffle duvet, sheer tied-back pastel window curtains, rose-gold bow picture frame with cherry-blossom sunset art, rose-gold pearl clock, and pastel bookshelf with tulips, jewelry box & glowing scented candle.",
+                "Added 2 matching Color Palettes — Blush Rose (light pastel pink & rose-gold) and Lavender Night (cozy dark twilight lilac & rose glow) — with 1-tap switching in Settings → Room Style, full Home Wallpaper Mirror & matching pink/lavender charging animation, plus alpha/beta version support in the GitHub updater."
+            )
+        ),
         ChangelogEntry(
             version = "3.1.5",
             title = "Fixed App Drawer Auto-Close on Swipe Down",

@@ -236,10 +236,29 @@ class RoomConfigRepositoryTest {
 
     @Test
     fun changelogStartsWithLatestVersion() {
-        assertEquals("3.1.5", ChangelogData.CURRENT_VERSION)
+        assertEquals("3.2a", ChangelogData.CURRENT_VERSION)
         assertTrue(ChangelogData.entries.isNotEmpty())
-        assertEquals("3.1.5", ChangelogData.entries.first().version)
+        assertEquals("3.2a", ChangelogData.entries.first().version)
         assertTrue(ChangelogData.entries.first().highlights.size >= 3)
+    }
+
+    @Test
+    fun girlyRoomStyleAndPalettesPersistCleanly() = runTest {
+        val file = File(tempFolder.root, "girly_config.json")
+        val repo = RoomConfigRepository(file)
+
+        val blushConfig = RoomConfigRepository.createDefaultRoomConfig().copy(
+            roomStyleId = RoomStyleId.GIRLY_ROOM,
+            themeId = RoomThemeId.BLUSH_ROSE
+        )
+        repo.saveConfig(blushConfig)
+        val reloadedBlush = repo.loadConfig()
+        assertEquals(RoomStyleId.GIRLY_ROOM, reloadedBlush.roomStyleId)
+        assertEquals(RoomThemeId.BLUSH_ROSE, reloadedBlush.themeId)
+        assertFalse(RoomThemes.effectivePalette(RoomStyleId.GIRLY_ROOM, RoomThemeId.BLUSH_ROSE).isDark)
+
+        val lavenderPalette = RoomThemes.effectivePalette(RoomStyleId.GIRLY_ROOM, RoomThemeId.LAVENDER_NIGHT)
+        assertTrue(lavenderPalette.isDark)
     }
 
     @Test
