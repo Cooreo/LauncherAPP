@@ -195,6 +195,15 @@ object SystemIntentHelper {
         }
     }
 
+    fun uninstallApp(context: Context, packageName: String) {
+        val deleteIntent = Intent(Intent.ACTION_DELETE, Uri.parse("package:$packageName")).apply {
+            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+        }
+        if (!startActivitySafely(context, deleteIntent)) {
+            openAppInfoSettings(context, packageName)
+        }
+    }
+
     fun isDefaultHomeLauncher(context: Context): Boolean {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
             val roleManager = context.getSystemService(RoleManager::class.java)

@@ -640,6 +640,35 @@ class RoomLauncherViewModel(application: Application) : AndroidViewModel(applica
         _uiState.update { it.copy(showAllAppsSheet = false) }
     }
 
+    fun setAllAppsGridMode(isGrid: Boolean) {
+        if (_uiState.value.config.allAppsGridMode != isGrid) {
+            updateConfig { it.copy(allAppsGridMode = isGrid) }
+        }
+    }
+
+    fun togglePinApp(packageName: String) {
+        updateConfig { cfg ->
+            val updated = if (packageName in cfg.pinnedAppPackages) {
+                cfg.pinnedAppPackages.filterNot { it == packageName }
+            } else {
+                listOf(packageName) + cfg.pinnedAppPackages
+            }
+            cfg.copy(pinnedAppPackages = updated)
+        }
+    }
+
+    fun recordAppLaunch(packageName: String) {
+        updateConfig { cfg ->
+            val updated = (listOf(packageName) + cfg.recentAppPackages.filterNot { it == packageName })
+                .take(24)
+            cfg.copy(recentAppPackages = updated)
+        }
+    }
+
+    fun uninstallApp(packageName: String) {
+        SystemIntentHelper.uninstallApp(appContext, packageName)
+    }
+
     fun openSettings() {
         val current = _uiState.value
         val knownUpdate = current.updateState.availableUpdate

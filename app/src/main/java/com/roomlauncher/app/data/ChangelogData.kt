@@ -11,9 +11,20 @@ data class ChangelogEntry(
 )
 
 object ChangelogData {
-    const val CURRENT_VERSION = "3.0.2"
+    const val CURRENT_VERSION = "3.1.0"
 
     val entries: List<ChangelogEntry> = listOf(
+        ChangelogEntry(
+            version = "3.1.0",
+            title = "Redesigned All Apps, Boot-Cached Speed, Rich Onboarding & Big Window Temp",
+            tag = "FEATURE",
+            highlights = listOf(
+                "Completely redesigned the All Apps drawer: 4-column Icon Grid & List view toggle, Pinned Favorites dock strip, instant filter pills (All, Pinned, Recent, Games, Unsorted), sort switcher (A–Z, Newest, Recent), Enter-to-launch search, A–Z fast-scroll rail in both views, and a rich long-press App Actions sheet with 1-tap Uninstall, Pin, App Info & Room assignment.",
+                "Boot-cached & pre-warmed App Drawer: loads all installed apps and crisp 96px icons once on launcher boot, keeps the drawer persistently warm off-screen for zero mount/teardown hitch, and updates incrementally in milliseconds ONLY when an app is installed or uninstalled.",
+                "Overhauled Onboarding into a visual, interactive 4-step setup featuring a live miniature illustrated Room Preview, instant Room Style & Theme Palette pickers, Live Window Weather toggle, boot-cache status, and guided Oppo / ColorOS battery & Default Home setup.",
+                "Enlarged and restyled the Room Window temperature badge (13.5–15sp bold high-contrast frosted pill with weather icon & °C unit, also mirrored onto Home Screen wallpaper)."
+            )
+        ),
         ChangelogEntry(
             version = "3.0.2",
             title = "App Drawer Swipe-Close Glitch Fix",

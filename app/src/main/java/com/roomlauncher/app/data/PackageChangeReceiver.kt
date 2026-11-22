@@ -7,7 +7,7 @@ import android.content.IntentFilter
 import androidx.core.content.ContextCompat
 
 class PackageChangeReceiver(
-    private val onPackagesChanged: (action: String?, packageName: String?) -> Unit
+    private val onPackagesChanged: (action: String, packageName: String?, isReplacing: Boolean) -> Unit
 ) : BroadcastReceiver() {
 
     override fun onReceive(context: Context?, intent: Intent?) {
@@ -19,7 +19,8 @@ class PackageChangeReceiver(
             action == Intent.ACTION_PACKAGE_CHANGED
         ) {
             val packageName = intent.data?.schemeSpecificPart
-            onPackagesChanged(action, packageName)
+            val isReplacing = intent.getBooleanExtra(Intent.EXTRA_REPLACING, false)
+            onPackagesChanged(action, packageName, isReplacing)
         }
     }
 

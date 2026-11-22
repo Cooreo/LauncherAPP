@@ -7,6 +7,7 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -1137,25 +1138,56 @@ private fun WindowGraphic(
         if (weatherEnabled && weatherState.temperatureC != null) {
             val t = weatherState.temperatureC
             val badgeBg = when {
-                t < 0 -> Color(0xBF1E4B6E)
-                t < 10 -> Color(0xB33B5368)
-                else -> Color(0x8814171D)
+                t < 0 -> Color(0xE0113B5E)
+                t < 10 -> Color(0xDB233E57)
+                t >= 28 -> Color(0xDB593112)
+                else -> Color(0xD9101621)
             }
-            val label = if (t < 0) "❄ $t°" else "$t°"
-            Box(
+            val borderTint = when {
+                t < 0 -> Color(0xAA9EDBFF)
+                t >= 28 -> Color(0xAAFFD080)
+                else -> Color.White.copy(alpha = 0.28f)
+            }
+            val weatherGlyph = when {
+                t < 0 -> "❄"
+                activeCondition == WeatherCondition.THUNDERSTORM -> "⛈"
+                activeCondition == WeatherCondition.RAIN -> "🌧"
+                activeCondition == WeatherCondition.SNOW -> "❄"
+                activeCondition == WeatherCondition.CLEAR_NIGHT -> "🌙"
+                activeCondition == WeatherCondition.CLOUDY -> "☁"
+                activeCondition == WeatherCondition.PARTLY_CLOUDY -> "⛅"
+                else -> "☀"
+            }
+            val label = "$weatherGlyph ${t}°C"
+            BoxWithConstraints(
                 modifier = Modifier
-                    .align(Alignment.BottomEnd)
-                    .padding(end = 9.dp, bottom = 13.dp)
-                    .clip(RoundedCornerShape(if (isVoxel) 2.dp else 8.dp))
-                    .background(badgeBg)
-                    .padding(horizontal = 5.dp, vertical = 1.5.dp)
+                    .align(Alignment.BottomCenter)
+                    .fillMaxWidth()
+                    .padding(horizontal = 6.dp, vertical = 10.dp),
+                contentAlignment = Alignment.BottomCenter
             ) {
-                Text(
-                    text = label,
-                    color = Color.White,
-                    fontSize = 9.5.sp,
-                    fontWeight = FontWeight.SemiBold
-                )
+                val badgeFontSize = when {
+                    maxWidth >= 110.dp -> 15.sp
+                    maxWidth >= 82.dp -> 13.5.sp
+                    else -> 12.sp
+                }
+                val shape = RoundedCornerShape(if (isVoxel) 3.dp else 11.dp)
+                Box(
+                    modifier = Modifier
+                        .clip(shape)
+                        .background(badgeBg)
+                        .border(1.dp, borderTint, shape)
+                        .padding(horizontal = 9.dp, vertical = 3.5.dp)
+                ) {
+                    Text(
+                        text = label,
+                        color = Color.White,
+                        fontSize = badgeFontSize,
+                        fontWeight = FontWeight.ExtraBold,
+                        maxLines = 1,
+                        softWrap = false
+                    )
+                }
             }
         }
     }

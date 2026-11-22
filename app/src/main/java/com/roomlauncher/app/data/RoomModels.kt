@@ -126,6 +126,9 @@ data class RoomConfig(
     val framePhotoPath: String? = null,
     val posterLeftPath: String? = null,
     val posterRightPath: String? = null,
+    val allAppsGridMode: Boolean = true,
+    val pinnedAppPackages: List<String> = emptyList(),
+    val recentAppPackages: List<String> = emptyList(),
     val webShortcuts: List<WebShortcut> = emptyList(),
     /** Multi-room house pages (Bedroom, Living Room, Kitchen, Gaming Room, etc.) */
     val rooms: List<RoomPage> = emptyList(),
