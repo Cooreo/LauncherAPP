@@ -1,8 +1,8 @@
 package com.roomlauncher.app.ui.allapps
 
-import androidx.activity.BackEventCompat
-import androidx.activity.compose.PredictiveBackHandler
+import androidx.activity.compose.BackHandler
 import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
@@ -59,9 +59,9 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.Immutable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
-import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -70,7 +70,6 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.RectangleShape
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.input.pointer.pointerInput
@@ -92,7 +91,6 @@ import com.roomlauncher.app.data.RoomHotspot
 import com.roomlauncher.app.system.SystemIntentHelper
 import com.roomlauncher.app.ui.components.AppIconView
 import kotlinx.coroutines.launch
-import kotlin.coroutines.cancellation.CancellationException
 import kotlin.math.abs
 import kotlin.math.roundToInt
 
@@ -109,7 +107,6 @@ private sealed interface AllAppsEntry {
 
 @Composable
 fun AllAppsSheet(
-    isVisible: Boolean = true,
     installedApps: List<AppInfo>,
     packageOwnerLabels: Map<String, String>,
     defaultUnsortedLabel: String,
@@ -124,46 +121,53 @@ fun AllAppsSheet(
     val density = LocalDensity.current
     val focusManager = LocalFocusManager.current
     val keyboardController = LocalSoftwareKeyboardController.current
+    val coroutineScope = rememberCoroutineScope()
+
     var searchQuery by remember { mutableStateOf("") }
     var selectedAppForMenu by remember { mutableStateOf<AppInfo?>(null) }
+    var isClosing by remember { mutableStateOf(false) }
 
-    val dismissCleanly: () -> Unit = remember(onDismiss) {
+    // Pure-GPU vertical slide progress: 0f = fully open, 1f = completely off-screen below.
+    // Read ONLY inside Modifier.graphicsLayer so opening, dragging, and closing cause 0 recompositions!
+    val slideOffsetFraction = remember { Animatable(1f) }
+
+    LaunchedEffect(Unit) {
+        slideOffsetFraction.animateTo(
+            targetValue = 0f,
+            animationSpec = tween(durationMillis = 200, easing = FastOutSlowInEasing)
+        )
+    }
+
+    val animateCloseAndDismiss: () -> Unit = remember(onDismiss) {
         {
-            focusManager.clearFocus(force = true)
-            keyboardController?.hide()
-            onDismiss()
-        }
-    }
-
-    // Silky live Predictive Back gesture + hardware Back button handler
-    val backProgress = remember { Animatable(0f) }
-    var backSwipeEdge by remember { mutableIntStateOf(BackEventCompat.EDGE_LEFT) }
-
-    PredictiveBackHandler(enabled = isVisible) { progressFlow ->
-        try {
-            progressFlow.collect { event ->
-                backSwipeEdge = event.swipeEdge
-                backProgress.snapTo(event.progress.coerceIn(0f, 1f))
-            }
-            if (selectedAppForMenu != null) {
-                backProgress.snapTo(0f)
+            if (!isClosing) {
+                isClosing = true
                 selectedAppForMenu = null
-            } else {
-                // Keep backProgress at its final position while fading out — zero snap-back glitch!
-                dismissCleanly()
+                focusManager.clearFocus(force = true)
+                keyboardController?.hide()
+                coroutineScope.launch {
+                    slideOffsetFraction.animateTo(
+                        targetValue = 1f,
+                        animationSpec = tween(durationMillis = 165, easing = FastOutSlowInEasing)
+                    )
+                    onDismiss()
+                }
             }
-        } catch (e: CancellationException) {
-            backProgress.animateTo(0f, tween(140))
-            throw e
         }
     }
 
-    // Lightweight A–Z scrubber state (zero idle spring coroutines!)
+    // Rock-solid single-fire Back handler (zero ColorOS predictive-back spike or snap-back glitches!)
+    BackHandler(enabled = !isClosing) {
+        if (selectedAppForMenu != null) {
+            selectedAppForMenu = null
+        } else {
+            animateCloseAndDismiss()
+        }
+    }
+
     var activeScrubLetter by remember { mutableStateOf<String?>(null) }
     var scrubFractionY by remember { mutableFloatStateOf(0.5f) }
-
     val listState = rememberLazyListState()
-    val coroutineScope = rememberCoroutineScope()
 
     val trimmedQuery = searchQuery.trim()
     val filteredApps = remember(installedApps, trimmedQuery) {
@@ -177,7 +181,6 @@ fun AllAppsSheet(
         }
     }
 
-    // Flatten into a single stable list with precomputed letter-to-index & counts
     val listModel = remember(filteredApps, packageOwnerLabels, defaultUnsortedLabel) {
         val entries = ArrayList<AllAppsEntry>(filteredApps.size + 32)
         val letterToIndex = LinkedHashMap<String, Int>()
@@ -210,46 +213,88 @@ fun AllAppsSheet(
     val letterCounts = listModel.third
     val sectionLetters = remember(letterIndexMap) { letterIndexMap.keys.toList() }
 
-    val p = backProgress.value
-    val isBackDragging = p > 0.002f
-    val imeBottomPadding = WindowInsets.ime.asPaddingValues().calculateBottomPadding()
+    val imeBottomPadding = if (isClosing) {
+        0.dp
+    } else {
+        WindowInsets.ime.asPaddingValues().calculateBottomPadding()
+    }
 
-    Surface(
-        shape = if (isBackDragging) RoundedCornerShape((p * 26f).dp) else RectangleShape,
-        shadowElevation = if (isBackDragging) 12.dp else 0.dp,
+    // 100% opaque GPU-translated full-screen drawer (zero alpha bleed-through, zero shape rebuilds!)
+    BoxWithConstraints(
         modifier = Modifier
             .fillMaxSize()
             .graphicsLayer {
-                if (isBackDragging) {
-                    val scale = 1f - (p * 0.08f)
-                    scaleX = scale
-                    scaleY = scale
-                    val dir = if (backSwipeEdge == BackEventCompat.EDGE_RIGHT) -1f else 1f
-                    translationX = dir * p * size.width * 0.06f
-                    alpha = 1f - (p * 0.18f)
+                translationY = slideOffsetFraction.value * size.height
+            }
+            .background(MaterialTheme.colorScheme.background)
+            // Absorb all touches while sliding out so nothing bleeds through to the Room
+            .then(
+                if (isClosing) {
+                    Modifier.pointerInput(Unit) {
+                        awaitPointerEventScope {
+                            while (true) {
+                                awaitPointerEvent().changes.forEach { it.consume() }
+                            }
+                        }
+                    }
+                } else {
+                    Modifier
                 }
-            },
-        color = MaterialTheme.colorScheme.background
+            )
     ) {
+        val sheetHeightPx = with(density) { maxHeight.toPx() }.coerceAtLeast(1f)
+
         Column(
             modifier = Modifier
                 .fillMaxSize()
                 .statusBarsPadding()
                 .navigationBarsPadding()
         ) {
-            // Top swipe-down pill + Header (dragging down cleanly dismisses back to the Room!)
-            var headerDragSum by remember { mutableFloatStateOf(0f) }
+            // Finger-following swipe-down header (1:1 GPU translationY, zero recompositions!)
+            var lastDragDelta by remember { mutableFloatStateOf(0f) }
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .pointerInput(Unit) {
+                    .pointerInput(sheetHeightPx) {
                         detectVerticalDragGestures(
-                            onDragStart = { headerDragSum = 0f },
-                            onVerticalDrag = { _, dragAmount ->
-                                headerDragSum += dragAmount
-                                if (headerDragSum > 72f) {
-                                    headerDragSum = 0f
-                                    dismissCleanly()
+                            onDragStart = {
+                                lastDragDelta = 0f
+                                focusManager.clearFocus(force = true)
+                                keyboardController?.hide()
+                            },
+                            onVerticalDrag = { change, dragAmount ->
+                                if (isClosing) return@detectVerticalDragGestures
+                                change.consume()
+                                lastDragDelta = dragAmount
+                                val deltaFraction = dragAmount / sheetHeightPx
+                                val next = (slideOffsetFraction.value + deltaFraction).coerceIn(0f, 1f)
+                                coroutineScope.launch {
+                                    slideOffsetFraction.snapTo(next)
+                                }
+                            },
+                            onDragEnd = {
+                                if (isClosing) return@detectVerticalDragGestures
+                                val shouldDismiss = slideOffsetFraction.value > 0.14f ||
+                                    (lastDragDelta > 16f && slideOffsetFraction.value > 0.03f)
+                                if (shouldDismiss) {
+                                    animateCloseAndDismiss()
+                                } else {
+                                    coroutineScope.launch {
+                                        slideOffsetFraction.animateTo(
+                                            targetValue = 0f,
+                                            animationSpec = tween(durationMillis = 150, easing = FastOutSlowInEasing)
+                                        )
+                                    }
+                                }
+                            },
+                            onDragCancel = {
+                                if (!isClosing) {
+                                    coroutineScope.launch {
+                                        slideOffsetFraction.animateTo(
+                                            targetValue = 0f,
+                                            animationSpec = tween(durationMillis = 150, easing = FastOutSlowInEasing)
+                                        )
+                                    }
                                 }
                             }
                         )
@@ -291,9 +336,11 @@ fun AllAppsSheet(
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         IconButton(
                             onClick = {
-                                focusManager.clearFocus(force = true)
-                                keyboardController?.hide()
-                                onOpenSettings()
+                                if (!isClosing) {
+                                    focusManager.clearFocus(force = true)
+                                    keyboardController?.hide()
+                                    onOpenSettings()
+                                }
                             }
                         ) {
                             Icon(
@@ -302,7 +349,7 @@ fun AllAppsSheet(
                                 tint = MaterialTheme.colorScheme.primary
                             )
                         }
-                        IconButton(onClick = dismissCleanly) {
+                        IconButton(onClick = animateCloseAndDismiss) {
                             Icon(
                                 imageVector = Icons.Rounded.Close,
                                 contentDescription = "Close all apps"
@@ -312,7 +359,7 @@ fun AllAppsSheet(
                 }
             }
 
-            // Lightweight Search bar (no extra animated subcompositions)
+            // Search bar
             OutlinedTextField(
                 value = searchQuery,
                 onValueChange = { searchQuery = it },
@@ -405,19 +452,23 @@ fun AllAppsSheet(
                                         app = entry.app,
                                         ownerLabel = entry.ownerLabel,
                                         highlightQuery = trimmedQuery,
-                                        onLaunch = { onLaunchApp(entry.app) },
-                                        onOpenMenu = { selectedAppForMenu = entry.app }
+                                        onLaunch = {
+                                            if (!isClosing) onLaunchApp(entry.app)
+                                        },
+                                        onOpenMenu = {
+                                            if (!isClosing) selectedAppForMenu = entry.app
+                                        }
                                     )
                                 }
                                 AllAppsEntry.SettingsCard -> {
                                     Spacer(modifier = Modifier.height(16.dp))
-                                    SettingsDeckCard(onClick = onOpenSettings)
+                                    SettingsDeckCard(onClick = { if (!isClosing) onOpenSettings() })
                                 }
                             }
                         }
                     }
 
-                    // Ultra-Lightweight A–Z Fast Scroller Rail (0 running springs when idle!)
+                    // Ultra-Lightweight A–Z Fast Scroller Rail
                     if (sectionLetters.size > 1 && trimmedQuery.isEmpty()) {
                         AlphabetFastScrollerRail(
                             letters = sectionLetters,
@@ -442,7 +493,6 @@ fun AllAppsSheet(
                         )
                     }
 
-                    // Instant Finger-Following Letter Bubble (only composed while scrubbing!)
                     val shownLetter = activeScrubLetter
                     if (shownLetter != null) {
                         val bubbleMaxY = (containerHeightPx - with(density) { 80.dp.toPx() }).coerceAtLeast(0f)
@@ -494,7 +544,7 @@ fun AllAppsSheet(
 
     // Shared App Actions dialog
     val menuApp = selectedAppForMenu
-    if (menuApp != null) {
+    if (menuApp != null && !isClosing) {
         AlertDialog(
             onDismissRequest = { selectedAppForMenu = null },
             title = {

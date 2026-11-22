@@ -2,8 +2,10 @@
 
 **Room Launcher** is a minimalist Android home screen launcher built with **Kotlin** and **Jetpack Compose**. Instead of a traditional grid of icons, your home screen is a customizable, illustrated room where every piece of furniture is an interactive, movable object.
 
-## Features (v3.0.1 — Performance, Settings Overhaul & Play Protect Cleanup)
+## Features (v3.0.2 — App Drawer Swipe-Close Fix)
 
+- **Glitch-Free App Drawer Open & Swipe-Close (v3.0.2)**:
+  - Replaced frame-by-frame Predictive Back `Surface` shape/shadow thrashing and `AnimatedVisibility` alpha bleed-through with a pure-GPU 100% opaque vertical slide (`translationY` only, 0 recompositions during drag/close), 1:1 finger-following swipe-down with flick detection, pointer-blocking during exit, and clean `BackHandler` dispatch compatible with ColorOS / Oppo gesture navigation.
 - **Buttery-Smooth All Apps Drawer & Zero-Glitch Close (v3.0.1)**:
   - Removed competing close transforms (`slideOutVertically` vs Predictive Back), moved IME padding onto the `LazyColumn` list bottom so dismissing the keyboard never jumps the sheet, eliminated 27 idle A–Z rail spring animations and per-header animations, and cut extra background room overdraw (`beyondViewportPageCount = 0`).
 - **Fast Virtualized Settings & Updates at the Top (v3.0.1)**:
