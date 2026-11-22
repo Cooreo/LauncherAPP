@@ -11,9 +11,19 @@ data class ChangelogEntry(
 )
 
 object ChangelogData {
-    const val CURRENT_VERSION = "3.1.2"
+    const val CURRENT_VERSION = "3.1.3"
 
     val entries: List<ChangelogEntry> = listOf(
+        ChangelogEntry(
+            version = "3.1.3",
+            title = "App Drawer A–Z Sorting Headers & Full-Screen Swipe-Down Close",
+            tag = "BUGFIX",
+            highlights = listOf(
+                "Restored clear A–Z alphabetical section sorting & letter headers in Grid View (alongside List View, A–Z / Newest / Recent sort cycling, and uniform aligned grid tiles).",
+                "Added full-drawer swipe-down-to-close: pulling down anywhere on the App Grid or List when at the top now glides the drawer down 1:1 with your finger and closes on flick or release—and swiping down anywhere on the top header, search bar, or filter chips closes it immediately from any scroll depth.",
+                "Silently resets drawer scroll back to the top after closing so reopening starts cleanly at the top ready for instant swipe-down close."
+            )
+        ),
         ChangelogEntry(
             version = "3.1.2",
             title = "Native DPI Restore, All Apps Grid Alignment & Bottom Button Fix",
