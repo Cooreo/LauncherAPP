@@ -32,8 +32,11 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Add
 import androidx.compose.material.icons.rounded.Animation
+import androidx.compose.material.icons.rounded.Apps
 import androidx.compose.material.icons.rounded.AutoAwesome
 import androidx.compose.material.icons.rounded.Bolt
+import androidx.compose.material.icons.rounded.CameraAlt
+import androidx.compose.material.icons.rounded.ChatBubble
 import androidx.compose.material.icons.rounded.Check
 import androidx.compose.material.icons.rounded.Close
 import androidx.compose.material.icons.rounded.Cloud
@@ -42,6 +45,7 @@ import androidx.compose.material.icons.rounded.Edit
 import androidx.compose.material.icons.rounded.ExpandLess
 import androidx.compose.material.icons.rounded.ExpandMore
 import androidx.compose.material.icons.rounded.GraphicEq
+import androidx.compose.material.icons.rounded.GridView
 import androidx.compose.material.icons.rounded.Home
 import androidx.compose.material.icons.rounded.Image
 import androidx.compose.material.icons.rounded.LocationOn
@@ -53,6 +57,7 @@ import androidx.compose.material.icons.rounded.Refresh
 import androidx.compose.material.icons.rounded.RestartAlt
 import androidx.compose.material.icons.rounded.SystemUpdate
 import androidx.compose.material.icons.rounded.Tune
+import androidx.compose.material.icons.rounded.ViewList
 import androidx.compose.material.icons.rounded.Wallpaper
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
@@ -67,11 +72,13 @@ import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.Slider
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.mutableStateOf
@@ -84,10 +91,16 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import com.roomlauncher.app.data.MusicDisplayMode
+import com.roomlauncher.app.data.RoomConfig
 import com.roomlauncher.app.data.RoomPage
 import com.roomlauncher.app.data.RoomType
 import com.roomlauncher.app.data.VisualizerStyle
@@ -100,10 +113,12 @@ import com.roomlauncher.app.ui.theme.RoomThemes
 import com.roomlauncher.app.ui.theme.accentNeonColors
 import com.roomlauncher.app.ui.theme.mainDrawableRes
 import kotlinx.coroutines.launch
+import kotlin.math.roundToInt
 
 private enum class SettingsSectionKey(val chipLabel: String) {
     UPDATES("Updates"),
     ROOMS("Rooms"),
+    DRAWER("App Drawer"),
     STYLE("Style"),
     THEME("Theme"),
     ANIMATIONS("Animations"),
@@ -120,6 +135,8 @@ fun SettingsSheet(
     onSelectGeometryDashSubTheme: (GeometryDashSubTheme) -> Unit,
     onSelectTheme: (RoomThemeId) -> Unit,
     onToggleDynamicTheme: (Boolean) -> Unit,
+    onToggleAllAppsGridMode: (Boolean) -> Unit,
+    onSetAllAppsScalePercent: (Int) -> Unit,
     onSelectRoomIndex: (Int) -> Unit,
     onAddRoom: (RoomType, String) -> Unit,
     onRenameRoom: (roomId: String, newName: String) -> Unit,
@@ -204,6 +221,7 @@ fun SettingsSheet(
         mutableStateMapOf(
             SettingsSectionKey.UPDATES to true,
             SettingsSectionKey.ROOMS to true,
+            SettingsSectionKey.DRAWER to true,
             SettingsSectionKey.STYLE to true,
             SettingsSectionKey.THEME to false,
             SettingsSectionKey.ANIMATIONS to false,
@@ -537,7 +555,274 @@ fun SettingsSheet(
                     }
                 }
 
-                // 2. ROOM STYLE (Cozy, Teen, Kids, Minecraft, Geometry Dash)
+                // 2. APP DRAWER (Scale / DPI in % + Grid/List default)
+                item(key = SettingsSectionKey.DRAWER.name) {
+                    val expanded = expandedSections[SettingsSectionKey.DRAWER] == true
+                    val scalePercent = uiState.config.safeAllAppsScalePercent
+                    val layoutLabel = if (uiState.config.allAppsGridMode) "Grid View" else "List View"
+                    val scaleDescription = when {
+                        scalePercent < 90 -> "Compact • Smaller icons & text"
+                        scalePercent < 100 -> "Slightly smaller than phone default"
+                        scalePercent == 100 -> "Phone default size (100%)"
+                        scalePercent <= 120 -> "Larger & clearer (recommended)"
+                        else -> "Extra large icons & text"
+                    }
+                    val presets = listOf(85, 100, 115, 130)
+
+                    CollapsibleSettingsSectionCard(
+                        icon = Icons.Rounded.Apps,
+                        title = "App Drawer",
+                        subtitle = "Size: $scalePercent% • $layoutLabel",
+                        expanded = expanded,
+                        onToggle = { expandedSections[SettingsSectionKey.DRAWER] = !expanded }
+                    ) {
+                        Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                            // Prominent % header + badge
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.SpaceBetween
+                            ) {
+                                Column(modifier = Modifier.weight(1f).padding(end = 10.dp)) {
+                                    Text(
+                                        text = "Drawer Size (DPI Scale)",
+                                        style = MaterialTheme.typography.titleSmall,
+                                        fontWeight = FontWeight.SemiBold
+                                    )
+                                    Text(
+                                        text = scaleDescription,
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
+                                }
+                                Surface(
+                                    shape = RoundedCornerShape(12.dp),
+                                    color = MaterialTheme.colorScheme.primaryContainer
+                                ) {
+                                    Text(
+                                        text = "$scalePercent%",
+                                        style = MaterialTheme.typography.titleMedium,
+                                        fontWeight = FontWeight.ExtraBold,
+                                        color = MaterialTheme.colorScheme.onPrimaryContainer,
+                                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp)
+                                    )
+                                }
+                            }
+
+                            // Live scaled mini-preview inside Settings so % changes are immediately visual!
+                            val baseDensity = LocalDensity.current
+                            val previewDensity = remember(baseDensity, scalePercent) {
+                                Density(
+                                    density = baseDensity.density * (scalePercent / 100f),
+                                    fontScale = baseDensity.fontScale
+                                )
+                            }
+                            Surface(
+                                shape = RoundedCornerShape(16.dp),
+                                color = MaterialTheme.colorScheme.surface,
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .border(
+                                        width = 1.dp,
+                                        color = MaterialTheme.colorScheme.outlineVariant,
+                                        shape = RoundedCornerShape(16.dp)
+                                    )
+                            ) {
+                                Column(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(horizontal = 10.dp, vertical = 12.dp),
+                                    horizontalAlignment = Alignment.CenterHorizontally,
+                                    verticalArrangement = Arrangement.spacedBy(6.dp)
+                                ) {
+                                    Text(
+                                        text = "Live Preview ($scalePercent%)",
+                                        style = MaterialTheme.typography.labelSmall,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
+                                    CompositionLocalProvider(LocalDensity provides previewDensity) {
+                                        Row(
+                                            modifier = Modifier.fillMaxWidth(),
+                                            horizontalArrangement = Arrangement.SpaceEvenly,
+                                            verticalAlignment = Alignment.Top
+                                        ) {
+                                            val sampleItems = listOf(
+                                                Triple("Camera", Icons.Rounded.CameraAlt, MaterialTheme.colorScheme.primaryContainer),
+                                                Triple("Messages", Icons.Rounded.ChatBubble, MaterialTheme.colorScheme.secondaryContainer),
+                                                Triple("Music", Icons.Rounded.MusicNote, MaterialTheme.colorScheme.tertiaryContainer)
+                                            )
+                                            sampleItems.forEach { (label, icon, bg) ->
+                                                Column(
+                                                    horizontalAlignment = Alignment.CenterHorizontally,
+                                                    modifier = Modifier.width(62.dp)
+                                                ) {
+                                                    Box(
+                                                        contentAlignment = Alignment.Center,
+                                                        modifier = Modifier
+                                                            .size(44.dp)
+                                                            .clip(RoundedCornerShape(12.dp))
+                                                            .background(bg)
+                                                    ) {
+                                                        Icon(
+                                                            imageVector = icon,
+                                                            contentDescription = null,
+                                                            tint = MaterialTheme.colorScheme.onSurface,
+                                                            modifier = Modifier.size(22.dp)
+                                                        )
+                                                    }
+                                                    Spacer(modifier = Modifier.height(4.dp))
+                                                    Text(
+                                                        text = label,
+                                                        fontSize = 11.5.sp,
+                                                        fontWeight = FontWeight.Medium,
+                                                        color = MaterialTheme.colorScheme.onSurface,
+                                                        maxLines = 1,
+                                                        overflow = TextOverflow.Ellipsis,
+                                                        textAlign = TextAlign.Center
+                                                    )
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+
+                            // Smooth % Slider (75% .. 140% in 5% increments)
+                            Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                                Slider(
+                                    value = scalePercent.toFloat(),
+                                    onValueChange = { raw ->
+                                        val snapped = (raw / RoomConfig.ALL_APPS_SCALE_STEP_PERCENT).roundToInt() *
+                                            RoomConfig.ALL_APPS_SCALE_STEP_PERCENT
+                                        onSetAllAppsScalePercent(snapped)
+                                    },
+                                    valueRange = RoomConfig.MIN_ALL_APPS_SCALE_PERCENT.toFloat()..
+                                        RoomConfig.MAX_ALL_APPS_SCALE_PERCENT.toFloat(),
+                                    steps = ((RoomConfig.MAX_ALL_APPS_SCALE_PERCENT - RoomConfig.MIN_ALL_APPS_SCALE_PERCENT) /
+                                        RoomConfig.ALL_APPS_SCALE_STEP_PERCENT) - 1,
+                                    modifier = Modifier.fillMaxWidth()
+                                )
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.SpaceBetween
+                                ) {
+                                    Text(
+                                        text = "${RoomConfig.MIN_ALL_APPS_SCALE_PERCENT}% Smaller",
+                                        style = MaterialTheme.typography.labelSmall,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
+                                    Text(
+                                        text = "100% Normal",
+                                        style = MaterialTheme.typography.labelSmall,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
+                                    Text(
+                                        text = "${RoomConfig.MAX_ALL_APPS_SCALE_PERCENT}% Larger",
+                                        style = MaterialTheme.typography.labelSmall,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
+                                }
+                            }
+
+                            // Quick % Preset Pills
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                            ) {
+                                presets.forEach { preset ->
+                                    val selected = scalePercent == preset
+                                    Surface(
+                                        shape = RoundedCornerShape(12.dp),
+                                        color = if (selected) {
+                                            MaterialTheme.colorScheme.primary
+                                        } else {
+                                            MaterialTheme.colorScheme.surface
+                                        },
+                                        modifier = Modifier
+                                            .weight(1f)
+                                            .border(
+                                                width = if (selected) 0.dp else 1.dp,
+                                                color = if (selected) Color.Transparent else MaterialTheme.colorScheme.outlineVariant,
+                                                shape = RoundedCornerShape(12.dp)
+                                            )
+                                            .clip(RoundedCornerShape(12.dp))
+                                            .clickable { onSetAllAppsScalePercent(preset) }
+                                    ) {
+                                        Box(
+                                            contentAlignment = Alignment.Center,
+                                            modifier = Modifier.padding(vertical = 8.dp)
+                                        ) {
+                                            Text(
+                                                text = "$preset%",
+                                                style = MaterialTheme.typography.labelLarge,
+                                                fontWeight = if (selected) FontWeight.Bold else FontWeight.Medium,
+                                                color = if (selected) {
+                                                    MaterialTheme.colorScheme.onPrimary
+                                                } else {
+                                                    MaterialTheme.colorScheme.onSurface
+                                                }
+                                            )
+                                        }
+                                    }
+                                }
+                            }
+
+                            HorizontalDivider()
+
+                            // Default Grid / List Layout Selector
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                            ) {
+                                listOf(true to "Grid View", false to "List View").forEach { (isGrid, label) ->
+                                    val selected = uiState.config.allAppsGridMode == isGrid
+                                    Surface(
+                                        shape = RoundedCornerShape(12.dp),
+                                        color = if (selected) {
+                                            MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.6f)
+                                        } else {
+                                            MaterialTheme.colorScheme.surface
+                                        },
+                                        modifier = Modifier
+                                            .weight(1f)
+                                            .border(
+                                                width = if (selected) 2.dp else 1.dp,
+                                                color = if (selected) {
+                                                    MaterialTheme.colorScheme.primary
+                                                } else {
+                                                    MaterialTheme.colorScheme.outlineVariant
+                                                },
+                                                shape = RoundedCornerShape(12.dp)
+                                            )
+                                            .clip(RoundedCornerShape(12.dp))
+                                            .clickable { onToggleAllAppsGridMode(isGrid) }
+                                    ) {
+                                        Row(
+                                            horizontalArrangement = Arrangement.Center,
+                                            verticalAlignment = Alignment.CenterVertically,
+                                            modifier = Modifier.padding(vertical = 10.dp)
+                                        ) {
+                                            Icon(
+                                                imageVector = if (isGrid) Icons.Rounded.GridView else Icons.Rounded.ViewList,
+                                                contentDescription = null,
+                                                tint = MaterialTheme.colorScheme.primary,
+                                                modifier = Modifier.size(16.dp)
+                                            )
+                                            Spacer(modifier = Modifier.width(6.dp))
+                                            Text(
+                                                text = label,
+                                                style = MaterialTheme.typography.labelLarge,
+                                                fontWeight = FontWeight.SemiBold
+                                            )
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+
+                // 3. ROOM STYLE (Cozy, Teen, Kids, Minecraft, Geometry Dash)
                 item(key = SettingsSectionKey.STYLE.name) {
                     val expanded = expandedSections[SettingsSectionKey.STYLE] == true
                     val styleSummary = if (uiState.config.roomStyleId == RoomStyleId.GEOMETRY_DASH) {

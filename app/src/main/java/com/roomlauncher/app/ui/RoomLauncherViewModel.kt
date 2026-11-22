@@ -646,6 +646,13 @@ class RoomLauncherViewModel(application: Application) : AndroidViewModel(applica
         }
     }
 
+    fun setAllAppsScalePercent(percent: Int) {
+        val clamped = RoomConfig.clampAllAppsScalePercent(percent)
+        if (_uiState.value.config.allAppsScalePercent != clamped) {
+            updateConfig { it.copy(allAppsScalePercent = clamped) }
+        }
+    }
+
     fun togglePinApp(packageName: String) {
         updateConfig { cfg ->
             val updated = if (packageName in cfg.pinnedAppPackages) {

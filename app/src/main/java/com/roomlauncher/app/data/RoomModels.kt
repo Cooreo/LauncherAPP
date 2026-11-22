@@ -127,6 +127,8 @@ data class RoomConfig(
     val posterLeftPath: String? = null,
     val posterRightPath: String? = null,
     val allAppsGridMode: Boolean = true,
+    /** App Drawer UI & icon scale (DPI) expressed in percent (75%..140%, default 115%) */
+    val allAppsScalePercent: Int = DEFAULT_ALL_APPS_SCALE_PERCENT,
     val pinnedAppPackages: List<String> = emptyList(),
     val recentAppPackages: List<String> = emptyList(),
     val webShortcuts: List<WebShortcut> = emptyList(),
@@ -135,6 +137,9 @@ data class RoomConfig(
     /** Legacy primary bedroom hotspots kept in sync for backward compatibility */
     val hotspots: List<RoomHotspot> = emptyList()
 ) {
+    val safeAllAppsScalePercent: Int
+        get() = clampAllAppsScalePercent(allAppsScalePercent)
+
     val effectiveRooms: List<RoomPage>
         get() = if (rooms.isNotEmpty()) {
             rooms
@@ -154,4 +159,14 @@ data class RoomConfig(
 
     fun findHotspot(hotspotId: String): RoomHotspot? =
         effectiveRooms.asSequence().flatMap { it.hotspots.asSequence() }.firstOrNull { it.id == hotspotId }
+
+    companion object {
+        const val MIN_ALL_APPS_SCALE_PERCENT = 75
+        const val MAX_ALL_APPS_SCALE_PERCENT = 140
+        const val DEFAULT_ALL_APPS_SCALE_PERCENT = 115
+        const val ALL_APPS_SCALE_STEP_PERCENT = 5
+
+        fun clampAllAppsScalePercent(percent: Int): Int =
+            percent.coerceIn(MIN_ALL_APPS_SCALE_PERCENT, MAX_ALL_APPS_SCALE_PERCENT)
+    }
 }

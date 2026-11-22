@@ -79,6 +79,7 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.Immutable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -113,6 +114,7 @@ import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.text.withStyle
+import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.Velocity
@@ -121,6 +123,7 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import com.roomlauncher.app.data.AppInfo
+import com.roomlauncher.app.data.RoomConfig
 import com.roomlauncher.app.data.RoomHotspot
 import com.roomlauncher.app.system.SystemIntentHelper
 import com.roomlauncher.app.ui.components.AppIconView
@@ -175,6 +178,7 @@ fun AllAppsSheet(
     pinnedPackages: List<String>,
     recentPackages: List<String>,
     isGridMode: Boolean,
+    drawerScalePercent: Int = RoomConfig.DEFAULT_ALL_APPS_SCALE_PERCENT,
     packageOwnerLabels: Map<String, String>,
     defaultUnsortedLabel: String,
     panelHotspotChoices: List<Pair<String, RoomHotspot>>,
@@ -188,7 +192,14 @@ fun AllAppsSheet(
 ) {
     val context = LocalContext.current
     val haptic = LocalHapticFeedback.current
-    val density = LocalDensity.current
+    val baseDensity = LocalDensity.current
+    val scaleFactor = RoomConfig.clampAllAppsScalePercent(drawerScalePercent) / 100f
+    val drawerDensity = remember(baseDensity, scaleFactor) {
+        Density(
+            density = baseDensity.density * scaleFactor,
+            fontScale = baseDensity.fontScale
+        )
+    }
     val focusManager = LocalFocusManager.current
     val keyboardController = LocalSoftwareKeyboardController.current
     val coroutineScope = rememberCoroutineScope()
@@ -410,12 +421,6 @@ fun AllAppsSheet(
     val letterCounts = listModel.third
     val sectionLetters = remember(letterIndexMap) { letterIndexMap.keys.toList() }
 
-    val imeBottomPadding = if (isClosing || isSettledClosed) {
-        0.dp
-    } else {
-        WindowInsets.ime.asPaddingValues().calculateBottomPadding()
-    }
-
     val showScrubRail = sectionLetters.size > 1 && showAlphabetIndex
 
     BoxWithConstraints(
@@ -451,7 +456,7 @@ fun AllAppsSheet(
                 }
             )
     ) {
-        val sheetHeightPx = with(density) { maxHeight.toPx() }.coerceAtLeast(1f)
+        val sheetHeightPx = with(baseDensity) { maxHeight.toPx() }.coerceAtLeast(1f)
 
         // Full-drawer nested-scroll swipe-down-to-close:
         // Pulling down anywhere on the app grid/list when at the top smoothly slides the drawer closed!
@@ -509,12 +514,25 @@ fun AllAppsSheet(
             }
         }
 
-        Column(
+        // Keep system bar insets & swipe gesture coordinates at native system density,
+        // and apply the user's App Drawer Scale (DPI %) cleanly inside the drawer content.
+        Box(
             modifier = Modifier
                 .fillMaxSize()
                 .statusBarsPadding()
                 .navigationBarsPadding()
         ) {
+            CompositionLocalProvider(LocalDensity provides drawerDensity) {
+                val innerDensity = LocalDensity.current
+                val imeBottomPadding = if (isClosing || isSettledClosed) {
+                    0.dp
+                } else {
+                    WindowInsets.ime.asPaddingValues().calculateBottomPadding()
+                }
+
+                Column(
+                    modifier = Modifier.fillMaxSize()
+                ) {
             // Finger-following swipe-down chrome (header + search bar + filter strip close immediately from any scroll depth!)
             var lastDragDelta by remember { mutableFloatStateOf(0f) }
             Column(
@@ -587,15 +605,17 @@ fun AllAppsSheet(
                     Column(modifier = Modifier.weight(1f)) {
                         Row(
                             verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(6.dp)
+                            horizontalArrangement = Arrangement.spacedBy(5.dp)
                         ) {
                             Text(
                                 text = "All Apps",
                                 style = MaterialTheme.typography.titleLarge,
-                                fontSize = 19.sp,
+                                fontSize = 18.sp,
                                 fontWeight = FontWeight.Bold,
                                 color = MaterialTheme.colorScheme.onBackground,
-                                maxLines = 1
+                                maxLines = 1,
+                                softWrap = false,
+                                overflow = TextOverflow.Ellipsis
                             )
                             Surface(
                                 shape = CircleShape,
@@ -606,7 +626,7 @@ fun AllAppsSheet(
                                     style = MaterialTheme.typography.labelSmall,
                                     fontWeight = FontWeight.Bold,
                                     color = MaterialTheme.colorScheme.onPrimaryContainer,
-                                    modifier = Modifier.padding(horizontal = 7.dp, vertical = 1.dp)
+                                    modifier = Modifier.padding(horizontal = 6.dp, vertical = 1.dp)
                                 )
                             }
                         }
@@ -639,7 +659,7 @@ fun AllAppsSheet(
                                 }
                         ) {
                             Row(
-                                modifier = Modifier.padding(horizontal = 7.dp, vertical = 5.dp),
+                                modifier = Modifier.padding(horizontal = 6.dp, vertical = 4.dp),
                                 verticalAlignment = Alignment.CenterVertically,
                                 horizontalArrangement = Arrangement.spacedBy(3.dp)
                             ) {
@@ -662,13 +682,13 @@ fun AllAppsSheet(
                         // Grid / List Toggle
                         IconButton(
                             onClick = { onToggleGridMode(!isGridMode) },
-                            modifier = Modifier.size(34.dp)
+                            modifier = Modifier.size(32.dp)
                         ) {
                             Icon(
                                 imageVector = if (isGridMode) Icons.Rounded.ViewList else Icons.Rounded.GridView,
                                 contentDescription = if (isGridMode) "Switch to list view" else "Switch to grid view",
                                 tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                                modifier = Modifier.size(19.dp)
+                                modifier = Modifier.size(18.dp)
                             )
                         }
 
@@ -681,25 +701,25 @@ fun AllAppsSheet(
                                     onOpenSettings()
                                 }
                             },
-                            modifier = Modifier.size(34.dp)
+                            modifier = Modifier.size(32.dp)
                         ) {
                             Icon(
                                 imageVector = Icons.Rounded.Settings,
                                 contentDescription = "Room Launcher Settings",
                                 tint = MaterialTheme.colorScheme.primary,
-                                modifier = Modifier.size(19.dp)
+                                modifier = Modifier.size(18.dp)
                             )
                         }
 
                         // Close
                         IconButton(
                             onClick = animateCloseAndDismiss,
-                            modifier = Modifier.size(34.dp)
+                            modifier = Modifier.size(32.dp)
                         ) {
                             Icon(
                                 imageVector = Icons.Rounded.Close,
                                 contentDescription = "Close all apps",
-                                modifier = Modifier.size(19.dp)
+                                modifier = Modifier.size(18.dp)
                             )
                         }
                     }
@@ -846,14 +866,14 @@ fun AllAppsSheet(
                 }
             }
 
-            // Main Content: 4-Column Grid or Enhanced List + A–Z Fast-Scroll Rail + Swipe-Down Nested Scroll
+            // Main Content: Adaptive Grid or Enhanced List + A–Z Fast-Scroll Rail + Swipe-Down Nested Scroll
             BoxWithConstraints(
                 modifier = Modifier
                     .weight(1f)
                     .fillMaxWidth()
                     .nestedScroll(dismissNestedScroll)
             ) {
-                val containerHeightPx = with(density) { maxHeight.toPx() }
+                val containerHeightPx = with(innerDensity) { maxHeight.toPx() }
 
                 if (filteredApps.isEmpty()) {
                     Column(
@@ -907,11 +927,17 @@ fun AllAppsSheet(
                         SettingsDeckCard(onClick = { if (!isClosing) onOpenSettings() })
                     }
                 } else {
-                    val startContentPad = 12.dp
-                    val endContentPad = if (showScrubRail) 32.dp else 12.dp
-                    val availableGridWidth = (maxWidth - startContentPad - endContentPad).coerceAtLeast(240.dp)
-                    val gridColumns = if (availableGridWidth >= 460.dp) 5 else 4
-                    val gridIconSize = ((availableGridWidth / gridColumns) * 0.60f).coerceIn(46.dp, 50.dp)
+                    val startContentPad = 10.dp
+                    val endContentPad = if (showScrubRail) 30.dp else 10.dp
+                    val availableGridWidth = (maxWidth - startContentPad - endContentPad).coerceAtLeast(180.dp)
+                    val gridColumns = when {
+                        availableGridWidth >= 420.dp -> 5
+                        availableGridWidth >= 260.dp -> 4
+                        else -> 3
+                    }
+                    val cellWidth = ((availableGridWidth - (4.dp * (gridColumns - 1))) / gridColumns)
+                        .coerceAtLeast(48.dp)
+                    val gridIconSize = minOf(48.dp, (cellWidth - 10.dp).coerceAtLeast(38.dp))
 
                     if (isGridMode) {
                         LazyVerticalGrid(
@@ -1108,7 +1134,7 @@ fun AllAppsSheet(
 
                     val shownLetter = activeScrubLetter
                     if (shownLetter != null) {
-                        val bubbleMaxY = (containerHeightPx - with(density) { 80.dp.toPx() }).coerceAtLeast(0f)
+                        val bubbleMaxY = (containerHeightPx - with(innerDensity) { 80.dp.toPx() }).coerceAtLeast(0f)
                         val bubbleY = (scrubFractionY * bubbleMaxY).coerceIn(0f, bubbleMaxY)
                         val shownCount = letterCounts[shownLetter] ?: 0
                         Surface(
@@ -1124,7 +1150,7 @@ fun AllAppsSheet(
                                 .align(Alignment.TopEnd)
                                 .offset {
                                     IntOffset(
-                                        x = -with(density) { 40.dp.toPx() }.roundToInt(),
+                                        x = -with(innerDensity) { 40.dp.toPx() }.roundToInt(),
                                         y = bubbleY.roundToInt()
                                     )
                                 }
@@ -1151,6 +1177,8 @@ fun AllAppsSheet(
                         }
                     }
                 }
+            }
+        }
             }
         }
     }
@@ -1745,8 +1773,8 @@ private fun AlphabetFastScrollerRail(
 
     Column(
         modifier = modifier
-            .width(22.dp)
-            .clip(RoundedCornerShape(11.dp))
+            .width(20.dp)
+            .clip(RoundedCornerShape(10.dp))
             .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.62f))
             .pointerInput(letters) {
                 detectTapGestures(
@@ -1801,7 +1829,8 @@ private fun AlphabetFastScrollerRail(
             ) {
                 Text(
                     text = letter,
-                    fontSize = 9.5.sp,
+                    fontSize = 9.sp,
+                    lineHeight = 10.sp,
                     fontWeight = if (isActive) FontWeight.ExtraBold else FontWeight.SemiBold,
                     color = if (isActive) {
                         MaterialTheme.colorScheme.secondary

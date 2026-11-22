@@ -11,9 +11,19 @@ data class ChangelogEntry(
 )
 
 object ChangelogData {
-    const val CURRENT_VERSION = "3.1.3"
+    const val CURRENT_VERSION = "3.1.4"
 
     val entries: List<ChangelogEntry> = listOf(
+        ChangelogEntry(
+            version = "3.1.4",
+            title = "Larger App Drawer Scale (DPI) & Simple % Size Setting",
+            tag = "FEATURE",
+            highlights = listOf(
+                "Increased the default App Drawer DPI scale to 115% so app icons, labels, search bar, and touch targets inside All Apps are larger, crisper, and easier to read while keeping your home screen at native 100% DPI.",
+                "Added an intuitive App Drawer Size setting in Settings → App Drawer expressed cleanly in % (75%–140% in 5% steps, with 1-tap 85% / 100% / 115% / 130% presets and a live visual icon preview).",
+                "Upgraded cached app icons to 180px and adaptive Grid columns (5 / 4 / 3 columns depending on %) so icons stay razor-sharp and neatly aligned at every scale."
+            )
+        ),
         ChangelogEntry(
             version = "3.1.3",
             title = "App Drawer A–Z Sorting Headers & Full-Screen Swipe-Down Close",

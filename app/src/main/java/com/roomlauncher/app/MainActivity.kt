@@ -188,6 +188,7 @@ private fun RoomLauncherRoot(
                 onOpenAllApps = viewModel::openAllApps,
                 onCloseAllApps = viewModel::closeAllApps,
                 onToggleAllAppsGridMode = viewModel::setAllAppsGridMode,
+                onSetAllAppsScalePercent = viewModel::setAllAppsScalePercent,
                 onTogglePinApp = viewModel::togglePinApp,
                 onRecordAppLaunch = viewModel::recordAppLaunch,
                 onUninstallApp = viewModel::uninstallApp,
