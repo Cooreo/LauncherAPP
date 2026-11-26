@@ -36,11 +36,11 @@ class RoomConfigRepositoryTest {
     val tempFolder = TemporaryFolder()
 
     @Test
-    fun defaultRoomContainsAllNineObjects() {
+    fun defaultRoomContainsAllFurnitureObjects() {
         val config = RoomConfigRepository.createDefaultRoomConfig()
         val byId = config.hotspots.associateBy { it.id }
 
-        assertEquals(9, config.hotspots.size)
+        assertEquals(10, config.hotspots.size)
         assertEquals(HotspotActionType.DIRECT_WEATHER, byId[RoomConfigRepository.ID_WINDOW]?.actionType)
         assertEquals(RoomObjectVisual.WINDOW, byId[RoomConfigRepository.ID_WINDOW]?.visualType)
         assertEquals(HotspotActionType.DIRECT_GALLERY, byId[RoomConfigRepository.ID_PAINTING]?.actionType)
@@ -50,6 +50,8 @@ class RoomConfigRepositoryTest {
         assertEquals(HotspotActionType.PANEL, byId[RoomConfigRepository.ID_CONSOLE]?.actionType)
         assertEquals(HotspotActionType.PANEL, byId[RoomConfigRepository.ID_SHELF]?.actionType)
         assertEquals(HotspotActionType.PANEL, byId[RoomConfigRepository.ID_BED]?.actionType)
+        assertEquals(HotspotActionType.PANEL, byId[RoomConfigRepository.ID_NIGHTSTAND]?.actionType)
+        assertEquals(RoomObjectVisual.NIGHTSTAND, byId[RoomConfigRepository.ID_NIGHTSTAND]?.visualType)
         assertEquals(HotspotActionType.UNSORTED_PANEL, byId[RoomConfigRepository.ID_TRASH_CAN]?.actionType)
     }
 
@@ -218,7 +220,8 @@ class RoomConfigRepositoryTest {
         )
 
         val byId = populated.allHotspots.associateBy { it.id }
-        assertTrue("com.whatsapp" in byId.getValue(RoomConfigRepository.ID_LIVING_SOFA).packages)
+        // Communicator apps now live on the Bedroom Night Table phone
+        assertTrue("com.whatsapp" in byId.getValue(RoomConfigRepository.ID_NIGHTSTAND).packages)
         assertTrue("com.spotify.music" in byId.getValue(RoomConfigRepository.ID_LIVING_VINYL).packages)
         assertTrue("com.ubercab.eats" in byId.getValue(RoomConfigRepository.ID_KITCHEN_FRIDGE).packages)
         assertTrue("com.paypal.android.p2pmobile" in byId.getValue(RoomConfigRepository.ID_KITCHEN_COFFEE).packages)
@@ -234,7 +237,7 @@ class RoomConfigRepositoryTest {
         assertEquals(listOf("com.example.mystery"), trashApps)
 
         val owners = RoomConfigRepository.buildPackageOwnerLabelMap(populated)
-        assertTrue(owners["com.whatsapp"]!!.contains("Living Room"))
+        assertTrue(owners["com.whatsapp"]!!.contains("Bedroom"))
         assertTrue(owners["com.ubercab.eats"]!!.contains("Kitchen"))
         assertTrue(owners["com.github.android"]!!.contains("Gaming Room"))
     }
