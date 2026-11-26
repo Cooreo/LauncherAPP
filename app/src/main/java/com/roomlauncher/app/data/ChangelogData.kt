@@ -19,8 +19,8 @@ object ChangelogData {
             title = "Night Table Phone That Reacts to Calls & Tidier Bedroom",
             tag = "MINOR UPDATE",
             highlights = listOf(
-                "New Night Table beside the bed with a bedside lamp and a little phone that holds all your communicator apps — dialer, SMS, WhatsApp, Telegram, Signal, Discord, Messenger, Viber, WeChat and more are auto-assigned to it so one tap opens your calls & chats.",
-                "The Night Table phone now reacts to real calls: it lights up, vibrates/rocks on its stand and shows big answer & decline buttons while ringing, then switches to a calm glowing in-call screen. Enable it once with the phone-state permission (no call content or numbers are ever read).",
+                "New Night Table beside the bed with a big glowing bedside lamp and a classic retro telephone (handset, 3×4 keypad, lit display & coiled cord) that holds all your communicator apps — dialer, SMS, WhatsApp, Telegram, Signal, Discord, Messenger, Viber, WeChat and more are auto-assigned to it so one tap opens your calls & chats.",
+                "The classic telephone reacts to real calls: it rattles on its feet, throws out sound arcs & light rings and lights up its keypad and display while ringing, then switches to a calm glowing green in-call screen. Enable it once with the phone-state permission (no call content or numbers are ever read).",
                 "The Trash Can is now much smaller and tucked into the bedroom corner, so the room feels calmer and the bed and night table get the space they deserve — plus a one-time popup explains the Bedroom furniture update, and every manual layout rebuild now shows a clear confirmation first."
             )
         ),
