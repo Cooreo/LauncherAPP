@@ -17,6 +17,8 @@ import com.roomlauncher.app.ui.theme.GeometryDashSubTheme
 import com.roomlauncher.app.ui.theme.RoomStyleId
 import com.roomlauncher.app.ui.theme.RoomThemeId
 import com.roomlauncher.app.ui.theme.RoomThemes
+import com.roomlauncher.app.ui.theme.isBlueMood
+import com.roomlauncher.app.ui.theme.isDeepSapphire
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -237,9 +239,9 @@ class RoomConfigRepositoryTest {
 
     @Test
     fun changelogStartsWithLatestVersion() {
-        assertEquals("3.2.2", ChangelogData.CURRENT_VERSION)
+        assertEquals("3.2.3", ChangelogData.CURRENT_VERSION)
         assertTrue(ChangelogData.entries.isNotEmpty())
-        assertEquals("3.2.2", ChangelogData.entries.first().version)
+        assertEquals("3.2.3", ChangelogData.entries.first().version)
         assertTrue(ChangelogData.entries.first().highlights.size >= 3)
     }
 
@@ -276,6 +278,20 @@ class RoomConfigRepositoryTest {
 
         val lavenderPalette = RoomThemes.effectivePalette(RoomStyleId.GIRLY_ROOM, RoomThemeId.LAVENDER_NIGHT)
         assertTrue(lavenderPalette.isDark)
+
+        val deepConfig = blushConfig.copy(themeId = RoomThemeId.DEEP_SAPPHIRE)
+        repo.saveConfig(deepConfig)
+        val reloadedDeep = repo.loadConfig()
+        assertEquals(RoomThemeId.DEEP_SAPPHIRE, reloadedDeep.themeId)
+        val deepPalette = RoomThemes.effectivePalette(RoomStyleId.GIRLY_ROOM, RoomThemeId.DEEP_SAPPHIRE)
+        assertTrue(deepPalette.isDark)
+        assertTrue(deepPalette.isBlueMood)
+        assertTrue(bluePalette.isBlueMood)
+        assertFalse(blushPalette.isBlueMood)
+        assertFalse(lavenderPalette.isBlueMood)
+        assertTrue(deepPalette.isDeepSapphire)
+        assertFalse(bluePalette.isDeepSapphire)
+        assertTrue(deepPalette.wallMain != lavenderPalette.wallMain)
     }
 
     @Test

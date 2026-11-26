@@ -2,8 +2,12 @@
 
 **Room Launcher** is a minimalist Android home screen launcher built with **Kotlin** and **Jetpack Compose**. Instead of a traditional grid of icons, your home screen is a customizable, illustrated room where every piece of furniture is an interactive, movable object.
 
-## Features (v3.2.2 — Girly Room Baby Blue Theme & Room Lighting Fix)
+## Features (v3.2.3 — Deep Sapphire Dark Blue Theme & Mini Diva Figurine)
 
+- **Deep Sapphire Dark Blue Theme & Mini Diva Figurine (v3.2.3)**:
+  - Added the **Deep Sapphire** palette — midnight-navy walls, sapphire-glass furniture, icy-cyan lamp glow, navy velvet bedding and glowing blue accents across every room style, the mirrored Home Wallpaper and the charging animation.
+  - **Girly Room** now ships four vibes — **Blush Rose**, **Baby Blue** (light), **Lavender Night** and **Deep Sapphire** (dark blue) — with an instant 2×2 Vibe quick-switcher in **Settings → Room Style**.
+  - Added a collectible **mini diva figurine** on the shelf: an original chibi idol collectible with glowing teal twin-tails, a cyan headset, sailor-collar top, pleated skirt and a glass display base, framed by a soft teal display glow and mirrored in the Home Wallpaper whenever a blue mood (Baby Blue or Deep Sapphire) is active.
 - **Girly Room Baby Blue Theme & Fixed Room Light Sources (v3.2.2)**:
   - Added the **Baby Blue** (`PASTEL_SKY`) pastel blue theme for **Girly Room**, adapting stripes, satin ribbons, sheer curtains, tufted velvet headboard & heart pillow, Polaroids, painting, clock, shelf decor, Home Wallpaper Mirror, and charging animation — with 1-tap **Blush / Baby Blue / Lavender** switching in **Settings → Room Style**.
   - Fixed light sources across all rooms so every fixture genuinely emits light: Living Room recessed ceiling spotlights (housings, glowing lenses & downward spotlight cones), Kitchen hanging pendant lamps (lit filament bulbs & warm downward cones), Gaming Room RGB hexagonal wall panels & Streaming Desk ring light, Girly & Teen fairy lights (exact wire placement, sockets & multi-layer radial blooms), Girly shelf & Fireplace mantel candles, and Blocky/Voxel wall torches.

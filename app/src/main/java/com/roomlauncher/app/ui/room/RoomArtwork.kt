@@ -45,6 +45,7 @@ import com.roomlauncher.app.ui.theme.RoomStyleId
 import com.roomlauncher.app.ui.theme.RoomThemeId
 import com.roomlauncher.app.ui.theme.RoomVisualPalette
 import com.roomlauncher.app.ui.theme.accentNeonColors
+import com.roomlauncher.app.ui.theme.isBlueMood
 import com.roomlauncher.app.ui.theme.mainDrawableRes
 import com.roomlauncher.app.ui.theme.posterDrawableRes
 import kotlin.math.PI
@@ -103,7 +104,7 @@ fun RoomShellCanvas(
 
         // Girly Room features 2 cute pastel Polaroid wall prints taped with pastel washi tape!
         if (roomStyle == RoomStyleId.GIRLY_ROOM && roomType == RoomType.BEDROOM && wPx > 0f && hPx > 0f) {
-            val isBlueGirly = palette.themeId == RoomThemeId.PASTEL_SKY
+            val isBlueGirly = palette.isBlueMood
             GirlyWallPolaroid(
                 isHeartCard = true,
                 isBlueGirly = isBlueGirly,
@@ -482,7 +483,7 @@ private fun DrawScope.drawGirlyShell(palette: RoomVisualPalette) {
     val w = size.width
     val h = size.height
     val floorY = h * 0.61f
-    val isBlue = palette.themeId == RoomThemeId.PASTEL_SKY
+    val isBlue = palette.isBlueMood
 
     // Dreamy wall gradient extending seamlessly behind the status bar
     drawRect(
@@ -735,6 +736,299 @@ private fun DrawScope.drawRibbonBow(center: Offset, scale: Float, color: Color, 
     // Center knot
     drawCircle(color, scale * 0.24f, Offset(center.x, center.y + scale * 0.05f))
     drawCircle(highlight.copy(alpha = 0.75f), scale * 0.11f, Offset(center.x - scale * 0.04f, center.y))
+}
+
+/**
+ * Small glossy collectible "mini diva" figurine — an original chibi idol character with
+ * teal twin-tails, a glowing cyan headset, sailor-collar top, pleated skirt and a glass
+ * display base. It is displayed on the shelf whenever a blue-mood palette
+ * ([com.roomlauncher.app.ui.theme.isBlueMood] — Baby Blue or Deep Sapphire) is active,
+ * and is framed by a soft teal display glow so it reads at a glance.
+ */
+private fun DrawScope.drawMiniDivaFigurine(
+    palette: RoomVisualPalette,
+    baseCenter: Offset,
+    height: Float
+) {
+    val h = height
+    val cx = baseCenter.x
+    val baseY = baseCenter.y
+
+    val hair = Color(0xFF34D6CB)
+    val hairShade = Color(0xFF0FA9A4)
+    val hairLight = Color(0xFF9BF5EC)
+    val skin = Color(0xFFFFE7D6)
+    val shirt = Color(0xFFF8FCFF)
+    val accent = Color(0xFF3FC5F2)
+    val skirt = Color(0xFF1C2B47)
+
+    // Soft teal display glow so the collectible stands out on darker walls
+    val glowCenter = Offset(cx, baseY - h * 0.52f)
+    val glowR = h * 0.85f
+    drawCircle(
+        brush = Brush.radialGradient(
+            colors = listOf(
+                Color(0xFF5CE0F5).copy(alpha = if (palette.isDark) 0.30f else 0.20f),
+                Color(0xFF5C7BF5).copy(alpha = if (palette.isDark) 0.12f else 0.08f),
+                Color.Transparent
+            ),
+            center = glowCenter,
+            radius = glowR
+        ),
+        radius = glowR,
+        center = glowCenter
+    )
+
+    // Glossy round display base (drawn before the feet so it sits underneath them)
+    drawOval(
+        color = Color(0xFF0B1729),
+        topLeft = Offset(cx - h * 0.27f, baseY - h * 0.05f),
+        size = Size(h * 0.54f, h * 0.10f)
+    )
+    drawOval(
+        color = accent.copy(alpha = 0.75f),
+        topLeft = Offset(cx - h * 0.27f, baseY - h * 0.05f),
+        size = Size(h * 0.54f, h * 0.10f),
+        style = Stroke(width = h * 0.012f)
+    )
+    drawOval(
+        color = Color.White.copy(alpha = 0.35f),
+        topLeft = Offset(cx - h * 0.17f, baseY - h * 0.038f),
+        size = Size(h * 0.22f, h * 0.026f)
+    )
+
+    // Long teal twin-tails sweeping down behind the body
+    val leftTail = Path().apply {
+        moveTo(cx - h * 0.095f, baseY - h * 0.735f)
+        cubicTo(
+            cx - h * 0.31f, baseY - h * 0.700f,
+            cx - h * 0.31f, baseY - h * 0.420f,
+            cx - h * 0.245f, baseY - h * 0.185f
+        )
+        lineTo(cx - h * 0.165f, baseY - h * 0.170f)
+        cubicTo(
+            cx - h * 0.205f, baseY - h * 0.420f,
+            cx - h * 0.190f, baseY - h * 0.620f,
+            cx - h * 0.155f, baseY - h * 0.710f
+        )
+        close()
+    }
+    val rightTail = Path().apply {
+        moveTo(cx + h * 0.095f, baseY - h * 0.735f)
+        cubicTo(
+            cx + h * 0.31f, baseY - h * 0.700f,
+            cx + h * 0.31f, baseY - h * 0.420f,
+            cx + h * 0.245f, baseY - h * 0.185f
+        )
+        lineTo(cx + h * 0.165f, baseY - h * 0.170f)
+        cubicTo(
+            cx + h * 0.205f, baseY - h * 0.420f,
+            cx + h * 0.190f, baseY - h * 0.620f,
+            cx + h * 0.155f, baseY - h * 0.710f
+        )
+        close()
+    }
+    drawPath(leftTail, hair)
+    drawPath(rightTail, hair)
+    // Cooler inner shading + bright edge highlights on both tails
+    drawPath(
+        leftTail,
+        hairShade.copy(alpha = 0.45f),
+        style = Stroke(width = h * 0.016f)
+    )
+    drawPath(
+        rightTail,
+        hairShade.copy(alpha = 0.45f),
+        style = Stroke(width = h * 0.016f)
+    )
+    drawLine(
+        hairLight.copy(alpha = 0.85f),
+        Offset(cx - h * 0.205f, baseY - h * 0.680f),
+        Offset(cx - h * 0.215f, baseY - h * 0.300f),
+        strokeWidth = h * 0.014f
+    )
+    drawLine(
+        hairLight.copy(alpha = 0.85f),
+        Offset(cx + h * 0.205f, baseY - h * 0.680f),
+        Offset(cx + h * 0.215f, baseY - h * 0.300f),
+        strokeWidth = h * 0.014f
+    )
+
+    // Legs & little boots
+    listOf(-1f, 1f).forEach { side ->
+        val legX = cx + side * h * 0.058f
+        drawRoundRect(
+            color = skin,
+            topLeft = Offset(legX - h * 0.028f, baseY - h * 0.255f),
+            size = Size(h * 0.056f, h * 0.185f),
+            cornerRadius = CornerRadius(h * 0.026f, h * 0.026f)
+        )
+        drawRoundRect(
+            color = skirt,
+            topLeft = Offset(legX - h * 0.032f, baseY - h * 0.098f),
+            size = Size(h * 0.064f, h * 0.062f),
+            cornerRadius = CornerRadius(h * 0.024f, h * 0.024f)
+        )
+        drawLine(
+            accent.copy(alpha = 0.85f),
+            Offset(legX - h * 0.030f, baseY - h * 0.072f),
+            Offset(legX + h * 0.030f, baseY - h * 0.072f),
+            strokeWidth = h * 0.010f
+        )
+    }
+
+    // Pleated skirt
+    val skirtPath = Path().apply {
+        moveTo(cx - h * 0.125f, baseY - h * 0.420f)
+        lineTo(cx + h * 0.125f, baseY - h * 0.420f)
+        lineTo(cx + h * 0.200f, baseY - h * 0.262f)
+        lineTo(cx - h * 0.200f, baseY - h * 0.262f)
+        close()
+    }
+    drawPath(skirtPath, skirt)
+    for (i in 1..4) {
+        val t = i / 5f
+        drawLine(
+            accent.copy(alpha = 0.45f),
+            Offset(cx - h * 0.125f + h * 0.25f * t, baseY - h * 0.418f),
+            Offset(cx - h * 0.200f + h * 0.40f * t, baseY - h * 0.266f),
+            strokeWidth = h * 0.009f
+        )
+    }
+    drawLine(
+        accent.copy(alpha = 0.9f),
+        Offset(cx - h * 0.198f, baseY - h * 0.272f),
+        Offset(cx + h * 0.198f, baseY - h * 0.272f),
+        strokeWidth = h * 0.012f
+    )
+
+    // Sailor-collar top with cyan neckerchief
+    drawRoundRect(
+        color = shirt,
+        topLeft = Offset(cx - h * 0.128f, baseY - h * 0.585f),
+        size = Size(h * 0.256f, h * 0.175f),
+        cornerRadius = CornerRadius(h * 0.045f, h * 0.045f)
+    )
+    val collar = Path().apply {
+        moveTo(cx - h * 0.118f, baseY - h * 0.585f)
+        lineTo(cx, baseY - h * 0.520f)
+        lineTo(cx + h * 0.118f, baseY - h * 0.585f)
+        lineTo(cx + h * 0.075f, baseY - h * 0.600f)
+        lineTo(cx, baseY - h * 0.552f)
+        lineTo(cx - h * 0.075f, baseY - h * 0.600f)
+        close()
+    }
+    drawPath(collar, accent)
+    drawPath(
+        Path().apply {
+            moveTo(cx - h * 0.035f, baseY - h * 0.545f)
+            lineTo(cx + h * 0.035f, baseY - h * 0.545f)
+            lineTo(cx, baseY - h * 0.470f)
+            close()
+        },
+        Color(0xFF2AAEE0)
+    )
+    drawRoundRect(
+        color = accent.copy(alpha = 0.85f),
+        topLeft = Offset(cx - h * 0.128f, baseY - h * 0.432f),
+        size = Size(h * 0.256f, h * 0.026f),
+        cornerRadius = CornerRadius(h * 0.012f, h * 0.012f)
+    )
+
+    // Arms — left resting, right cheerfully raised
+    drawRoundRect(
+        color = shirt,
+        topLeft = Offset(cx - h * 0.185f, baseY - h * 0.570f),
+        size = Size(h * 0.062f, h * 0.150f),
+        cornerRadius = CornerRadius(h * 0.030f, h * 0.030f)
+    )
+    drawCircle(skin, h * 0.030f, Offset(cx - h * 0.154f, baseY - h * 0.425f))
+    val raisedArm = Path().apply {
+        moveTo(cx + h * 0.115f, baseY - h * 0.565f)
+        quadraticTo(cx + h * 0.215f, baseY - h * 0.615f, cx + h * 0.205f, baseY - h * 0.700f)
+    }
+    drawPath(raisedArm, shirt, style = Stroke(width = h * 0.055f, cap = StrokeCap.Round))
+    drawCircle(skin, h * 0.032f, Offset(cx + h * 0.203f, baseY - h * 0.712f))
+
+    // Head — hair cap behind, face on top
+    drawCircle(hair, h * 0.132f, Offset(cx, baseY - h * 0.760f))
+    drawCircle(skin, h * 0.112f, Offset(cx, baseY - h * 0.742f))
+    // Side-swept bangs
+    val bangs = Path().apply {
+        moveTo(cx - h * 0.128f, baseY - h * 0.775f)
+        quadraticTo(cx - h * 0.060f, baseY - h * 0.860f, cx + h * 0.010f, baseY - h * 0.845f)
+        quadraticTo(cx + h * 0.090f, baseY - h * 0.835f, cx + h * 0.126f, baseY - h * 0.760f)
+        quadraticTo(cx + h * 0.045f, baseY - h * 0.800f, cx - h * 0.020f, baseY - h * 0.795f)
+        quadraticTo(cx - h * 0.080f, baseY - h * 0.790f, cx - h * 0.128f, baseY - h * 0.775f)
+        close()
+    }
+    drawPath(bangs, hair)
+    drawLine(
+        hairLight.copy(alpha = 0.8f),
+        Offset(cx - h * 0.055f, baseY - h * 0.845f),
+        Offset(cx + h * 0.030f, baseY - h * 0.838f),
+        strokeWidth = h * 0.011f
+    )
+    // Twin-tail hair ties
+    drawCircle(accent, h * 0.030f, Offset(cx - h * 0.125f, baseY - h * 0.735f))
+    drawCircle(accent, h * 0.030f, Offset(cx + h * 0.125f, baseY - h * 0.735f))
+    // Eyes
+    drawOval(
+        color = Color(0xFF14707E),
+        topLeft = Offset(cx - h * 0.072f, baseY - h * 0.758f),
+        size = Size(h * 0.034f, h * 0.044f)
+    )
+    drawOval(
+        color = Color(0xFF14707E),
+        topLeft = Offset(cx + h * 0.038f, baseY - h * 0.758f),
+        size = Size(h * 0.034f, h * 0.044f)
+    )
+    drawCircle(Color.White.copy(alpha = 0.9f), h * 0.010f, Offset(cx - h * 0.062f, baseY - h * 0.748f))
+    drawCircle(Color.White.copy(alpha = 0.9f), h * 0.010f, Offset(cx + h * 0.048f, baseY - h * 0.748f))
+    drawLine(
+        Color(0xFFD9798C).copy(alpha = 0.55f),
+        Offset(cx - h * 0.028f, baseY - h * 0.722f),
+        Offset(cx + h * 0.028f, baseY - h * 0.722f),
+        strokeWidth = h * 0.010f,
+        cap = StrokeCap.Round
+    )
+
+    // Glowing cyan headset — band, ear cups & mic boom
+    drawArc(
+        color = accent,
+        startAngle = 192f,
+        sweepAngle = 156f,
+        useCenter = false,
+        topLeft = Offset(cx - h * 0.150f, baseY - h * 0.845f),
+        size = Size(h * 0.300f, h * 0.300f),
+        style = Stroke(width = h * 0.024f, cap = StrokeCap.Round)
+    )
+    listOf(-1f, 1f).forEach { side ->
+        drawRoundRect(
+            color = accent,
+            topLeft = Offset(cx + side * h * 0.150f - h * 0.030f, baseY - h * 0.775f),
+            size = Size(h * 0.060f, h * 0.078f),
+            cornerRadius = CornerRadius(h * 0.026f, h * 0.026f)
+        )
+        drawCircle(
+            Color.White.copy(alpha = 0.85f),
+            h * 0.012f,
+            Offset(cx + side * h * 0.150f, baseY - h * 0.748f)
+        )
+    }
+    drawLine(
+        Color(0xFF2AAEE0),
+        Offset(cx - h * 0.150f, baseY - h * 0.740f),
+        Offset(cx - h * 0.088f, baseY - h * 0.706f),
+        strokeWidth = h * 0.014f,
+        cap = StrokeCap.Round
+    )
+    drawCircle(Color(0xFF2AAEE0), h * 0.020f, Offset(cx - h * 0.082f, baseY - h * 0.702f))
+
+    // Tiny sparkle glints around the figurine
+    drawCircle(Color.White.copy(alpha = 0.85f), h * 0.016f, Offset(cx + h * 0.245f, baseY - h * 0.800f))
+    drawCircle(Color(0xFF8CF3EA).copy(alpha = 0.8f), h * 0.012f, Offset(cx - h * 0.250f, baseY - h * 0.630f))
+    drawCircle(Color.White.copy(alpha = 0.6f), h * 0.010f, Offset(cx - h * 0.215f, baseY - h * 0.520f))
 }
 
 private fun DrawScope.drawTeenShell(palette: RoomVisualPalette) {
@@ -1597,7 +1891,7 @@ private fun WindowGraphic(
                 }
             }
 
-            val isBlueGirly = palette.themeId == RoomThemeId.PASTEL_SKY
+            val isBlueGirly = palette.isBlueMood
             val frameColor = when {
                 isVoxel -> Color(0xFF5C3E24)
                 isGirly && isBlueGirly -> Color(0xFFF6FBFF)
@@ -1745,7 +2039,7 @@ private fun PaintingGraphic(
                 size = Size(w * 0.92f, h * 0.91f),
                 cornerRadius = CornerRadius(corner, corner)
             )
-            val isBlueGirly = palette.themeId == RoomThemeId.PASTEL_SKY
+            val isBlueGirly = palette.isBlueMood
             // Symmetrical outer wooden / rose-gold / silver-blue frame
             val frameLeft = w * 0.03f
             val frameTop = h * 0.03f
@@ -1940,7 +2234,7 @@ private fun DrawScope.drawClock(palette: RoomVisualPalette, minutesOfDay: Int, i
     val radius = min(size.width, size.height) * 0.43f
     val cx = size.width / 2f
     val cy = size.height / 2f
-    val isBlueGirly = palette.themeId == RoomThemeId.PASTEL_SKY
+    val isBlueGirly = palette.isBlueMood
 
     drawCircle(Color.Black.copy(alpha = if (palette.isDark) 0.36f else 0.12f), radius, Offset(cx + radius * 0.08f, cy + radius * 0.10f))
     drawCircle(
@@ -2116,7 +2410,7 @@ private fun DrawScope.drawShelf(palette: RoomVisualPalette, isKids: Boolean, isG
     val h = size.height
     val upperY = h * 0.40f
     val shelfH = h * 0.065f
-    val isBlueGirly = palette.themeId == RoomThemeId.PASTEL_SKY
+    val isBlueGirly = palette.isBlueMood
     val shelfColor = when {
         isKids -> Color(0xFFFFB703)
         isGirly && isBlueGirly -> Color(0xFFF5FAFF)
@@ -2193,6 +2487,15 @@ private fun DrawScope.drawShelf(palette: RoomVisualPalette, isKids: Boolean, isG
         drawCircle(Color(0xFF5D8768), w * 0.065f, Offset(w * 0.80f, h * 0.22f))
     }
 
+    // Collectible hero figurine on the shelf — only in the blue moods (Baby Blue / Deep Sapphire)
+    if (palette.isBlueMood) {
+        drawMiniDivaFigurine(
+            palette = palette,
+            baseCenter = Offset(w * 0.635f, upperY),
+            height = h * 0.175f
+        )
+    }
+
     val lowerY = h * 0.86f
     drawRect(Color.Black.copy(alpha = 0.16f), Offset(w * 0.06f, lowerY + shelfH), Size(w * 0.90f, h * 0.03f))
     drawRoundRect(shelfColor, Offset(w * 0.04f, lowerY), Size(w * 0.92f, shelfH), CornerRadius(4f, 4f))
@@ -2253,7 +2556,7 @@ private fun DrawScope.drawShelf(palette: RoomVisualPalette, isKids: Boolean, isG
 private fun DrawScope.drawBed(palette: RoomVisualPalette, isKids: Boolean, isGirly: Boolean = false) {
     val w = size.width
     val h = size.height
-    val isBlueGirly = palette.themeId == RoomThemeId.PASTEL_SKY
+    val isBlueGirly = palette.isBlueMood
 
     drawRoundRect(Color.Black.copy(alpha = if (palette.isDark) 0.40f else 0.16f), Offset(w * 0.04f, h * 0.90f), Size(w * 0.92f, h * 0.09f), CornerRadius(10f, 10f))
     if (isGirly) {

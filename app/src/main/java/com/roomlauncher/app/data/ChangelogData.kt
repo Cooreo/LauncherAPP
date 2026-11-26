@@ -11,9 +11,19 @@ data class ChangelogEntry(
 )
 
 object ChangelogData {
-    const val CURRENT_VERSION = "3.2.2"
+    const val CURRENT_VERSION = "3.2.3"
 
     val entries: List<ChangelogEntry> = listOf(
+        ChangelogEntry(
+            version = "3.2.3",
+            title = "Deep Sapphire Dark Blue Theme & Mini Diva Figurine",
+            tag = "MINOR UPDATE",
+            highlights = listOf(
+                "Added the brand-new Deep Sapphire palette — a rich midnight-blue room with sapphire glass furniture, icy cyan lamp glow, navy velvet bedding and glowing blue accents across every room style, animated Home Wallpaper Mirror and charging animation.",
+                "Girly Room now has four vibes: Blush Rose, Baby Blue (light), Lavender Night and the new Deep Sapphire dark blue — switch instantly with the 2×2 Vibe quick-switcher in Settings → Room Style.",
+                "Added a collectible mini diva figurine — an original chibi idol collectible with glowing teal twin-tails, a cyan headset, sailor-collar top and pleated skirt on a glass display base — standing on the shelf (and mirrored in the Home Wallpaper) whenever a blue mood (Baby Blue or Deep Sapphire) is active."
+            )
+        ),
         ChangelogEntry(
             version = "3.2.2",
             title = "Girly Room Baby Blue Theme & Fixed Room Light Sources",

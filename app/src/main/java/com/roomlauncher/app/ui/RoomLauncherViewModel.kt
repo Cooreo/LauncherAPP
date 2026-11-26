@@ -1271,6 +1271,7 @@ class RoomLauncherViewModel(application: Application) : AndroidViewModel(applica
             if (styleId == RoomStyleId.GIRLY_ROOM &&
                 cfg.themeId != RoomThemeId.BLUSH_ROSE &&
                 cfg.themeId != RoomThemeId.PASTEL_SKY &&
+                cfg.themeId != RoomThemeId.DEEP_SAPPHIRE &&
                 cfg.themeId != RoomThemeId.LAVENDER_NIGHT
             ) {
                 cfg.copy(
