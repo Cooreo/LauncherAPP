@@ -713,10 +713,10 @@ private fun animationPalette(
     ChargingAnimationStyle.VOXEL_REDSTONE -> Triple(Color(0xFFE53935), Color(0xFF5CE65C), Color(0xFFFFE066))
     ChargingAnimationStyle.MATCH_ROOM -> when (roomStyle) {
         RoomStyleId.COZY_MINIMALIST -> Triple(Color(0xFFE09F3E), Color(0xFF7CC49E), Color(0xFFFFE599))
-        RoomStyleId.GIRLY_ROOM -> if (themeId == RoomThemeId.PASTEL_SKY) {
-            Triple(Color(0xFF6BB9F5), Color(0xFFA7B8FF), Color(0xFFD6EEFF))
-        } else {
-            Triple(Color(0xFFFF85B3), Color(0xFFC896FF), Color(0xFFFFD6E7))
+        RoomStyleId.GIRLY_ROOM -> when (themeId) {
+            RoomThemeId.PASTEL_SKY -> Triple(Color(0xFF6BB9F5), Color(0xFFA7B8FF), Color(0xFFD6EEFF))
+            RoomThemeId.DEEP_SAPPHIRE -> Triple(Color(0xFF3FC5F2), Color(0xFF3D5AFE), Color(0xFFB3ECFF))
+            else -> Triple(Color(0xFFFF85B3), Color(0xFFC896FF), Color(0xFFFFD6E7))
         }
         RoomStyleId.TEEN_ROOM -> Triple(Color(0xFF9B5DE5), Color(0xFF00F5D4), Color(0xFFF15BB5))
         RoomStyleId.KIDS_ROOM -> Triple(Color(0xFFFFB703), Color(0xFF4CC9F0), Color(0xFFFF6B6B))

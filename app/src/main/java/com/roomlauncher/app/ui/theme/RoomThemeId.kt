@@ -26,7 +26,7 @@ enum class RoomStyleId(
     val description: String
 ) {
     COZY_MINIMALIST("Cozy Minimalist", "Calm Scandinavian room & clean wood furniture"),
-    GIRLY_ROOM("Girly Room (Alpha)", "Pastel striped walls (Blush Rose, Baby Blue & Lavender), glowing fairy lights, satin ribbons & heart rug"),
+    GIRLY_ROOM("Girly Room (Alpha)", "Striped walls (Blush Rose, Baby Blue, Deep Sapphire & Lavender), glowing fairy lights, satin ribbons & a mini diva figurine in the blue moods"),
     TEEN_ROOM("Teen Room", "LED wall glow, fairy lights & 2 custom wall posters"),
     KIDS_ROOM("Kids Room", "Bunting garland, starry walls & cheerful play rug"),
     MINECRAFT("Blocky / Voxel", "Pixelated oak walls, torches & blocky furniture"),
@@ -65,6 +65,7 @@ enum class RoomThemeId(
     WARM_LINEN("Warm Linen", "Cozy Scandinavian cream & oak", false),
     BLUSH_ROSE("Blush Rose", "Soft pastel pink, warm cream & rose-gold", false),
     PASTEL_SKY("Baby Blue", "Dreamy powder blue, cloud white & pearl silver", false),
+    DEEP_SAPPHIRE("Deep Sapphire", "Midnight navy walls, sapphire glass & icy cyan glow", true),
     BOTANICAL_SAGE("Botanical Sage", "Soft sunlit sage & birch", false),
     LAVENDER_NIGHT("Lavender Night", "Dreamy twilight lilac, soft rose & starlight", true),
     MIDNIGHT_COZY("Midnight Cozy", "Deep slate walls & warm lamplight", true),
@@ -626,6 +627,55 @@ object RoomThemes {
             )
         )
 
+        RoomThemeId.DEEP_SAPPHIRE -> RoomVisualPalette(
+            themeId = id,
+            isDark = true,
+            wallMain = Color(0xFF101D36),
+            wallUpper = Color(0xFF091223),
+            baseboard = Color(0xFF1E3050),
+            baseboardShadow = Color(0xFF050B16),
+            floorMain = Color(0xFF16233B),
+            floorPlankLine = Color(0xFF0C1626),
+            rugFill = Color(0xFF1B2C4B),
+            rugBorder = Color(0xFF4FC3F7),
+            woodDark = Color(0xFF17243C),
+            woodMid = Color(0xFF2B4062),
+            woodLight = Color(0xFF4A6B96),
+            duvetPrimary = Color(0xFF2A5298),
+            throwBlanket = Color(0xFF4FC3F7),
+            pillowColor = Color(0xFFE3F3FF),
+            tvBezel = Color(0xFF050A14),
+            tvScreen = Color(0xFF122338),
+            consoleBody = Color(0xFF0B1526),
+            consoleAccent = Color(0xFF38BDF8),
+            trashBody = Color(0xFF1A2A44),
+            trashRim = Color(0xFF7FB3E0),
+            stickyNoteFill = Color(0xFFA7D8F5),
+            stickyNoteFold = Color(0xFF6FB3DB),
+            clockFace = Color(0xFF0F1B2E),
+            clockHands = Color(0xFFE7F5FF),
+            clockAccent = Color(0xFF4FC3F7),
+            ambientLightTint = Color(0x2E4FC3F7),
+            hudTextColor = Color(0xFFEAF6FF),
+            colorScheme = darkColorScheme(
+                primary = Color(0xFF5CC8FF),
+                onPrimary = Color(0xFF002438),
+                primaryContainer = Color(0xFF123A57),
+                onPrimaryContainer = Color(0xFFD9F1FF),
+                secondary = Color(0xFFA99BFF),
+                onSecondary = Color(0xFF1B0F4A),
+                secondaryContainer = Color(0xFF2C2263),
+                onSecondaryContainer = Color(0xFFE8E1FF),
+                background = Color(0xFF070E1B),
+                onBackground = Color(0xFFEAF6FF),
+                surface = Color(0xFF0F1B2E),
+                onSurface = Color(0xFFEAF6FF),
+                surfaceVariant = Color(0xFF1B2C47),
+                onSurfaceVariant = Color(0xFFA9C1DA),
+                outline = Color(0xFF34506F)
+            )
+        )
+
         RoomThemeId.LAVENDER_NIGHT -> RoomVisualPalette(
             themeId = id,
             isDark = true,
@@ -725,3 +775,16 @@ object RoomThemes {
         )
     }
 }
+
+/**
+ * True for the two "blue mood" palettes — [RoomThemeId.PASTEL_SKY] (Baby Blue, light)
+ * and [RoomThemeId.DEEP_SAPPHIRE] (Deep Sapphire, midnight blue). Used by the room artwork
+ * so the Girly Room satin ribbons, fairy lights and the mini diva figurine all follow the
+ * blue mood instead of the blush-rose default.
+ */
+val RoomVisualPalette.isBlueMood: Boolean
+    get() = themeId == RoomThemeId.PASTEL_SKY || themeId == RoomThemeId.DEEP_SAPPHIRE
+
+/** True only for the dark midnight-blue palette ([RoomThemeId.DEEP_SAPPHIRE]). */
+val RoomVisualPalette.isDeepSapphire: Boolean
+    get() = themeId == RoomThemeId.DEEP_SAPPHIRE

@@ -26,6 +26,7 @@ import com.roomlauncher.app.ui.theme.RoomStyleId
 import com.roomlauncher.app.ui.theme.RoomThemeId
 import com.roomlauncher.app.ui.theme.RoomThemes
 import com.roomlauncher.app.ui.theme.RoomVisualPalette
+import com.roomlauncher.app.ui.theme.isBlueMood
 import com.roomlauncher.app.ui.theme.accentNeonColors
 import com.roomlauncher.app.ui.theme.mainDrawableRes
 import com.roomlauncher.app.ui.theme.posterDrawableRes
@@ -380,11 +381,14 @@ object RoomWallpaperRenderer {
                 canvas.drawRect(rightRect, paint)
             }
         } else if (style == RoomStyleId.GIRLY_ROOM) {
-            val isBlueGirly = palette.themeId == RoomThemeId.PASTEL_SKY
+            val isBlueGirly = palette.themeId == RoomThemeId.PASTEL_SKY ||
+                palette.themeId == RoomThemeId.DEEP_SAPPHIRE
+            val isDeepSapphire = palette.themeId == RoomThemeId.DEEP_SAPPHIRE
             // Subtle pastel vertical boutique stripes
             val stripeCount = 12
             val stripeW = fullW / stripeCount
             paint.color = when {
+                isDeepSapphire -> 0x1464B4FF
                 palette.isDark -> 0x10F4A2C9
                 isBlueGirly -> 0x6BFFFFFF
                 else -> 0x52FFFFFF
@@ -397,16 +401,18 @@ object RoomWallpaperRenderer {
                 0f, 0f, 0f, viewTop + viewH * 0.27f,
                 intArrayOf(
                     when {
+                        isDeepSapphire -> 0x4638BDF8
                         palette.isDark -> 0x56FF9EC7
                         isBlueGirly -> 0x3D8CCBFF
                         else -> 0x3CFF9EC7
                     },
                     when {
+                        isDeepSapphire -> 0x2463D2FF
                         palette.isDark -> 0x2DD6B4FC
                         isBlueGirly -> 0x20B8C9FF
                         else -> 0x1ED6B4FC
                     },
-                    0x00D6B4FC
+                    0x00000000
                 ),
                 floatArrayOf(0f, 0.55f, 1f),
                 Shader.TileMode.CLAMP
@@ -423,7 +429,11 @@ object RoomWallpaperRenderer {
             }
             paint.style = Paint.Style.STROKE
             paint.strokeWidth = 2.5f
-            paint.color = if (isBlueGirly) 0xB89AC2E4.toInt() else 0xB8DFA3BD.toInt()
+            paint.color = when {
+                isDeepSapphire -> 0xB8749CC8.toInt()
+                isBlueGirly -> 0xB89AC2E4.toInt()
+                else -> 0xB8DFA3BD.toInt()
+            }
             canvas.drawPath(swagPath, paint)
             paint.style = Paint.Style.FILL
 
@@ -436,11 +446,15 @@ object RoomWallpaperRenderer {
                 val cy = viewTop + viewH * by
                 val glowR = viewW * (if (palette.isDark) 0.062f else 0.050f)
                 val innerCol = when {
+                    isDeepSapphire && idx % 2 == 0 -> 0xAAB6F0FF.toInt()
+                    isDeepSapphire -> 0xAA9FE4FF.toInt()
                     isBlueGirly && idx % 2 == 0 -> 0xAADFF3FF.toInt()
                     idx % 2 == 0 -> 0xAAFFE1EE.toInt()
                     else -> 0xAAFFF2C2.toInt()
                 }
                 val outerCol = when {
+                    isDeepSapphire && idx % 2 == 0 -> 0x5538BDF8
+                    isDeepSapphire -> 0x5563D2FF
                     isBlueGirly && idx % 2 == 0 -> 0x4599D6FF
                     isBlueGirly -> 0x45FFE59D
                     idx % 2 == 0 -> 0x45FFB5D6
@@ -639,6 +653,48 @@ object RoomWallpaperRenderer {
                     paint.color = p.woodMid.toArgb()
                     canvas.drawRoundRect(RectF(r.left + w * 0.04f, r.top + h * 0.38f, r.right - w * 0.04f, r.top + h * 0.45f), 4f, 4f, paint)
                     canvas.drawRoundRect(RectF(r.left + w * 0.04f, r.top + h * 0.84f, r.right - w * 0.04f, r.top + h * 0.91f), 4f, 4f, paint)
+                    // Collectible mini diva figurine standing on the shelf in the blue moods
+                    if (p.isBlueMood) {
+                        val figH = h * 0.30f
+                        val fx = r.left + w * 0.62f
+                        val fBase = r.top + h * 0.38f
+                        paint.shader = RadialGradient(
+                            fx, fBase - figH * 0.55f, figH * 0.95f,
+                            intArrayOf(0x4D38BDF8, 0x1A3FC5F2, 0x00000000),
+                            floatArrayOf(0f, 0.5f, 1f),
+                            Shader.TileMode.CLAMP
+                        )
+                        canvas.drawCircle(fx, fBase - figH * 0.55f, figH * 0.95f, paint)
+                        paint.shader = null
+                        // Teal twin-tails behind the chibi body
+                        paint.color = 0xFF34D6CB.toInt()
+                        canvas.drawCircle(fx - figH * 0.155f, fBase - figH * 0.42f, figH * 0.085f, paint)
+                        canvas.drawCircle(fx + figH * 0.155f, fBase - figH * 0.42f, figH * 0.085f, paint)
+                        // Pleated navy skirt
+                        paint.color = 0xFF1C2B47.toInt()
+                        val figSkirt = Path().apply {
+                            moveTo(fx - figH * 0.09f, fBase - figH * 0.36f)
+                            lineTo(fx + figH * 0.09f, fBase - figH * 0.36f)
+                            lineTo(fx + figH * 0.14f, fBase - figH * 0.19f)
+                            lineTo(fx - figH * 0.14f, fBase - figH * 0.19f)
+                            close()
+                        }
+                        canvas.drawPath(figSkirt, paint)
+                        // Sailor top
+                        paint.color = 0xFFF8FCFF.toInt()
+                        canvas.drawRoundRect(
+                            RectF(fx - figH * 0.09f, fBase - figH * 0.62f, fx + figH * 0.09f, fBase - figH * 0.34f),
+                            3f, 3f, paint
+                        )
+                        // Head, hair cap & glowing cyan headset cups
+                        paint.color = 0xFF34D6CB.toInt()
+                        canvas.drawCircle(fx, fBase - figH * 0.75f, figH * 0.125f, paint)
+                        paint.color = 0xFFFFE7D6.toInt()
+                        canvas.drawCircle(fx, fBase - figH * 0.725f, figH * 0.098f, paint)
+                        paint.color = 0xFF3FC5F2.toInt()
+                        canvas.drawRect(fx - figH * 0.165f, fBase - figH * 0.765f, fx - figH * 0.100f, fBase - figH * 0.665f, paint)
+                        canvas.drawRect(fx + figH * 0.100f, fBase - figH * 0.765f, fx + figH * 0.165f, fBase - figH * 0.665f, paint)
+                    }
                 }
             }
 
