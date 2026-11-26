@@ -36,6 +36,7 @@ import androidx.compose.material.icons.rounded.Apps
 import androidx.compose.material.icons.rounded.AutoAwesome
 import androidx.compose.material.icons.rounded.Bolt
 import androidx.compose.material.icons.rounded.CameraAlt
+import androidx.compose.material.icons.rounded.Call
 import androidx.compose.material.icons.rounded.ChatBubble
 import androidx.compose.material.icons.rounded.Check
 import androidx.compose.material.icons.rounded.Close
@@ -50,6 +51,7 @@ import androidx.compose.material.icons.rounded.Home
 import androidx.compose.material.icons.rounded.Image
 import androidx.compose.material.icons.rounded.LocationOn
 import androidx.compose.material.icons.rounded.MeetingRoom
+import androidx.compose.material.icons.rounded.PhoneInTalk
 import androidx.compose.material.icons.rounded.MusicNote
 import androidx.compose.material.icons.rounded.NotificationsActive
 import androidx.compose.material.icons.rounded.Palette
@@ -176,8 +178,13 @@ fun SettingsSheet(
     onExportBackup: (Uri) -> Unit,
     onImportBackup: (Uri) -> Unit,
     onResetRoom: () -> Unit,
+    onToggleCallReactions: (Boolean) -> Unit,
+    onRefreshCallMonitor: () -> Unit,
     onDismiss: () -> Unit
 ) {
+    val phoneStatePermissionLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.RequestPermission()
+    ) { onRefreshCallMonitor() }
     val locationPermissionLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.RequestPermission()
     ) { granted ->
@@ -614,6 +621,89 @@ fun SettingsSheet(
                                                 }
                                             }
                                         }
+                                    }
+                                }
+                            }
+
+                            // Night Table phone — reacts to real incoming calls
+                            Surface(
+                                shape = RoundedCornerShape(14.dp),
+                                color = MaterialTheme.colorScheme.surface,
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .border(1.dp, MaterialTheme.colorScheme.outlineVariant, RoundedCornerShape(14.dp))
+                            ) {
+                                Column(
+                                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp),
+                                    verticalArrangement = Arrangement.spacedBy(6.dp)
+                                ) {
+                                    Row(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        horizontalArrangement = Arrangement.SpaceBetween
+                                    ) {
+                                        Row(
+                                            modifier = Modifier.weight(1f),
+                                            verticalAlignment = Alignment.CenterVertically,
+                                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                        ) {
+                                            Icon(
+                                                imageVector = Icons.Rounded.PhoneInTalk,
+                                                contentDescription = null,
+                                                tint = MaterialTheme.colorScheme.primary,
+                                                modifier = Modifier.size(20.dp)
+                                            )
+                                            Column {
+                                                Text(
+                                                    text = "Night Table Phone",
+                                                    style = MaterialTheme.typography.titleSmall,
+                                                    fontWeight = FontWeight.SemiBold,
+                                                    color = MaterialTheme.colorScheme.onSurface
+                                                )
+                                                Text(
+                                                    text = "Calls, messages & chat live here",
+                                                    style = MaterialTheme.typography.labelSmall,
+                                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                                )
+                                            }
+                                        }
+                                        Switch(
+                                            checked = uiState.config.callReactionsEnabled,
+                                            onCheckedChange = onToggleCallReactions
+                                        )
+                                    }
+                                    Text(
+                                        text = if (uiState.config.callReactionsEnabled) {
+                                            "The phone lights up, shakes and shows answer / decline buttons whenever a call comes in."
+                                        } else {
+                                            "Call reactions are off — the phone stays calm."
+                                        },
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
+                                    if (uiState.config.callReactionsEnabled && !uiState.hasCallStatePermission) {
+                                        Text(
+                                            text = "Phone permission needed so Room Launcher can see when a call is ringing. No call content or numbers are read.",
+                                            style = MaterialTheme.typography.labelSmall,
+                                            color = MaterialTheme.colorScheme.error
+                                        )
+                                        Button(
+                                            onClick = {
+                                                phoneStatePermissionLauncher.launch(Manifest.permission.READ_PHONE_STATE)
+                                            },
+                                            shape = RoundedCornerShape(10.dp),
+                                            modifier = Modifier.fillMaxWidth()
+                                        ) {
+                                            Icon(Icons.Rounded.Call, contentDescription = null, modifier = Modifier.size(16.dp))
+                                            Spacer(modifier = Modifier.width(6.dp))
+                                            Text("Allow Phone Access")
+                                        }
+                                    } else if (uiState.config.callReactionsEnabled) {
+                                        Text(
+                                            text = "Phone access granted • tap the night table to open your communicator apps.",
+                                            style = MaterialTheme.typography.labelSmall,
+                                            color = MaterialTheme.colorScheme.primary
+                                        )
                                     }
                                 }
                             }
@@ -1814,6 +1904,11 @@ fun SettingsSheet(
                         text = "Pick a room preset with tailored furniture & app categories:",
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    Text(
+                        text = "ℹ️ Adding a room builds that room's default layout — your existing rooms, objects and app assignments stay exactly as they are.",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.primary
                     )
                     RoomType.entries.chunked(2).forEach { pair ->
                         Row(

@@ -11,9 +11,19 @@ data class ChangelogEntry(
 )
 
 object ChangelogData {
-    const val CURRENT_VERSION = "3.2.3"
+    const val CURRENT_VERSION = "3.2.4"
 
     val entries: List<ChangelogEntry> = listOf(
+        ChangelogEntry(
+            version = "3.2.4",
+            title = "Night Table Phone That Reacts to Calls & Tidier Bedroom",
+            tag = "MINOR UPDATE",
+            highlights = listOf(
+                "New Night Table beside the bed with a bedside lamp and a little phone that holds all your communicator apps — dialer, SMS, WhatsApp, Telegram, Signal, Discord, Messenger, Viber, WeChat and more are auto-assigned to it so one tap opens your calls & chats.",
+                "The Night Table phone now reacts to real calls: it lights up, vibrates/rocks on its stand and shows big answer & decline buttons while ringing, then switches to a calm glowing in-call screen. Enable it once with the phone-state permission (no call content or numbers are ever read).",
+                "The Trash Can is now much smaller and tucked into the bedroom corner, so the room feels calmer and the bed and night table get the space they deserve — plus a one-time popup explains the Bedroom furniture update, and every manual layout rebuild now shows a clear confirmation first."
+            )
+        ),
         ChangelogEntry(
             version = "3.2.3",
             title = "Deep Sapphire Dark Blue Theme & Mini Diva Figurine",

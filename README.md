@@ -2,7 +2,13 @@
 
 **Room Launcher** is a minimalist Android home screen launcher built with **Kotlin** and **Jetpack Compose**. Instead of a traditional grid of icons, your home screen is a customizable, illustrated room where every piece of furniture is an interactive, movable object.
 
-## Features (v3.2.3 — Deep Sapphire Dark Blue Theme & Mini Diva Figurine)
+## Features (v3.2.4 — Night Table Phone, Call Reactions & Tidier Bedroom)
+
+- **Night Table Phone & Live Call Reactions (v3.2.4)**:
+  - New **Night Table** beside the bed with a glowing bedside lamp and a phone holding **every communicator app** — dialers, SMS, WhatsApp, Telegram, Signal, Discord, Messenger, Viber, WeChat and more are auto-assigned to it (existing bedrooms are upgraded automatically).
+  - The phone **reacts to real calls**: it shakes on its stand, sends out light rings and shows large answer / decline buttons while ringing, then a calm glowing in-call screen with a live waveform. Powered by a `TelephonyCallback` behind the opt-in `READ_PHONE_STATE` permission (toggle + one-tap grant in **Settings → House & Rooms**). No call content, numbers or contacts are read.
+  - The **Trash Can is now much smaller** and tucked into the corner, and a one-time popup explains the Bedroom furniture update while every manual layout rebuild shows a detailed confirmation before anything changes.
+- **Deep Sapphire Dark Blue Theme & Mini Diva Figurine (v3.2.3)**:
 
 - **Deep Sapphire Dark Blue Theme & Mini Diva Figurine (v3.2.3)**:
   - Added the **Deep Sapphire** palette — midnight-navy walls, sapphire-glass furniture, icy-cyan lamp glow, navy velvet bedding and glowing blue accents across every room style, the mirrored Home Wallpaper and the charging animation.

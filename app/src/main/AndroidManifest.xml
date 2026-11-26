@@ -17,6 +17,9 @@
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
 
+    <!-- Lets the Bedroom Night Table phone light up & shake when a call comes in (runtime permission) -->
+    <uses-permission android:name="android.permission.READ_PHONE_STATE" />
+
     <!-- Allows mirroring the current room layout onto the Home screen wallpaper (not Lock screen) -->
     <uses-permission android:name="android.permission.SET_WALLPAPER" />
 

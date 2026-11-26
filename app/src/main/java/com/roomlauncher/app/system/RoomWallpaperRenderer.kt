@@ -698,6 +698,40 @@ object RoomWallpaperRenderer {
                 }
             }
 
+            RoomObjectVisual.NIGHTSTAND -> {
+                // Night table with its little bedside lamp & phone (wallpaper mirror)
+                val tableTop = r.top + h * 0.50f
+                paint.color = p.woodMid.toArgb()
+                canvas.drawRoundRect(RectF(r.left + w * 0.10f, tableTop, r.right - w * 0.10f, r.bottom - h * 0.06f), 6f, 6f, paint)
+                paint.color = p.woodLight.toArgb()
+                canvas.drawRoundRect(RectF(r.left + w * 0.06f, tableTop - h * 0.07f, r.right - w * 0.06f, tableTop + h * 0.02f), 5f, 5f, paint)
+                // Warm bedside lamp glow
+                paint.shader = RadialGradient(
+                    r.left + w * 0.24f, tableTop - h * 0.16f, w * 0.55f,
+                    intArrayOf(0x66FFE9A8, 0x22FFC46B, 0x00000000),
+                    floatArrayOf(0f, 0.55f, 1f),
+                    Shader.TileMode.CLAMP
+                )
+                canvas.drawCircle(r.left + w * 0.24f, tableTop - h * 0.16f, w * 0.55f, paint)
+                paint.shader = null
+                paint.color = 0xFFFFD98F.toInt()
+                canvas.drawRoundRect(
+                    RectF(r.left + w * 0.17f, tableTop - h * 0.26f, r.left + w * 0.31f, tableTop - h * 0.14f),
+                    3f, 3f, paint
+                )
+                // Phone on a stand
+                paint.color = 0xFF0B1119.toInt()
+                canvas.drawRoundRect(
+                    RectF(r.left + w * 0.52f, tableTop - h * 0.40f, r.left + w * 0.76f, tableTop - h * 0.05f),
+                    5f, 5f, paint
+                )
+                paint.color = p.consoleAccent.toArgb()
+                canvas.drawRoundRect(
+                    RectF(r.left + w * 0.55f, tableTop - h * 0.37f, r.left + w * 0.73f, tableTop - h * 0.08f),
+                    3f, 3f, paint
+                )
+            }
+
             RoomObjectVisual.BED -> {
                 if (isVoxel) {
                     paint.color = 0xFFF5F5F5.toInt()
