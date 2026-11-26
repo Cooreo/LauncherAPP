@@ -478,6 +478,7 @@ private fun RoomObjectVisual.displayLabel(): String = when (this) {
     RoomObjectVisual.CONSOLE -> "Console"
     RoomObjectVisual.SHELF -> "Shelf"
     RoomObjectVisual.BED -> "Bed"
+    RoomObjectVisual.NIGHTSTAND -> "Night Table"
     RoomObjectVisual.TRASH_CAN -> "Trash Can"
     RoomObjectVisual.SOFA -> "Sofa"
     RoomObjectVisual.FIREPLACE -> "Fireplace"

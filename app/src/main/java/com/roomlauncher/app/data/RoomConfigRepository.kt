@@ -108,6 +108,7 @@ class RoomConfigRepository(
         const val ID_CONSOLE = "console"
         const val ID_SHELF = "shelf"
         const val ID_BED = "bed"
+        const val ID_NIGHTSTAND = "nightstand"
         const val ID_TRASH_CAN = "trash_can"
 
         // Living Room Hotspot IDs
@@ -276,13 +277,24 @@ class RoomConfigRepository(
                 visualType = RoomObjectVisual.BED
             ),
             RoomHotspot(
+                id = ID_NIGHTSTAND,
+                label = "Night Table",
+                subtitle = "Calls, Messages & Chat",
+                x = 0.60f,
+                y = 0.655f,
+                width = 0.17f,
+                height = 0.14f,
+                actionType = HotspotActionType.PANEL,
+                visualType = RoomObjectVisual.NIGHTSTAND
+            ),
+            RoomHotspot(
                 id = ID_TRASH_CAN,
                 label = "Trash Can",
                 subtitle = "Unsorted Apps",
-                x = 0.70f,
-                y = 0.695f,
-                width = 0.23f,
-                height = 0.15f,
+                x = 0.79f,
+                y = 0.765f,
+                width = 0.12f,
+                height = 0.09f,
                 actionType = HotspotActionType.UNSORTED_PANEL,
                 visualType = RoomObjectVisual.TRASH_CAN
             )
@@ -526,6 +538,7 @@ class RoomConfigRepository(
                         ID_PAINTING -> RoomObjectVisual.PAINTING
                         ID_TRASH_CAN -> RoomObjectVisual.TRASH_CAN
                         ID_BED -> RoomObjectVisual.BED
+                        ID_NIGHTSTAND -> RoomObjectVisual.NIGHTSTAND
                         ID_CLOCK -> RoomObjectVisual.CLOCK
                         ID_WINDOW -> RoomObjectVisual.WINDOW
                         ID_STICKY_NOTE -> RoomObjectVisual.STICKY_NOTE
@@ -676,6 +689,57 @@ class RoomConfigRepository(
             "notes", "mail", "calendar", "docs", "office", "notion", "obsidian", "todo", "drive", "pdf"
         )
 
+        /**
+         * Communicator apps that live on the Night Table phone: dialers, SMS/MMS apps and
+         * the big cross-platform chat clients (WhatsApp, Telegram, Signal, Discord, …).
+         */
+        private val COMMS_KNOWN_PACKAGES = setOf(
+            "com.google.android.dialer",
+            "com.android.dialer",
+            "com.android.phone",
+            "com.samsung.android.dialer",
+            "com.samsung.android.incallui",
+            "com.oneplus.dialer",
+            "com.oplus.dialer",
+            "com.miui.dialer",
+            "com.android.incallui",
+            "com.google.android.apps.messaging",
+            "com.android.mms",
+            "com.samsung.android.messaging",
+            "com.oneplus.mms",
+            "com.miui.smsextra",
+            "com.whatsapp",
+            "com.whatsapp.w4b",
+            "org.telegram.messenger",
+            "org.telegram.messenger.web",
+            "org.telegram.plus",
+            "org.thoughtcrime.securesms",
+            "com.discord",
+            "com.facebook.orca",
+            "com.facebook.mlite",
+            "com.viber.voip",
+            "jp.naver.line.android",
+            "com.tencent.mm",
+            "com.skype.raider",
+            "org.thunderdog.challegram",
+            "com.kakao.talk",
+            "com.instagram.android",
+            "com.snapchat.android",
+            "com.google.android.apps.messaging.messaging",
+            "com.microsoft.teams.mobile",
+            "com.slack"
+        )
+        private val COMMS_KEYWORDS = listOf(
+            "dialer", "incallui", "telecom", "telephony",
+            "messaging", "message", "sms", "mms", "chat",
+            "whatsapp", "telegram", "signal", "discord", "messenger",
+            "viber", "wechat", "skype", "threema", "wickr", "kakao", "wecom"
+        )
+        private val COMMS_EXCLUDED_KEYWORDS = listOf(
+            "keyboard", "gboard", "swiftkey", "callrecorder", "phoneclean",
+            "phonelink", "phonepe", "phonetransfer", "wallpaper", "launcher"
+        )
+
         private val BED_KNOWN_PACKAGES = setOf(
             "com.google.android.deskclock",
             "com.sec.android.app.clockpackage",
@@ -701,8 +765,88 @@ class RoomConfigRepository(
         )
         private val STICKY_NOTE_KEYWORDS = listOf("browser", "chrome", "firefox", "brave", "opera", "vivaldi", "duckduckgo")
 
+        /**
+         * v3.2.4 furniture pass (idempotent, runs for existing users too):
+         *  - every Bedroom gets a Night Table hotspot holding all communicator apps (the phone
+         *    on the table reacts to incoming calls), and
+         *  - the Trash Can is scaled down and tucked into the corner so it no longer dominates
+         *    the room.
+         */
+        fun migrateBedroomFurniture(config: RoomConfig, installedApps: List<AppInfo>): RoomConfig {
+            val rooms = config.effectiveRooms
+            var anyRoomChanged = false
+
+            val updatedRooms = rooms.map { room ->
+                if (room.type != RoomType.BEDROOM) return@map room
+                var roomChanged = false
+                val prefix = if (room.id == ROOM_ID_BEDROOM) "" else "${room.id}_"
+                val nightstandId = "$prefix$ID_NIGHTSTAND"
+
+                // 1. Scale the trash can down into the bottom-right corner
+                var hotspots = room.hotspots.map { hotspot ->
+                    val isTrash = hotspot.visualType == RoomObjectVisual.TRASH_CAN ||
+                        hotspot.id == "$prefix$ID_TRASH_CAN" || hotspot.id == ID_TRASH_CAN
+                    if (isTrash && (hotspot.width > 0.155f || hotspot.height > 0.115f)) {
+                        roomChanged = true
+                        hotspot.copy(x = 0.79f, y = 0.765f, width = 0.12f, height = 0.09f)
+                    } else {
+                        hotspot
+                    }
+                }
+
+                // 2. Add the Night Table with every installed communicator app on its phone
+                val hasNightstand = hotspots.any {
+                    it.visualType == RoomObjectVisual.NIGHTSTAND || it.id == nightstandId
+                }
+                if (!hasNightstand) {
+                    val commsPackages = installedApps
+                        .filter { isCommsApp(it.packageName, it.packageName.lowercase(), it.label.lowercase()) }
+                        .map { it.packageName }
+                    if (commsPackages.isNotEmpty()) {
+                        // Never duplicate a communicator app on another object in the same room
+                        hotspots = hotspots.map { hotspot ->
+                            if (hotspot.actionType == HotspotActionType.PANEL) {
+                                hotspot.copy(packages = hotspot.packages.filterNot { it in commsPackages })
+                            } else {
+                                hotspot
+                            }
+                        }
+                    }
+                    hotspots = hotspots + RoomHotspot(
+                        id = nightstandId,
+                        label = "Night Table",
+                        subtitle = "Calls, Messages & Chat",
+                        x = 0.60f,
+                        y = 0.655f,
+                        width = 0.17f,
+                        height = 0.14f,
+                        actionType = HotspotActionType.PANEL,
+                        visualType = RoomObjectVisual.NIGHTSTAND,
+                        packages = commsPackages
+                    )
+                    roomChanged = true
+                }
+
+                if (roomChanged) {
+                    anyRoomChanged = true
+                    room.copy(hotspots = hotspots)
+                } else {
+                    room
+                }
+            }
+
+            if (!anyRoomChanged) return config
+            return syncLegacyHotspots(
+                config.copy(
+                    rooms = updatedRooms,
+                    bedroomFurnitureMigrated = true
+                )
+            )
+        }
+
         fun autoPopulateIfNeeded(config: RoomConfig, installedApps: List<AppInfo>): RoomConfig {
-            val normalized = syncLegacyHotspots(config)
+            // v3.2.4 furniture pass — add the Bedroom Night Table phone & shrink the Trash Can
+            val normalized = migrateBedroomFurniture(syncLegacyHotspots(config), installedApps)
             if (normalized.autoPopulated && normalized.multiRoomAutoPopulated) return normalized
             if (installedApps.isEmpty()) return normalized
 
@@ -719,7 +863,11 @@ class RoomConfigRepository(
                 assigned.add(pkg)
             }
 
-            val existingHotspotIds = existingRooms.flatMap { it.hotspots }.map { it.id }.toSet()
+            val allExistingHotspots = existingRooms.flatMap { it.hotspots }
+            val existingHotspotIds = allExistingHotspots.map { it.id }.toSet()
+            val nightstandHotspotId = allExistingHotspots
+                .firstOrNull { it.visualType == RoomObjectVisual.NIGHTSTAND }
+                ?.id
             val populateBedroom = !normalized.autoPopulated
 
             for (app in installedApps) {
@@ -739,6 +887,10 @@ class RoomConfigRepository(
                             addTo(ID_GAMING_ARCADE, app.packageName)
                         }
                     }
+
+                    // Night Table phone — every communicator app (dialer, SMS, WhatsApp, Telegram, Signal…)
+                    isCommsApp(app.packageName, pkgLower, labelLower) && nightstandHotspotId != null ->
+                        addTo(nightstandHotspotId, app.packageName)
 
                     // Kitchen categories
                     isFoodApp(pkgLower, labelLower) && ID_KITCHEN_FRIDGE in existingHotspotIds ->
@@ -863,6 +1015,12 @@ class RoomConfigRepository(
             if (pkg in SHELF_KNOWN_PACKAGES) return true
             if (category == ApplicationInfo.CATEGORY_PRODUCTIVITY) return true
             return SHELF_KEYWORDS.any { it in pkgLower || it in labelLower }
+        }
+
+        fun isCommsApp(pkg: String, pkgLower: String, labelLower: String): Boolean {
+            if (COMMS_EXCLUDED_KEYWORDS.any { it in pkgLower || it in labelLower }) return false
+            if (pkg in COMMS_KNOWN_PACKAGES) return true
+            return COMMS_KEYWORDS.any { it in pkgLower || it in labelLower }
         }
 
         private fun isBedApp(pkg: String, pkgLower: String, labelLower: String): Boolean {

@@ -9,6 +9,7 @@ import com.roomlauncher.app.data.RoomConfig
 import com.roomlauncher.app.data.RoomConfigRepository
 import com.roomlauncher.app.data.RoomHotspot
 import com.roomlauncher.app.data.RoomObjectVisual
+import com.roomlauncher.app.data.RoomPage
 import com.roomlauncher.app.data.RoomType
 import com.roomlauncher.app.data.VisualizerStyle
 import com.roomlauncher.app.data.WebShortcut
@@ -22,6 +23,7 @@ import com.roomlauncher.app.ui.theme.isDeepSapphire
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
@@ -239,10 +241,85 @@ class RoomConfigRepositoryTest {
 
     @Test
     fun changelogStartsWithLatestVersion() {
-        assertEquals("3.2.3", ChangelogData.CURRENT_VERSION)
+        assertEquals("3.2.4", ChangelogData.CURRENT_VERSION)
         assertTrue(ChangelogData.entries.isNotEmpty())
-        assertEquals("3.2.3", ChangelogData.entries.first().version)
+        assertEquals("3.2.4", ChangelogData.entries.first().version)
         assertTrue(ChangelogData.entries.first().highlights.size >= 3)
+    }
+
+    @Test
+    fun defaultBedroomShipsNightTableAndSmallerTrashCan() {
+        val bedroom = RoomConfigRepository.createDefaultRooms().first { it.type == RoomType.BEDROOM }
+        val nightTable = bedroom.hotspots.firstOrNull { it.visualType == RoomObjectVisual.NIGHTSTAND }
+        assertNotNull(nightTable)
+        assertEquals("Night Table", nightTable!!.label)
+        assertEquals(HotspotActionType.PANEL, nightTable.actionType)
+
+        val trash = bedroom.hotspots.first { it.visualType == RoomObjectVisual.TRASH_CAN }
+        assertTrue("Trash can should be compact", trash.width <= 0.13f)
+        assertTrue("Trash can should be compact", trash.height <= 0.10f)
+        // The night table and trash can must not overlap
+        assertTrue(nightTable.x + nightTable.width <= trash.x + 0.01f)
+    }
+
+    @Test
+    fun communicatorAppsAreRecognisedForTheNightTablePhone() {
+        assertTrue(RoomConfigRepository.isCommsApp("com.google.android.dialer", "com.google.android.dialer", "phone"))
+        assertTrue(RoomConfigRepository.isCommsApp("com.whatsapp", "com.whatsapp", "whatsapp"))
+        assertTrue(RoomConfigRepository.isCommsApp("org.telegram.messenger", "org.telegram.messenger", "telegram"))
+        assertTrue(RoomConfigRepository.isCommsApp("org.thoughtcrime.securesms", "org.thoughtcrime.securesms", "signal"))
+        assertTrue(RoomConfigRepository.isCommsApp("com.google.android.apps.messaging", "com.google.android.apps.messaging", "messages"))
+        assertFalse(RoomConfigRepository.isCommsApp("com.google.android.inputmethod.latin", "com.google.android.inputmethod.latin", "gboard"))
+        assertFalse(RoomConfigRepository.isCommsApp("com.netflix.mediaclient", "com.netflix.mediaclient", "netflix"))
+    }
+
+    @Test
+    fun existingBedroomIsUpgradedWithNightTableOnce() {
+        val legacyBedroom = RoomConfigRepository.createDefaultHotspots()
+            .filterNot { it.visualType == RoomObjectVisual.NIGHTSTAND }
+            .map { hotspot ->
+                if (hotspot.visualType == RoomObjectVisual.TRASH_CAN) {
+                    hotspot.copy(x = 0.70f, y = 0.695f, width = 0.23f, height = 0.15f)
+                } else {
+                    hotspot
+                }
+            }
+        val legacyConfig = RoomConfigRepository.syncLegacyHotspots(
+            RoomConfigRepository.createDefaultRoomConfig().copy(
+                rooms = listOf(
+                    RoomPage(
+                        id = RoomConfigRepository.ROOM_ID_BEDROOM,
+                        name = "Bedroom",
+                        type = RoomType.BEDROOM,
+                        hotspots = legacyBedroom
+                    )
+                ),
+                hotspots = legacyBedroom,
+                autoPopulated = true,
+                multiRoomAutoPopulated = true
+            )
+        )
+        val apps = listOf(
+            AppInfo(packageName = "com.google.android.dialer", label = "Phone"),
+            AppInfo(packageName = "com.whatsapp", label = "WhatsApp"),
+            AppInfo(packageName = "com.netflix.mediaclient", label = "Netflix")
+        )
+
+        val upgraded = RoomConfigRepository.migrateBedroomFurniture(legacyConfig, apps)
+        assertTrue(upgraded.bedroomFurnitureMigrated)
+        val migratedBedroom = upgraded.effectiveRooms.first()
+        val nightTable = migratedBedroom.hotspots.first { it.visualType == RoomObjectVisual.NIGHTSTAND }
+        assertTrue(nightTable.packages.contains("com.google.android.dialer"))
+        assertTrue(nightTable.packages.contains("com.whatsapp"))
+        assertFalse(nightTable.packages.contains("com.netflix.mediaclient"))
+        val trash = migratedBedroom.hotspots.first { it.visualType == RoomObjectVisual.TRASH_CAN }
+        assertEquals(0.12f, trash.width, 0.001f)
+
+        // Idempotent: running the furniture pass again must not add a second night table
+        val again = RoomConfigRepository.migrateBedroomFurniture(upgraded, apps)
+        assertEquals(1, again.effectiveRooms.first().hotspots.count {
+            it.visualType == RoomObjectVisual.NIGHTSTAND
+        })
     }
 
     @Test

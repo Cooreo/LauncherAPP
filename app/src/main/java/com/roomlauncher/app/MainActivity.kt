@@ -238,6 +238,9 @@ private fun RoomLauncherRoot(
                 onPickFramePhoto = viewModel::setFramePhoto,
                 onClearFramePhoto = viewModel::clearFramePhoto,
                 onResetLayout = viewModel::resetRoomLayout,
+                onAcknowledgeLayoutUpdate = viewModel::acknowledgeLayoutUpdateNotice,
+                onToggleCallReactions = viewModel::setCallReactionsEnabled,
+                onRefreshCallMonitor = viewModel::refreshCallMonitor,
                 onReopenOnboarding = viewModel::reopenOnboarding,
                 onExportBackup = viewModel::exportRoomBackup,
                 onImportBackup = viewModel::importRoomBackup

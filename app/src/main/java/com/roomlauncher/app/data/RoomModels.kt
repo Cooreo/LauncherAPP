@@ -21,7 +21,7 @@ enum class RoomType(
     val displayName: String,
     val description: String
 ) {
-    BEDROOM("Bedroom", "Cozy home base — TV, Console, Shelf, Bed & Trash Can"),
+    BEDROOM("Bedroom", "Cozy home base — TV, Console, Shelf, Bed, Night Table phone & Trash Can"),
     LIVING_ROOM("Living Room", "Lounge & social — Sofa, Fireplace, Vinyl Hi-Fi & Coffee Table"),
     KITCHEN("Kitchen", "Daily essentials — Fridge, Espresso, Stove & Pantry Counter"),
     GAMING_ROOM("Gaming Room", "RGB battle station — Gaming PC, Arcade, Stream Desk & Trophies")
@@ -36,6 +36,7 @@ enum class RoomObjectVisual(val displayName: String) {
     PAINTING("Picture Frame"),
     TRASH_CAN("Trash Can"),
     BED("Bed"),
+    NIGHTSTAND("Night Table"),
     CLOCK("Wall Clock"),
     WINDOW("Window"),
     STICKY_NOTE("Sticky Note"),
@@ -115,6 +116,12 @@ data class RoomConfig(
     val dynamicThemeEnabled: Boolean = false,
     val useQuickAnimations: Boolean = false,
     val chargingAnimationEnabled: Boolean = true,
+    /** Night Table phone lights up, shakes & shows an answer screen when a call comes in */
+    val callReactionsEnabled: Boolean = true,
+    /** One-time popup that explains the v3.2.4 Bedroom furniture update (Night Table, smaller Trash Can) */
+    val layoutUpdateNoticeAcknowledged: Boolean = false,
+    /** True once an existing Bedroom was upgraded with the Night Table & smaller Trash Can */
+    val bedroomFurnitureMigrated: Boolean = false,
     val chargingAnimationStyle: ChargingAnimationStyle = ChargingAnimationStyle.MATCH_ROOM,
     val musicVisualizerEnabled: Boolean = true,
     val musicVisualizerStyle: VisualizerStyle = VisualizerStyle.SPECTRUM_BARS,

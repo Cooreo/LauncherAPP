@@ -46,7 +46,9 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Add
 import androidx.compose.material.icons.rounded.Check
 import androidx.compose.material.icons.rounded.KeyboardArrowUp
+import androidx.compose.material.icons.rounded.PhoneInTalk
 import androidx.compose.material.icons.rounded.Refresh
+import androidx.compose.material.icons.rounded.RestartAlt
 import androidx.compose.material.icons.rounded.Settings
 import androidx.compose.material.icons.rounded.ZoomOutMap
 import androidx.compose.material3.AlertDialog
@@ -195,6 +197,9 @@ fun RoomScreen(
     onPickFramePhoto: (Uri) -> Unit,
     onClearFramePhoto: () -> Unit,
     onResetLayout: () -> Unit,
+    onAcknowledgeLayoutUpdate: () -> Unit,
+    onToggleCallReactions: (Boolean) -> Unit,
+    onRefreshCallMonitor: () -> Unit,
     onReopenOnboarding: () -> Unit,
     onExportBackup: (Uri) -> Unit,
     onImportBackup: (Uri) -> Unit
@@ -463,6 +468,11 @@ fun RoomScreen(
                                     weatherEnabled = uiState.config.weatherEnabled,
                                     frameImageBitmap = uiState.frameImageBitmap,
                                     currentMinutesOfDay = currentMinutesOfDay,
+                                    callPhase = if (uiState.config.callReactionsEnabled) {
+                                        uiState.callPhase
+                                    } else {
+                                        com.roomlauncher.app.data.CallPhase.IDLE
+                                    },
                                     modifier = Modifier.fillMaxSize()
                                 )
                             }
@@ -799,6 +809,8 @@ fun RoomScreen(
                     onCloseSettings()
                     showResetConfirm = true
                 },
+                onToggleCallReactions = onToggleCallReactions,
+                onRefreshCallMonitor = onRefreshCallMonitor,
                 onDismiss = onCloseSettings
             )
         }
@@ -856,13 +868,39 @@ fun RoomScreen(
         )
     }
 
-    // Confirm Reset Layout Dialog
+    // Popup shown BEFORE any layout change: tells the user exactly what will be rebuilt
     if (showResetConfirm) {
         AlertDialog(
             onDismissRequest = { showResetConfirm = false },
-            title = { Text("Reset House Layout?") },
+            icon = {
+                Icon(
+                    imageVector = Icons.Rounded.RestartAlt,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.primary
+                )
+            },
+            title = { Text("Change the house layout?") },
             text = {
-                Text("This restores all default rooms (Bedroom, Living Room, Kitchen, Gaming Room) and their default furniture positions.")
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text(
+                        text = "Resetting rebuilds every room (Bedroom, Living Room, Kitchen & Gaming Room) from its original preset layout:",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurface
+                    )
+                    Text(
+                        text = "• Objects return to their default positions and sizes\n" +
+                            "• Extra objects you added are removed\n" +
+                            "• Apps assigned to those objects are unassigned\n" +
+                            "• The Night Table phone returns with just your communicator apps",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    Text(
+                        text = "Kept safe: room style, colours, wallpapers, framed photos, charging animation and installed apps. This cannot be undone.",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.primary
+                    )
+                }
             },
             confirmButton = {
                 Button(
@@ -871,12 +909,56 @@ fun RoomScreen(
                         onResetLayout()
                     }
                 ) {
-                    Text("Reset")
+                    Text("Reset Layout")
                 }
             },
             dismissButton = {
                 TextButton(onClick = { showResetConfirm = false }) {
-                    Text("Cancel")
+                    Text("Keep My Layout")
+                }
+            }
+        )
+    }
+
+    // One-time popup announcing the automatic Bedroom layout update (Night Table + smaller Trash Can)
+    if (uiState.config.bedroomFurnitureMigrated &&
+        !uiState.config.layoutUpdateNoticeAcknowledged &&
+        uiState.config.onboardingCompleted
+    ) {
+        AlertDialog(
+            onDismissRequest = onAcknowledgeLayoutUpdate,
+            icon = {
+                Icon(
+                    imageVector = Icons.Rounded.PhoneInTalk,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.primary
+                )
+            },
+            title = { Text("Bedroom layout updated") },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text(
+                        text = "Your Bedroom has a fresh set of furniture — nothing else was touched:",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurface
+                    )
+                    Text(
+                        text = "• New Night Table next to the bed, holding a phone with all your communicator apps (dialer, SMS, WhatsApp, Telegram, Signal, Discord…)\n" +
+                            "• The phone lights up, shakes and shows answer / decline buttons when a call comes in\n" +
+                            "• The Trash Can is now smaller and tucked into the corner",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    Text(
+                        text = "Tap the Night Table to open Google Phone, Messages, WhatsApp, Telegram, Signal, Discord and every other communicator you have installed. You can move, resize or remove it in Edit Mode.",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.primary
+                    )
+                }
+            },
+            confirmButton = {
+                Button(onClick = onAcknowledgeLayoutUpdate) {
+                    Text("Got it")
                 }
             }
         )

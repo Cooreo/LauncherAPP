@@ -17,6 +17,8 @@ import com.roomlauncher.app.data.AppUpdateUiState
 import com.roomlauncher.app.data.AudioVisualizerEngine
 import com.roomlauncher.app.data.BatteryMonitor
 import com.roomlauncher.app.data.BatteryStatus
+import com.roomlauncher.app.data.CallMonitor
+import com.roomlauncher.app.data.CallPhase
 import com.roomlauncher.app.data.ChangelogData
 import com.roomlauncher.app.data.HotspotActionType
 import com.roomlauncher.app.data.LyricsRepository
@@ -70,6 +72,9 @@ data class RoomUiState(
     val defaultUnsortedLabel: String = "Trash Can",
     val weatherState: WeatherState = WeatherState(),
     val batteryStatus: BatteryStatus = BatteryStatus(),
+    /** Live call phase (IDLE / RINGING / ONGOING) used by the Night Table phone */
+    val callPhase: CallPhase = CallPhase.IDLE,
+    val hasCallStatePermission: Boolean = false,
     val activeChargingSplashKey: Long = 0L,
     val nowPlaying: NowPlayingState = NowPlayingState(),
     val lyricsState: LyricsState = LyricsState.Idle,
@@ -139,6 +144,7 @@ class RoomLauncherViewModel(application: Application) : AndroidViewModel(applica
     private val appRepository = AppRepository(appContext, viewModelScope)
     private val weatherRepository = WeatherRepository(appContext)
     private val batteryMonitor = BatteryMonitor(appContext)
+    private val callMonitor = CallMonitor(appContext)
     private val musicMediaMonitor = MusicMediaMonitor(appContext)
     private val lyricsRepository = LyricsRepository()
     private val audioVisualizerEngine = AudioVisualizerEngine(appContext)
@@ -160,6 +166,7 @@ class RoomLauncherViewModel(application: Application) : AndroidViewModel(applica
 
     init {
         batteryMonitor.start()
+        callMonitor.startOrRefresh()
         musicMediaMonitor.startOrRefresh()
         val installedFingerprint = AppUpdateInstaller.getInstalledShortFingerprint(appContext)
         _uiState.update { state ->
@@ -251,6 +258,11 @@ class RoomLauncherViewModel(application: Application) : AndroidViewModel(applica
             }
         }
         viewModelScope.launch {
+            callMonitor.phase.collect { phase ->
+                _uiState.update { state -> state.copy(callPhase = phase) }
+            }
+        }
+        viewModelScope.launch {
             batteryMonitor.status.collect { status ->
                 val triggerSplash = status.plugInEventId > lastObservedPlugInId &&
                     _uiState.value.config.chargingAnimationEnabled &&
@@ -269,6 +281,7 @@ class RoomLauncherViewModel(application: Application) : AndroidViewModel(applica
             }
         }
 
+        _uiState.update { state -> state.copy(hasCallStatePermission = callMonitor.hasPermission()) }
         viewModelScope.launch {
             val loadedConfig = configRepository.loadConfig()
             val frameBmp = loadFrameBitmap(loadedConfig.framePhotoPath)
@@ -320,12 +333,16 @@ class RoomLauncherViewModel(application: Application) : AndroidViewModel(applica
 
             appRepository.installedApps.collect { apps ->
                 val current = _uiState.value.config
-                val populated = if ((!current.autoPopulated || !current.multiRoomAutoPopulated) && apps.isNotEmpty()) {
-                    RoomConfigRepository.autoPopulateIfNeeded(current, apps).also { updated ->
-                        configRepository.saveConfig(updated)
-                    }
+                // Furniture pass: always runs so existing bedrooms gain the Night Table phone
+                val furnished = RoomConfigRepository.migrateBedroomFurniture(current, apps)
+                val needsPopulation = (!furnished.autoPopulated || !furnished.multiRoomAutoPopulated) && apps.isNotEmpty()
+                val populated = if (needsPopulation) {
+                    RoomConfigRepository.autoPopulateIfNeeded(furnished, apps)
                 } else {
-                    current
+                    furnished
+                }
+                if (populated != current) {
+                    configRepository.saveConfig(populated)
                 }
                 _uiState.update {
                     it.copy(
@@ -348,6 +365,7 @@ class RoomLauncherViewModel(application: Application) : AndroidViewModel(applica
         musicMediaMonitor.stop()
         appRepository.stopListening()
         batteryMonitor.stop()
+        callMonitor.stop()
         super.onCleared()
     }
 
@@ -355,6 +373,9 @@ class RoomLauncherViewModel(application: Application) : AndroidViewModel(applica
         isAppInForeground = inForeground
         if (inForeground) {
             musicMediaMonitor.startOrRefresh()
+            if (_uiState.value.config.callReactionsEnabled) {
+                callMonitor.startOrRefresh()
+            }
         }
         syncAudioVisualizerState()
     }
@@ -833,6 +854,45 @@ class RoomLauncherViewModel(application: Application) : AndroidViewModel(applica
 
     fun setMusicVisualizerStyle(style: VisualizerStyle) {
         updateConfig { it.copy(musicVisualizerStyle = style) }
+    }
+
+    /** Dismisses the one-time "Bedroom layout updated" popup. */
+    fun acknowledgeLayoutUpdateNotice() {
+        updateConfig { it.copy(layoutUpdateNoticeAcknowledged = true) }
+    }
+
+    /** Enables/disables the Night Table phone reacting to incoming calls. */
+    fun setCallReactionsEnabled(enabled: Boolean) {
+        updateConfig { it.copy(callReactionsEnabled = enabled) }
+        if (enabled) {
+            callMonitor.startOrRefresh()
+        } else {
+            callMonitor.stop()
+        }
+        _uiState.update { state ->
+            state.copy(
+                hasCallStatePermission = callMonitor.hasPermission(),
+                callPhase = if (enabled) callMonitor.phase.value else CallPhase.IDLE
+            )
+        }
+    }
+
+    /**
+     * Called after the user grants (or revokes) the phone-state permission, so the call listener
+     * re-registers without needing an app restart.
+     */
+    fun refreshCallMonitor() {
+        if (_uiState.value.config.callReactionsEnabled) {
+            callMonitor.startOrRefresh()
+        } else {
+            callMonitor.stop()
+        }
+        _uiState.update { state ->
+            state.copy(
+                hasCallStatePermission = callMonitor.hasPermission(),
+                callPhase = if (callMonitor.hasPermission()) callMonitor.phase.value else CallPhase.IDLE
+            )
+        }
     }
 
     fun setMusicDefaultMode(mode: MusicDisplayMode) {
@@ -1656,6 +1716,9 @@ class RoomLauncherViewModel(application: Application) : AndroidViewModel(applica
             useQuickAnimations = current.useQuickAnimations,
             chargingAnimationEnabled = current.chargingAnimationEnabled,
             chargingAnimationStyle = current.chargingAnimationStyle,
+            callReactionsEnabled = current.callReactionsEnabled,
+            layoutUpdateNoticeAcknowledged = current.layoutUpdateNoticeAcknowledged,
+            bedroomFurnitureMigrated = current.bedroomFurnitureMigrated,
             musicVisualizerEnabled = current.musicVisualizerEnabled,
             musicVisualizerStyle = current.musicVisualizerStyle,
             musicDefaultMode = current.musicDefaultMode,
