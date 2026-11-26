@@ -2725,8 +2725,6 @@ private fun DrawScope.drawNightstand(
     val w = size.width
     val h = size.height
     val tableTopY = h * 0.52f
-    val isRinging = callPhase == CallPhase.RINGING
-    val isOnCall = callPhase == CallPhase.ONGOING
 
     val woodTop = palette.woodLight
     val woodBody = palette.woodMid
@@ -2789,315 +2787,403 @@ private fun DrawScope.drawNightstand(
         strokeWidth = maxOf(1f, h * 0.008f)
     )
 
-    // ---- Bedside lamp with a warm, fully lit glow ----
-    val lampX = w * 0.235f
-    val shadeTop = h * 0.135f
+    // ---- Big bedside lamp: tall stem, wide shade and a generous warm glow ----
+    val lampX = w * 0.245f
+    val lampBaseY = tableTopY - h * 0.045f
+    val shadeTop = h * 0.055f
     val shadeBottom = h * 0.275f
+    val shadeHalfTop = w * 0.095f
+    val shadeHalfBottom = w * 0.185f
     val lampGlow = Offset(lampX, shadeBottom + h * 0.02f)
+    // Wide ambient halo filling the corner of the room
     drawCircle(
         brush = Brush.radialGradient(
             colors = listOf(
-                Color(0xFFFFE9A8).copy(alpha = if (palette.isDark) 0.70f else 0.52f),
-                Color(0xFFFFC46B).copy(alpha = if (palette.isDark) 0.26f else 0.16f),
+                Color(0xFFFFE9A8).copy(alpha = if (palette.isDark) 0.78f else 0.60f),
+                Color(0xFFFFC46B).copy(alpha = if (palette.isDark) 0.34f else 0.22f),
                 Color.Transparent
             ),
             center = lampGlow,
-            radius = w * 0.42f
+            radius = w * 0.78f
         ),
-        radius = w * 0.42f,
+        radius = w * 0.78f,
         center = lampGlow
     )
-    // Light pool on the tabletop
+    // Warm light pool spreading across the tabletop
     drawOval(
         brush = Brush.radialGradient(
-            colors = listOf(Color(0xFFFFE3A0).copy(alpha = 0.45f), Color.Transparent),
-            center = Offset(lampX, tableTopY - h * 0.045f),
-            radius = w * 0.34f
+            colors = listOf(
+                Color(0xFFFFE3A0).copy(alpha = 0.58f),
+                Color(0xFFFFD07A).copy(alpha = 0.22f),
+                Color.Transparent
+            ),
+            center = Offset(lampX, lampBaseY),
+            radius = w * 0.62f
         ),
-        topLeft = Offset(lampX - w * 0.34f, tableTopY - h * 0.075f),
-        size = Size(w * 0.68f, h * 0.075f)
+        topLeft = Offset(lampX - w * 0.62f, lampBaseY - h * 0.10f),
+        size = Size(w * 1.24f, h * 0.13f)
     )
-    // Lamp base + stem
+    // Chunky ceramic base + brushed stem
     drawOval(
         color = woodShade,
-        topLeft = Offset(lampX - w * 0.085f, tableTopY - h * 0.085f),
-        size = Size(w * 0.17f, h * 0.05f)
+        topLeft = Offset(lampX - w * 0.125f, lampBaseY - h * 0.085f),
+        size = Size(w * 0.25f, h * 0.085f)
+    )
+    drawOval(
+        color = palette.clockAccent.copy(alpha = 0.45f),
+        topLeft = Offset(lampX - w * 0.095f, lampBaseY - h * 0.10f),
+        size = Size(w * 0.19f, h * 0.06f)
     )
     drawRoundRect(
-        color = palette.clockAccent.copy(alpha = 0.70f),
-        topLeft = Offset(lampX - w * 0.011f, shadeBottom),
-        size = Size(w * 0.022f, tableTopY - shadeBottom - h * 0.055f),
-        cornerRadius = CornerRadius(w * 0.010f, w * 0.010f)
+        color = palette.clockAccent.copy(alpha = 0.80f),
+        topLeft = Offset(lampX - w * 0.020f, shadeBottom - h * 0.005f),
+        size = Size(w * 0.040f, lampBaseY - shadeBottom - h * 0.05f),
+        cornerRadius = CornerRadius(w * 0.018f, w * 0.018f)
     )
-    // Lampshade with glowing warm interior
+    // Glowing bulb peeking under the shade
+    drawCircle(
+        brush = Brush.radialGradient(
+            colors = listOf(Color(0xFFFFFDF0), Color(0xFFFFE08A), Color.Transparent),
+            center = Offset(lampX, shadeBottom + h * 0.010f),
+            radius = w * 0.12f
+        ),
+        radius = w * 0.12f,
+        center = Offset(lampX, shadeBottom + h * 0.010f)
+    )
+    drawCircle(Color(0xFFFFFBE8), radius = w * 0.045f, center = Offset(lampX, shadeBottom + h * 0.006f))
+    // Trapezoid lampshade with a warm gradient interior
     val shade = Path().apply {
-        moveTo(lampX - w * 0.075f, shadeTop)
-        lineTo(lampX + w * 0.075f, shadeTop)
-        lineTo(lampX + w * 0.115f, shadeBottom)
-        lineTo(lampX - w * 0.115f, shadeBottom)
+        moveTo(lampX - shadeHalfTop, shadeTop)
+        lineTo(lampX + shadeHalfTop, shadeTop)
+        lineTo(lampX + shadeHalfBottom, shadeBottom)
+        lineTo(lampX - shadeHalfBottom, shadeBottom)
         close()
     }
     drawPath(
         path = shade,
         brush = Brush.verticalGradient(
-            colors = listOf(Color(0xFFFFF4D6), Color(0xFFFFD98F), Color(0xFFFFB74D)),
+            colors = listOf(Color(0xFFFFF6DE), Color(0xFFFFD98F), Color(0xFFFFB74D)),
             startY = shadeTop,
             endY = shadeBottom
         )
     )
-    drawPath(shade, Color(0x88FFB74D), style = Stroke(width = maxOf(1f, w * 0.008f)))
+    drawPath(shade, Color(0x99FFA726), style = Stroke(width = maxOf(1.2f, w * 0.010f)))
+    // Fabric ribs on the shade
+    listOf(0.30f, 0.55f, 0.80f).forEach { fraction ->
+        val ry = shadeTop + (shadeBottom - shadeTop) * fraction
+        val halfW = shadeHalfTop + (shadeHalfBottom - shadeHalfTop) * fraction
+        drawLine(
+            color = Color(0x33B26A00),
+            start = Offset(lampX - halfW * 0.94f, ry),
+            end = Offset(lampX + halfW * 0.94f, ry),
+            strokeWidth = maxOf(1f, h * 0.005f)
+        )
+    }
+    // Bright bottom rim
     drawLine(
         color = Color(0xFFFFFBE8),
-        start = Offset(lampX - w * 0.108f, shadeBottom - h * 0.006f),
-        end = Offset(lampX + w * 0.108f, shadeBottom - h * 0.006f),
-        strokeWidth = maxOf(1.5f, h * 0.012f)
+        start = Offset(lampX - shadeHalfBottom, shadeBottom),
+        end = Offset(lampX + shadeHalfBottom, shadeBottom),
+        strokeWidth = maxOf(2f, h * 0.016f)
+    )
+    drawRoundRect(
+        color = woodShade,
+        topLeft = Offset(lampX - shadeHalfTop * 0.9f, shadeTop - h * 0.030f),
+        size = Size(shadeHalfTop * 1.8f, h * 0.030f),
+        cornerRadius = CornerRadius(h * 0.014f, h * 0.014f)
     )
 
-    // ---- The communicator phone ----
-    val phoneCx = w * 0.645f
-    val phoneW = w * 0.285f
-    val phoneTop = h * 0.085f
-    val phoneBottom = tableTopY - h * 0.045f
-    val phoneH = phoneBottom - phoneTop
-    val phoneCenter = Offset(phoneCx, (phoneTop + phoneBottom) / 2f)
+    // ---- Classic retro telephone (handset, keypad, coiled cord) ----
+    drawClassicTelephone(
+        palette = palette,
+        callPhase = callPhase,
+        shake = shake,
+        ring = ring,
+        left = w * 0.42f,
+        right = w * 1.00f,
+        baseBottomY = tableTopY - h * 0.045f
+    )
+}
+
+/**
+ * Classic desk telephone — glossy shell, resting handset, 3×4 keypad, lit display and a
+ * coiled cord trailing off the table. Rings (wobble + sound arcs + pulsing halo) when a
+ * call comes in and glows green with a waveform while the call is connected.
+ */
+private fun DrawScope.drawClassicTelephone(
+    palette: RoomVisualPalette,
+    callPhase: CallPhase,
+    shake: Float,
+    ring: Float,
+    left: Float,
+    right: Float,
+    baseBottomY: Float
+) {
+    val isRinging = callPhase == CallPhase.RINGING
+    val isOnCall = callPhase == CallPhase.ONGOING
     val activeColor = when {
         isRinging -> Color(0xFF4FD8FF)
         isOnCall -> Color(0xFF4ADE80)
         else -> palette.consoleAccent
     }
 
-    // Ambient glow spilling out of the screen (strong & pulsing while ringing)
-    val glowStrength = when {
-        isRinging -> 0.62f + 0.20f * ring
-        isOnCall -> 0.40f
-        else -> 0.18f
+    val bodyWidth = right - left
+    val bodyHeight = bodyWidth * 0.44f
+    val bodyTop = baseBottomY - bodyHeight
+    val cx = (left + right) / 2f
+    val handsetHeight = bodyHeight * 0.78f
+    val phoneCenter = Offset(cx, bodyTop - handsetHeight * 0.35f)
+
+    // Halo spilling from the phone (pulses while ringing)
+    val haloStrength = when {
+        isRinging -> 0.55f + 0.22f * ring
+        isOnCall -> 0.38f
+        else -> 0.16f
     }
+    val haloRadius = bodyWidth * (if (isRinging) 0.95f + 0.10f * ring else 0.72f)
     drawCircle(
         brush = Brush.radialGradient(
             colors = listOf(
-                activeColor.copy(alpha = glowStrength),
-                activeColor.copy(alpha = glowStrength * 0.35f),
+                activeColor.copy(alpha = haloStrength),
+                activeColor.copy(alpha = haloStrength * 0.35f),
                 Color.Transparent
             ),
             center = phoneCenter,
-            radius = phoneH * 0.95f
+            radius = haloRadius
         ),
-        radius = phoneH * 0.95f,
+        radius = haloRadius,
         center = phoneCenter
     )
 
-    // Expanding light rings while the phone rings
+    // Expanding "brrring" rings while it rings
     if (isRinging) {
         repeat(2) { index ->
             val t = ((ring + index * 0.5f) % 1f)
-            val ringRadius = phoneH * (0.45f + t * 0.75f)
             drawCircle(
-                color = activeColor.copy(alpha = (1f - t) * 0.40f),
-                radius = ringRadius,
+                color = activeColor.copy(alpha = (1f - t) * 0.38f),
+                radius = bodyWidth * (0.42f + t * 0.60f),
                 center = phoneCenter,
-                style = Stroke(width = maxOf(1.5f, phoneH * 0.035f * (1f - t * 0.6f)))
+                style = Stroke(width = maxOf(1.2f, bodyWidth * 0.030f * (1f - t * 0.6f)))
             )
         }
     }
 
-    // Small charging/display stand behind the phone
-    val stand = Path().apply {
-        moveTo(phoneCx - w * 0.10f, phoneBottom)
-        lineTo(phoneCx + w * 0.10f, phoneBottom)
-        lineTo(phoneCx + w * 0.06f, phoneBottom + h * 0.045f)
-        lineTo(phoneCx - w * 0.06f, phoneBottom + h * 0.045f)
-        close()
-    }
-    drawPath(stand, woodShade)
-
-    // Body wobbles like a vibrating phone while ringing
-    val wobble = if (isRinging) (shake - 0.5f) * 11f else 0f
+    // The whole set rattles on its feet while ringing
+    val wobble = if (isRinging) (shake - 0.5f) * 10f else 0f
     rotate(degrees = wobble, pivot = phoneCenter) {
-        // Chassis
-        drawRoundRect(
-            color = Color(0xFF0B1119),
-            topLeft = Offset(phoneCx - phoneW / 2f, phoneTop),
-            size = Size(phoneW, phoneH),
-            cornerRadius = CornerRadius(w * 0.055f, w * 0.055f)
-        )
-        drawRoundRect(
-            color = activeColor.copy(alpha = if (isRinging) 0.95f else 0.55f),
-            topLeft = Offset(phoneCx - phoneW / 2f, phoneTop),
-            size = Size(phoneW, phoneH),
-            cornerRadius = CornerRadius(w * 0.055f, w * 0.055f),
-            style = Stroke(width = maxOf(1.5f, w * 0.012f))
-        )
-        // Screen
-        val screenLeft = phoneCx - phoneW / 2f + phoneW * 0.085f
-        val screenTop = phoneTop + phoneH * 0.055f
-        val screenW = phoneW * 0.83f
-        val screenH = phoneH * 0.89f
-        drawRoundRect(
-            brush = if (isRinging) {
-                Brush.verticalGradient(
-                    colors = listOf(Color(0xFF123A52), Color(0xFF0A2036)),
-                    startY = screenTop,
-                    endY = screenTop + screenH
-                )
-            } else if (isOnCall) {
-                Brush.verticalGradient(
-                    colors = listOf(Color(0xFF0C2E22), Color(0xFF071A14)),
-                    startY = screenTop,
-                    endY = screenTop + screenH
-                )
-            } else {
-                Brush.verticalGradient(
-                    colors = listOf(Color(0xFF141E2C), Color(0xFF0A111B)),
-                    startY = screenTop,
-                    endY = screenTop + screenH
-                )
-            },
-            topLeft = Offset(screenLeft, screenTop),
-            size = Size(screenW, screenH),
-            cornerRadius = CornerRadius(w * 0.035f, w * 0.035f)
-        )
 
-        val screenCx = screenLeft + screenW / 2f
-        if (isRinging || isOnCall) {
-            // Caller avatar (generic silhouette — no private data leaves the device)
-            val avatarCenter = Offset(screenCx, screenTop + screenH * 0.27f)
-            drawCircle(
-                color = Color.White.copy(alpha = 0.92f),
-                radius = screenW * 0.20f,
-                center = avatarCenter
-            )
-            drawCircle(
-                color = Color(0xFF16324A),
-                radius = screenW * 0.085f,
-                center = Offset(avatarCenter.x, avatarCenter.y - screenW * 0.035f)
-            )
-            val shoulders = Path().apply {
-                moveTo(avatarCenter.x - screenW * 0.145f, avatarCenter.y + screenW * 0.165f)
-                quadraticTo(avatarCenter.x, avatarCenter.y + screenW * 0.015f, avatarCenter.x + screenW * 0.145f, avatarCenter.y + screenW * 0.165f)
-                close()
+        // Coiled cord looping from the shell down onto the tabletop
+        val cordStart = Offset(right - bodyWidth * 0.06f, bodyTop + bodyHeight * 0.55f)
+        val cordPath = Path().apply {
+            moveTo(cordStart.x, cordStart.y)
+            var py = cordStart.y
+            var px = cordStart.x
+            repeat(6) { loop ->
+                val nextX = px - bodyWidth * (0.055f + 0.012f * loop)
+                val nextY = py + bodyHeight * 0.16f
+                quadraticTo(px - bodyWidth * 0.075f, py + bodyHeight * 0.08f, nextX, nextY)
+                quadraticTo(px - bodyWidth * 0.020f, py + bodyHeight * 0.09f, nextX, nextY + bodyHeight * 0.02f)
+                px = nextX
+                py = nextY + bodyHeight * 0.02f
             }
-            drawPath(shoulders, Color(0xFF16324A))
-            // "Caller" filler bars (looks like a name / number without any real text)
-            drawRoundRect(
-                color = Color.White.copy(alpha = 0.85f),
-                topLeft = Offset(screenCx - screenW * 0.24f, screenTop + screenH * 0.50f),
-                size = Size(screenW * 0.48f, screenH * 0.030f),
-                cornerRadius = CornerRadius(screenH * 0.015f, screenH * 0.015f)
-            )
-            drawRoundRect(
-                color = Color.White.copy(alpha = 0.45f),
-                topLeft = Offset(screenCx - screenW * 0.16f, screenTop + screenH * 0.555f),
-                size = Size(screenW * 0.32f, screenH * 0.022f),
-                cornerRadius = CornerRadius(screenH * 0.011f, screenH * 0.011f)
-            )
+        }
+        drawPath(
+            path = cordPath,
+            color = Color(0xFF2B3440),
+            style = Stroke(width = maxOf(1.5f, bodyHeight * 0.075f), cap = StrokeCap.Round)
+        )
+        drawPath(
+            path = cordPath,
+            color = Color.White.copy(alpha = 0.18f),
+            style = Stroke(width = maxOf(1f, bodyHeight * 0.028f), cap = StrokeCap.Round)
+        )
 
-            if (isRinging) {
-                // Answer (green) & decline (red) buttons bounce with the ring pulse
-                val buttonR = screenW * 0.155f * (1f + 0.08f * (1f - ring))
-                val buttonY = screenTop + screenH * 0.78f
-                drawCircle(Color(0xFF34D399), buttonR, Offset(screenCx - screenW * 0.235f, buttonY))
-                drawCircle(Color(0xFFF87171), buttonR, Offset(screenCx + screenW * 0.235f, buttonY))
-                drawCircle(
-                    color = Color.White.copy(alpha = 0.95f),
-                    radius = buttonR * 0.45f,
-                    center = Offset(screenCx - screenW * 0.235f, buttonY)
-                )
-                // Small handset / cross glyphs
-                drawLine(
-                    color = Color(0xFF0B1119),
-                    start = Offset(screenCx + screenW * 0.235f - buttonR * 0.35f, buttonY - buttonR * 0.35f),
-                    end = Offset(screenCx + screenW * 0.235f + buttonR * 0.35f, buttonY + buttonR * 0.35f),
-                    strokeWidth = maxOf(1.5f, buttonR * 0.16f),
-                    cap = StrokeCap.Round
-                )
-                drawLine(
-                    color = Color(0xFF0B1119),
-                    start = Offset(screenCx + screenW * 0.235f + buttonR * 0.35f, buttonY - buttonR * 0.35f),
-                    end = Offset(screenCx + screenW * 0.235f - buttonR * 0.35f, buttonY + buttonR * 0.35f),
-                    strokeWidth = maxOf(1.5f, buttonR * 0.16f),
-                    cap = StrokeCap.Round
-                )
-                // Slide-to-answer hint
+        // Telephone shell (slightly wider at the front like a classic desk set)
+        val shell = Path().apply {
+            moveTo(left, baseBottomY)
+            lineTo(left + bodyWidth * 0.06f, bodyTop)
+            lineTo(right - bodyWidth * 0.06f, bodyTop)
+            lineTo(right, baseBottomY)
+            close()
+        }
+        drawPath(
+            path = shell,
+            brush = Brush.verticalGradient(
+                colors = listOf(
+                    palette.woodLight,
+                    palette.woodMid,
+                    palette.woodDark
+                ),
+                startY = bodyTop,
+                endY = baseBottomY
+            )
+        )
+        drawPath(
+            shell,
+            activeColor.copy(alpha = if (isRinging) 0.85f else 0.35f),
+            style = Stroke(width = maxOf(1.2f, bodyHeight * 0.045f))
+        )
+        // Glossy top highlight
+        drawRoundRect(
+            color = Color.White.copy(alpha = 0.18f),
+            topLeft = Offset(left + bodyWidth * 0.12f, bodyTop + bodyHeight * 0.06f),
+            size = Size(bodyWidth * 0.22f, bodyHeight * 0.10f),
+            cornerRadius = CornerRadius(bodyHeight * 0.05f, bodyHeight * 0.05f)
+        )
+
+        // Lit display window above the keypad
+        val displayW = bodyWidth * 0.52f
+        val displayH = bodyHeight * 0.19f
+        val displayLeft = cx - displayW / 2f
+        val displayTop = bodyTop + bodyHeight * 0.16f
+        drawRoundRect(
+            brush = Brush.verticalGradient(
+                colors = if (isRinging) {
+                    listOf(Color(0xFF9FF0FF), Color(0xFF3FC5F2))
+                } else if (isOnCall) {
+                    listOf(Color(0xFFB9F6D0), Color(0xFF34D399))
+                } else {
+                    listOf(Color(0xFF3A4A5E), Color(0xFF223040))
+                },
+                startY = displayTop,
+                endY = displayTop + displayH
+            ),
+            topLeft = Offset(displayLeft, displayTop),
+            size = Size(displayW, displayH),
+            cornerRadius = CornerRadius(displayH * 0.28f, displayH * 0.28f)
+        )
+        if (isRinging) {
+            // Blinking "incoming" bars on the display
+            repeat(3) { i ->
                 drawRoundRect(
-                    color = Color.White.copy(alpha = 0.30f),
-                    topLeft = Offset(screenCx - screenW * 0.22f, screenTop + screenH * 0.915f),
-                    size = Size(screenW * 0.44f, screenH * 0.020f),
-                    cornerRadius = CornerRadius(screenH * 0.010f, screenH * 0.010f)
+                    color = Color(0xFF0B2536).copy(alpha = 0.75f),
+                    topLeft = Offset(
+                        displayLeft + displayW * (0.14f + i * 0.26f),
+                        displayTop + displayH * 0.32f
+                    ),
+                    size = Size(displayW * 0.16f, displayH * 0.36f),
+                    cornerRadius = CornerRadius(displayH * 0.10f, displayH * 0.10f)
                 )
-            } else {
-                // In-call: live looking waveform + call timer pill
-                val bars = 7
-                val barW = screenW * 0.055f
-                for (i in 0 until bars) {
-                    val t = ((ring + i * 0.17f) % 1f)
-                    val barH = screenH * (0.035f + 0.075f * (0.5f + 0.5f * kotlin.math.sin(t * 3.1416f)))
-                    val bx = screenCx - (bars * barW) / 2f + i * barW + barW * 0.25f
-                    drawRoundRect(
-                        color = Color(0xFF4ADE80).copy(alpha = 0.85f),
-                        topLeft = Offset(bx, screenTop + screenH * 0.72f - barH),
-                        size = Size(barW * 0.5f, barH),
-                        cornerRadius = CornerRadius(barW * 0.25f, barW * 0.25f)
-                    )
-                }
+            }
+        } else if (isOnCall) {
+            // Live-looking call waveform on the display
+            val bars = 5
+            for (i in 0 until bars) {
+                val phase = (ring + i * 0.21f) % 1f
+                val barH = displayH * (0.20f + 0.55f * kotlin.math.abs(0.5f - phase) * 2f)
+                val bx = displayLeft + displayW * 0.12f + i * (displayW * 0.16f)
                 drawRoundRect(
-                    color = Color(0xFF34D399).copy(alpha = 0.9f),
-                    topLeft = Offset(screenCx - screenW * 0.16f, screenTop + screenH * 0.855f),
-                    size = Size(screenW * 0.32f, screenH * 0.040f),
-                    cornerRadius = CornerRadius(screenH * 0.020f, screenH * 0.020f)
+                    color = Color(0xFF0B3B26).copy(alpha = 0.85f),
+                    topLeft = Offset(bx, displayTop + displayH * 0.78f - barH),
+                    size = Size(displayW * 0.09f, barH),
+                    cornerRadius = CornerRadius(displayW * 0.045f, displayW * 0.045f)
                 )
             }
         } else {
-            // Idle screen: soft clock lines + notification dots
-            drawRoundRect(
-                color = Color.White.copy(alpha = 0.75f),
-                topLeft = Offset(screenCx - screenW * 0.19f, screenTop + screenH * 0.24f),
-                size = Size(screenW * 0.38f, screenH * 0.075f),
-                cornerRadius = CornerRadius(screenH * 0.020f, screenH * 0.020f)
-            )
+            // Idle: soft clock-ish line
             drawRoundRect(
                 color = Color.White.copy(alpha = 0.35f),
-                topLeft = Offset(screenCx - screenW * 0.13f, screenTop + screenH * 0.35f),
-                size = Size(screenW * 0.26f, screenH * 0.030f),
-                cornerRadius = CornerRadius(screenH * 0.015f, screenH * 0.015f)
-            )
-            // Three pastel "notification" pills: chat, calls & a reminder
-            listOf(
-                Triple(0.58f, 0.16f, Color(0xFF34D399)),
-                Triple(0.665f, 0.32f, Color(0xFF60A5FA)),
-                Triple(0.75f, 0.22f, palette.clockAccent)
-            ).forEach { (fy, xFrac, dotColor) ->
-                drawRoundRect(
-                    color = dotColor.copy(alpha = 0.20f),
-                    topLeft = Offset(screenLeft + screenW * xFrac, screenTop + screenH * fy - screenH * 0.022f),
-                    size = Size(screenW * 0.34f, screenH * 0.044f),
-                    cornerRadius = CornerRadius(screenH * 0.022f, screenH * 0.022f)
-                )
-                drawCircle(
-                    color = dotColor.copy(alpha = 0.95f),
-                    radius = screenW * 0.038f,
-                    center = Offset(screenLeft + screenW * xFrac + screenW * 0.042f, screenTop + screenH * fy)
-                )
-                drawRoundRect(
-                    color = Color.White.copy(alpha = 0.42f),
-                    topLeft = Offset(screenLeft + screenW * xFrac + screenW * 0.10f, screenTop + screenH * fy - screenH * 0.010f),
-                    size = Size(screenW * 0.18f, screenH * 0.020f),
-                    cornerRadius = CornerRadius(screenH * 0.010f, screenH * 0.010f)
-                )
-            }
-            drawRoundRect(
-                color = Color.White.copy(alpha = 0.22f),
-                topLeft = Offset(screenCx - screenW * 0.20f, screenTop + screenH * 0.90f),
-                size = Size(screenW * 0.40f, screenH * 0.018f),
-                cornerRadius = CornerRadius(screenH * 0.009f, screenH * 0.009f)
+                topLeft = Offset(displayLeft + displayW * 0.12f, displayTop + displayH * 0.38f),
+                size = Size(displayW * 0.46f, displayH * 0.24f),
+                cornerRadius = CornerRadius(displayH * 0.12f, displayH * 0.12f)
             )
         }
-        // Front camera notch
+
+        // 3×4 push-button keypad, lit while ringing
+        val keypadTop = displayTop + displayH + bodyHeight * 0.06f
+        val keyW = bodyWidth * 0.115f
+        val keyH = bodyHeight * 0.10f
+        val gapX = bodyWidth * 0.045f
+        val gapY = bodyHeight * 0.032f
+        val keypadWidth = keyW * 3f + gapX * 2f
+        val keypadLeft = cx - keypadWidth / 2f
+        for (row in 0 until 4) {
+            for (col in 0 until 3) {
+                val keyLeft = keypadLeft + col * (keyW + gapX)
+                val keyTop = keypadTop + row * (keyH + gapY)
+                val keyColor = if (isRinging) {
+                    activeColor.copy(alpha = 0.92f)
+                } else {
+                    Color(0xFFF5EDDC).copy(alpha = 0.90f)
+                }
+                drawRoundRect(
+                    color = keyColor,
+                    topLeft = Offset(keyLeft, keyTop),
+                    size = Size(keyW, keyH),
+                    cornerRadius = CornerRadius(keyH * 0.30f, keyH * 0.30f)
+                )
+                drawRoundRect(
+                    color = Color.Black.copy(alpha = 0.16f),
+                    topLeft = Offset(keyLeft, keyTop + keyH * 0.72f),
+                    size = Size(keyW, keyH * 0.28f),
+                    cornerRadius = CornerRadius(keyH * 0.30f, keyH * 0.30f)
+                )
+            }
+        }
+
+        // Resting handset: two cups joined by a curved grip in a cradle
+        val cupW = bodyWidth * 0.22f
+        val cupH = handsetHeight * 0.86f
+        val cupY = bodyTop - cupH * 0.74f
+        listOf(left + bodyWidth * 0.17f, right - bodyWidth * 0.17f).forEach { cupCx ->
+            // Cradle shadow
+            drawOval(
+                color = Color.Black.copy(alpha = 0.22f),
+                topLeft = Offset(cupCx - cupW * 0.62f, cupY + cupH * 0.78f),
+                size = Size(cupW * 1.24f, cupH * 0.34f)
+            )
+            drawRoundRect(
+                brush = Brush.verticalGradient(
+                    colors = listOf(Color(0xFF3C4657), Color(0xFF222A36)),
+                    startY = cupY,
+                    endY = cupY + cupH
+                ),
+                topLeft = Offset(cupCx - cupW / 2f, cupY),
+                size = Size(cupW, cupH),
+                cornerRadius = CornerRadius(cupW * 0.42f, cupW * 0.42f)
+            )
+            drawRoundRect(
+                color = activeColor.copy(alpha = 0.45f),
+                topLeft = Offset(cupCx - cupW / 2f, cupY),
+                size = Size(cupW, cupH),
+                cornerRadius = CornerRadius(cupW * 0.42f, cupW * 0.42f),
+                style = Stroke(width = maxOf(1f, cupW * 0.10f))
+            )
+        }
+        // Grip bar between the cups
+        val gripLeft = left + bodyWidth * 0.17f + cupW * 0.20f
+        val gripRight = right - bodyWidth * 0.17f - cupW * 0.20f
         drawRoundRect(
-            color = Color(0xFF0B1119),
-            topLeft = Offset(screenCx - screenW * 0.11f, screenTop + screenH * 0.022f),
-            size = Size(screenW * 0.22f, screenH * 0.022f),
-            cornerRadius = CornerRadius(screenH * 0.011f, screenH * 0.011f)
+            brush = Brush.verticalGradient(
+                colors = listOf(Color(0xFF46536A), Color(0xFF242C38)),
+                startY = cupY + cupH * 0.18f,
+                endY = cupY + cupH * 0.58f
+            ),
+            topLeft = Offset(gripLeft, cupY + cupH * 0.18f),
+            size = Size(gripRight - gripLeft, cupH * 0.40f),
+            cornerRadius = CornerRadius(cupH * 0.20f, cupH * 0.20f)
         )
+
+        // Sound arcs radiating from the handset while ringing
+        if (isRinging) {
+            repeat(2) { side ->
+                val baseX = if (side == 0) left - bodyWidth * 0.02f else right + bodyWidth * 0.02f
+                val dir = if (side == 0) -1f else 1f
+                repeat(2) { index ->
+                    val t = ((ring + index * 0.5f) % 1f)
+                    val r = bodyWidth * (0.10f + 0.16f * index + 0.10f * t)
+                    drawArc(
+                        color = activeColor.copy(alpha = (1f - t) * 0.75f),
+                        startAngle = if (dir < 0) 130f else -50f,
+                        sweepAngle = 80f,
+                        useCenter = false,
+                        topLeft = Offset(baseX - r, cupY + cupH * 0.10f - r),
+                        size = Size(r * 2f, r * 2f),
+                        style = Stroke(width = maxOf(1.2f, bodyWidth * 0.022f), cap = StrokeCap.Round)
+                    )
+                }
+            }
+        }
     }
 }
 

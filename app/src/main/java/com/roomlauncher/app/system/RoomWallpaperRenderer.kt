@@ -719,15 +719,23 @@ object RoomWallpaperRenderer {
                     RectF(r.left + w * 0.17f, tableTop - h * 0.26f, r.left + w * 0.31f, tableTop - h * 0.14f),
                     3f, 3f, paint
                 )
-                // Phone on a stand
-                paint.color = 0xFF0B1119.toInt()
+                // Classic desk telephone: shell, handset + coiled cord hint
+                paint.color = p.woodLight.toArgb()
                 canvas.drawRoundRect(
-                    RectF(r.left + w * 0.52f, tableTop - h * 0.40f, r.left + w * 0.76f, tableTop - h * 0.05f),
-                    5f, 5f, paint
+                    RectF(r.left + w * 0.46f, tableTop - h * 0.30f, r.right - w * 0.02f, tableTop - h * 0.06f),
+                    4f, 4f, paint
                 )
-                paint.color = p.consoleAccent.toArgb()
+                paint.color = 0xFF2A323E.toInt()
                 canvas.drawRoundRect(
-                    RectF(r.left + w * 0.55f, tableTop - h * 0.37f, r.left + w * 0.73f, tableTop - h * 0.08f),
+                    RectF(r.left + w * 0.44f, tableTop - h * 0.42f, r.left + w * 0.60f, tableTop - h * 0.24f),
+                    4f, 4f, paint
+                )
+                canvas.drawRoundRect(
+                    RectF(r.right - w * 0.16f, tableTop - h * 0.42f, r.right, tableTop - h * 0.24f),
+                    4f, 4f, paint
+                )
+                canvas.drawRoundRect(
+                    RectF(r.left + w * 0.56f, tableTop - h * 0.38f, r.right - w * 0.12f, tableTop - h * 0.30f),
                     3f, 3f, paint
                 )
             }
